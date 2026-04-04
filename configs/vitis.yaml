@@ -1,0 +1,50 @@
+server:
+  host: "0.0.0.0"
+  port: 25565
+  max_players: 200
+  online_mode: false
+  motd: "VitisMC Server"
+  default_game_mode: "survival"
+
+network:
+  read_timeout_seconds: 30
+  write_timeout_seconds: 30
+  idle_timeout_seconds: 120
+  compression_threshold: 256
+  max_packet_size: 2097152
+  max_inbound_queue_capacity: 4096
+
+tick:
+  target_tps: 20
+  max_catch_up_ticks: 5
+
+world:
+  default_world_name: "world"
+  view_distance: 10
+  simulation_distance: 10
+  scheduler_queue_capacity: 8192
+  scheduler_drain_per_tick: 1024
+  chunk_load_workers: 4
+  chunk_worker_queue_size: 256
+  chunk_request_queue_size: 8192
+  chunk_result_queue_size: 8192
+  chunk_request_pump_batch: 256
+  chunk_completion_batch: 256
+  chunk_unload_batch: 64
+  chunk_unload_scan_batch: 512
+  chunk_unload_ttl_ticks: 600
+  chunk_storage_initial_capacity: 2048
+  chunk_unload_queue_size: 8192
+
+logging:
+  level: "info"
+  format: "console"
+  file_path: ""
+  enable_color: true
+
+performance:
+  io_worker_pool_size: 4
+  packet_worker_pool_size: 8
+  read_buffer_size: 65536
+  write_buffer_size: 65536
+  outbound_queue_size: 2048
