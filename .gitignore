@@ -1,0 +1,38 @@
+# Binaries
+vitis
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Runtime data
+world/
+logs/
+
+# Data & reference files (fetched by scripts)
+.mcdata/
+.mc-decompiled/
+.protocol_docs_1214/
+libraries/
+versions/
+
+# IDE & editor files
+*.code-workspace
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Go build cache
+/vendor/
+
+# Test output
+*.test
+*.out
+coverage.html

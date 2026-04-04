@@ -1,0 +1,9 @@
+# Tab list header and footer configuration
+# Supports Minecraft color codes (§) and placeholders:
+#   {online} - current online player count
+#   {max}    - max player count from server config
+#   {server} - server name ("Vitis")
+#   {tps}    - current TPS
+
+header: "§6§lVitis Server\n§7Welcome!"
+footer: "§7Players: §f{online}§7/§f{max} §8| §7TPS: §a{tps}"
