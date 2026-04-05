@@ -6,6 +6,7 @@ import (
 	"github.com/vitismc/vitis/internal/chat"
 	"github.com/vitismc/vitis/internal/command"
 	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/experience"
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
@@ -268,6 +269,60 @@ func (s *ServerControlAdapter) BroadcastMessage(message string) {
 	} else {
 		s.PM.Broadcast(playpacket.NewSystemChatText(message))
 	}
+}
+
+func (s *ServerControlAdapter) AddXP(entityID int32, amount int32) error {
+	if s.PM == nil {
+		return nil
+	}
+	s.PM.mu.RLock()
+	defer s.PM.mu.RUnlock()
+
+	for _, p := range s.PM.players {
+		if p.EntityID == entityID {
+			player, ok := p.Session.Player().(*entity.Player)
+			if !ok || player == nil {
+				return nil
+			}
+			living := player.Living()
+			result := experience.AddXP(living.XPLevel(), living.XPTotal(), amount)
+			living.SetXP(result.Level, result.Total, result.Bar)
+			_ = p.Session.Send(&playpacket.SetExperience{
+				ExperienceBar:   result.Bar,
+				ExperienceLevel: result.Level,
+				TotalExperience: result.Total,
+			})
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *ServerControlAdapter) SetXPLevel(entityID int32, level int32) error {
+	if s.PM == nil {
+		return nil
+	}
+	s.PM.mu.RLock()
+	defer s.PM.mu.RUnlock()
+
+	for _, p := range s.PM.players {
+		if p.EntityID == entityID {
+			player, ok := p.Session.Player().(*entity.Player)
+			if !ok || player == nil {
+				return nil
+			}
+			living := player.Living()
+			result := experience.SetLevel(level)
+			living.SetXP(result.Level, result.Total, result.Bar)
+			_ = p.Session.Send(&playpacket.SetExperience{
+				ExperienceBar:   result.Bar,
+				ExperienceLevel: result.Level,
+				TotalExperience: result.Total,
+			})
+			return nil
+		}
+	}
+	return nil
 }
 
 // Verify interface compliance.
