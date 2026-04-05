@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/command"
 	genentity "github.com/vitismc/vitis/internal/data/generated/entity"
@@ -16,6 +17,7 @@ import (
 	worldevent "github.com/vitismc/vitis/internal/data/generated/world_event"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/metadata"
+	"github.com/vitismc/vitis/internal/equipment"
 	"github.com/vitismc/vitis/internal/food"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
@@ -503,12 +505,31 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		targetY := pkt.Position.Y + dy
 		targetZ := pkt.Position.Z + dz
 
-		blockToPlace := int32(0)
+		if wa != nil {
+			existing := wa.GetBlock(int(targetX), int(targetY), int(targetZ))
+			if block.IsSolid(existing) {
+				return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
+			}
+		}
+
 		if pm != nil {
-			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+			tx, ty, tz := float64(targetX), float64(targetY), float64(targetZ)
+			for _, op := range pm.Players() {
+				px, py, pz := op.X, op.Y, op.Z
+				if px >= tx && px < tx+1 && pz >= tz && pz < tz+1 && py >= ty-1.8 && py < ty+1 {
+					return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
+				}
+			}
+		}
+
+		blockToPlace := int32(0)
+		var op *OnlinePlayer
+		if pm != nil {
+			op = pm.GetBySession(s)
+			if op != nil && op.Windows != nil {
 				held := op.Windows.HeldItem()
 				if held.ItemCount > 0 && held.ItemID > 0 {
-					blockToPlace = resolveBlockStateFromItem(held.ItemID)
+					blockToPlace = resolveDirectionalBlockState(held.ItemID, pkt.Face, op.Yaw)
 				}
 			}
 		}
@@ -523,15 +544,48 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			if err := s.Send(blockUpdate); err != nil {
 				return err
 			}
-			if pm != nil {
-				if op := pm.GetBySession(s); op != nil {
-					pm.BroadcastExcept(op.UUID, blockUpdate)
-					pm.BroadcastExcept(op.UUID, &playpacket.WorldEvent{
-						Event: worldevent.EventPARTICLESDESTROYBLOCK,
-						X:     int32(targetX),
-						Y:     int32(targetY),
-						Z:     int32(targetZ),
-						Data:  blockToPlace,
+
+			if op != nil {
+				living := func() *entity.LivingEntity {
+					if p, ok := s.Player().(*entity.Player); ok && p != nil {
+						return p.Living()
+					}
+					return nil
+				}()
+				if living != nil && living.GameMode() != 1 {
+					op.Windows.ConsumeHeldItem()
+					newHeld := op.Windows.HeldItem()
+					_ = s.Send(&playpacket.SetContainerSlot{
+						WindowID: 0,
+						StateID:  op.Windows.CurrentStateID(),
+						SlotIdx:  int16(inventory.HotbarStart + int(op.Windows.HeldSlot())),
+						SlotData: newHeld,
+					})
+				}
+
+				pm.BroadcastExcept(op.UUID, blockUpdate)
+
+				blockName := block.NameFromState(blockToPlace)
+				placeSoundName := "block.stone.place"
+				if strings.Contains(blockName, "wood") || strings.Contains(blockName, "planks") || strings.Contains(blockName, "log") {
+					placeSoundName = "block.wood.place"
+				} else if strings.Contains(blockName, "sand") || strings.Contains(blockName, "gravel") {
+					placeSoundName = "block.sand.place"
+				} else if strings.Contains(blockName, "grass") || strings.Contains(blockName, "dirt") {
+					placeSoundName = "block.grass.place"
+				} else if strings.Contains(blockName, "glass") {
+					placeSoundName = "block.glass.place"
+				}
+				soundID := gensound.SoundIDByName(placeSoundName)
+				if soundID >= 0 {
+					pm.Broadcast(&playpacket.SoundEffect{
+						SoundID:       soundID + 1,
+						SoundCategory: soundcategory.CategoryBlock,
+						X:             int32(targetX*8 + 4),
+						Y:             int32(targetY*8 + 4),
+						Z:             int32(targetZ*8 + 4),
+						Volume:        1.0,
+						Pitch:         1.0,
 					})
 				}
 			}
@@ -755,15 +809,52 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			if raw, found := ds.SessionData().Load("login_uuid"); found {
 				if uuid, ok := raw.(protocol.UUID); ok {
 					if op := pm.GetByUUID(uuid); op != nil && op.Windows != nil {
-						accepted := op.Windows.HandleClick(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, nil, inventory.EmptySlot())
-						if !accepted {
-							stateID, slots, cursor := op.Windows.SnapshotForResync(pkt.WindowID)
-							if slots != nil {
-								_ = s.Send(&playpacket.SetContainerContent{
-									WindowID: pkt.WindowID,
-									StateID:  stateID,
-									Slots:    slots,
-									Carried:  cursor,
+						isCraftOutput := pkt.WindowID == 0 && pkt.Slot == int16(inventory.CraftOutputSlot)
+						isCraftTableOutput := pkt.WindowID != 0 && pkt.Slot == 0 && op.Windows.ActiveWindow() != nil && op.Windows.ActiveWindow().Type == inventory.WindowTypeCrafting
+
+						if isCraftOutput || isCraftTableOutput {
+							outputSlot := op.Windows.GetSlot(int(pkt.Slot))
+							if !outputSlot.Empty() {
+								if isCraftOutput {
+									op.Windows.ConsumeCraftIngredients()
+								} else {
+									op.Windows.ConsumeCraftTableIngredients()
+								}
+								op.Windows.HandleClick(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, nil, inventory.EmptySlot())
+								if isCraftOutput {
+									op.Windows.UpdateCraftOutput()
+								} else {
+									op.Windows.UpdateCraftTableOutput()
+								}
+								stateID, slots, cursor := op.Windows.SnapshotForResync(pkt.WindowID)
+								if slots != nil {
+									_ = s.Send(&playpacket.SetContainerContent{
+										WindowID: pkt.WindowID,
+										StateID:  stateID,
+										Slots:    slots,
+										Carried:  cursor,
+									})
+								}
+							}
+						} else {
+							accepted := op.Windows.HandleClick(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, nil, inventory.EmptySlot())
+							if !accepted {
+								stateID, slots, cursor := op.Windows.SnapshotForResync(pkt.WindowID)
+								if slots != nil {
+									_ = s.Send(&playpacket.SetContainerContent{
+										WindowID: pkt.WindowID,
+										StateID:  stateID,
+										Slots:    slots,
+										Carried:  cursor,
+									})
+								}
+							} else if pkt.WindowID == 0 && pkt.Slot >= int16(inventory.CraftInputStart) && pkt.Slot <= int16(inventory.CraftInputEnd) {
+								craftResult := op.Windows.UpdateCraftOutput()
+								_ = s.Send(&playpacket.SetContainerSlot{
+									WindowID: 0,
+									StateID:  op.Windows.CurrentStateID(),
+									SlotIdx:  int16(inventory.CraftOutputSlot),
+									SlotData: craftResult,
 								})
 							}
 						}
@@ -997,6 +1088,16 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 
 	if err := s.Send(&playpacket.UpdateHealth{Health: 20.0, Food: 20, FoodSaturation: 5.0}); err != nil {
 		return err
+	}
+
+	{
+		ac := entity.DefaultPlayerAttributes()
+		if err := s.Send(&playpacket.EntityUpdateAttributes{
+			EntityID:   entityID,
+			Properties: ac.ToProperties(),
+		}); err != nil {
+			return err
+		}
 	}
 
 	if err := s.Send(&playpacket.UpdateTime{WorldAge: 0, TimeOfDay: 6000, TickDayTime: true}); err != nil {
@@ -1346,10 +1447,6 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		return nil
 	}
 
-	if attackerLiving.AttackCooldown() > 0 {
-		return nil
-	}
-
 	target := pm.GetByEntityID(targetEntityID)
 	if target == nil {
 		return nil
@@ -1367,10 +1464,49 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 	}
 
 	var baseDamage float32 = 1.0
+	attackerWeapon := getHeldItemName(pm, s)
+	isSword := strings.HasSuffix(attackerWeapon, "_sword")
+	var attackSpeedTicks int32 = 10
+	if wp := equipment.GetWeapon(attackerWeapon); wp != nil {
+		baseDamage = float32(wp.AttackDamage)
+		if wp.AttackSpeed > 0 {
+			attackSpeedTicks = int32(20.0 / wp.AttackSpeed)
+		}
+	}
 
-	critical := !attackerLiving.OnGround() && attackerLiving.FallDistance() > 0
+	cooldownProgress := float32(1.0)
+	if attackerLiving.AttackCooldown() > 0 {
+		elapsed := attackSpeedTicks - attackerLiving.AttackCooldown()
+		if elapsed < 0 {
+			elapsed = 0
+		}
+		cooldownProgress = float32(elapsed) / float32(attackSpeedTicks)
+		if cooldownProgress > 1 {
+			cooldownProgress = 1
+		}
+	}
+	baseDamage *= 0.2 + cooldownProgress*cooldownProgress*0.8
+
+	critical := cooldownProgress > 0.9 && !attackerLiving.OnGround() && attackerLiving.FallDistance() > 0
 	if critical {
 		baseDamage *= 1.5
+	}
+
+	var totalDefense, totalToughness float64
+	if target.Windows != nil {
+		for slot := inventory.ArmorStart; slot <= inventory.ArmorEnd; slot++ {
+			as := target.Windows.GetSlot(slot)
+			if !as.Empty() {
+				armorName := item.NameByID(as.ItemID)
+				if ap := equipment.GetArmor(armorName); ap != nil {
+					totalDefense += ap.Defense
+					totalToughness += ap.Toughness
+				}
+			}
+		}
+	}
+	if totalDefense > 0 {
+		baseDamage = float32(equipment.CalculateDamageReduction(float64(baseDamage), totalDefense, totalToughness))
 	}
 
 	actual := targetLiving.Damage(baseDamage, "player")
@@ -1378,7 +1514,46 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		return nil
 	}
 
-	attackerLiving.ResetAttackCooldown(10)
+	attackerLiving.ResetAttackCooldown(attackSpeedTicks)
+
+	if isSword && cooldownProgress > 0.9 {
+		sweepDamage := float32(1.0)
+		for _, op := range pm.Players() {
+			if op.EntityID == targetEntityID || op.EntityID == attacker.EntityID {
+				continue
+			}
+			dx := op.X - target.X
+			dz := op.Z - target.Z
+			if dx*dx+dz*dz < 9.0 {
+				sweepPlayer, ok := op.Session.Player().(*entity.Player)
+				if !ok || sweepPlayer == nil {
+					continue
+				}
+				sweepLiving := sweepPlayer.Living()
+				if sweepLiving.IsDead() || sweepLiving.GameMode() == 1 || sweepLiving.GameMode() == 3 {
+					continue
+				}
+				sweepLiving.Damage(sweepDamage, "player_sweep")
+				_ = op.Session.Send(&playpacket.UpdateHealth{
+					Health:         sweepLiving.Health(),
+					Food:           sweepLiving.FoodLevel(),
+					FoodSaturation: sweepLiving.FoodSaturation(),
+				})
+				pm.Broadcast(&playpacket.HurtAnimation{
+					EntityID: op.EntityID,
+					Yaw:      attackerPlayer.Rotation().X,
+				})
+			}
+		}
+		pm.Broadcast(&playpacket.WorldParticles{
+			ParticleID:    genparticle.ParticleSweepAttack,
+			LongDistance:  true,
+			X:             target.X,
+			Y:             target.Y + 0.5,
+			Z:             target.Z,
+			ParticleCount: 1,
+		})
+	}
 
 	_ = target.Session.Send(&playpacket.UpdateHealth{
 		Health:         targetLiving.Health(),

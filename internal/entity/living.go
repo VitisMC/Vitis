@@ -30,6 +30,8 @@ type LivingEntity struct {
 	gameMode int32
 
 	attackCooldown int32
+
+	attributes *AttributeContainer
 }
 
 // NewLivingEntity creates a living entity with default health values.
@@ -40,8 +42,12 @@ func NewLivingEntity(e *Entity, maxHealth float32) *LivingEntity {
 		maxHealth:      maxHealth,
 		foodLevel:      20,
 		foodSaturation: 5.0,
+		attributes:     DefaultPlayerAttributes(),
 	}
 }
+
+// Attributes returns the entity's attribute container.
+func (l *LivingEntity) Attributes() *AttributeContainer { return l.attributes }
 
 // AttackCooldown returns remaining attack cooldown ticks.
 func (l *LivingEntity) AttackCooldown() int32 { return l.attackCooldown }
