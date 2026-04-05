@@ -723,11 +723,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 				if raw, found := ds.SessionData().Load("login_uuid"); found {
 					if uuid, ok := raw.(protocol.UUID); ok {
 						if op := pm.GetByUUID(uuid); op != nil && op.Windows != nil {
-							item := inventory.EmptySlot()
-							if pkt.ItemCount > 0 {
-								item = inventory.Slot{ItemCount: pkt.ItemCount, ItemID: pkt.ItemID, RawComponents: pkt.Raw}
-							}
-							op.Windows.HandleCreativeSet(pkt.Slot, item)
+							op.Windows.HandleCreativeSet(pkt.SlotIndex, pkt.Item)
 						}
 					}
 				}
