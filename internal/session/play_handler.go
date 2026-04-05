@@ -849,6 +849,16 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		playpacket.NewSetBeaconEffect,
 		playpacket.NewSpectate,
 		playpacket.NewSetSlotState,
+		playpacket.NewQueryBlockNbt,
+		playpacket.NewQueryEntityNbt,
+		playpacket.NewSelectBundleItem,
+		playpacket.NewServerboundCookieResponse,
+		playpacket.NewDebugSampleSubscription,
+		playpacket.NewGenerateStructure,
+		playpacket.NewUpdateCommandBlock,
+		playpacket.NewUpdateCommandBlockMinecart,
+		playpacket.NewUpdateJigsawBlock,
+		playpacket.NewUpdateStructureBlock,
 	} {
 		pktID := factory().ID()
 		if err := router.Register(protocol.StatePlay, pktID, func(s Session, packet protocol.Packet) error {
