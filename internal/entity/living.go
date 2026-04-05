@@ -1,5 +1,9 @@
 package entity
 
+import (
+	"github.com/vitismc/vitis/internal/effect"
+)
+
 // LivingEntity extends Entity with health, damage, and combat state.
 // All fields are accessed exclusively from the world tick goroutine.
 type LivingEntity struct {
@@ -32,6 +36,7 @@ type LivingEntity struct {
 	attackCooldown int32
 
 	attributes *AttributeContainer
+	effects    *effect.Manager
 }
 
 // NewLivingEntity creates a living entity with default health values.
@@ -43,6 +48,7 @@ func NewLivingEntity(e *Entity, maxHealth float32) *LivingEntity {
 		foodLevel:      20,
 		foodSaturation: 5.0,
 		attributes:     DefaultPlayerAttributes(),
+		effects:        effect.NewManager(),
 	}
 }
 
@@ -285,3 +291,46 @@ func (l *LivingEntity) LastDamageSource() string { return l.lastDamageSource }
 
 // LastDamageAmount returns the amount of the last damage taken.
 func (l *LivingEntity) LastDamageAmount() float32 { return l.lastDamageAmount }
+
+// Effects returns the entity's effect manager.
+func (l *LivingEntity) Effects() *effect.Manager { return l.effects }
+
+// TickEffects advances all active effects and applies gameplay actions.
+// Returns the diff for the caller to broadcast packets.
+func (l *LivingEntity) TickEffects() effect.Diff {
+	if l.effects == nil {
+		return effect.Diff{}
+	}
+	diff := l.effects.Tick()
+	for _, action := range diff.Actions {
+		if action.Heal > 0 && !l.dead {
+			l.health += action.Heal
+			if l.health > l.maxHealth {
+				l.health = l.maxHealth
+			}
+		}
+		if action.Damage > 0 {
+			l.Damage(action.Damage, action.DamageSource)
+		}
+		if action.Exhaustion > 0 {
+			l.AddExhaustion(action.Exhaustion)
+		}
+		if action.FoodRestore > 0 {
+			l.foodLevel += action.FoodRestore
+			if l.foodLevel > 20 {
+				l.foodLevel = 20
+			}
+		}
+		if action.SatRestore > 0 {
+			l.foodSaturation += action.SatRestore
+			max := float32(l.foodLevel)
+			if l.foodSaturation > max {
+				l.foodSaturation = max
+			}
+		}
+		if action.Absorption > 0 {
+			l.absorption += action.Absorption
+		}
+	}
+	return diff
+}
