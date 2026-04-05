@@ -11,6 +11,7 @@ import (
 	"github.com/vitismc/vitis/internal/block/fluid"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/projectile"
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/world/chunk"
@@ -79,6 +80,7 @@ type World struct {
 	xpOrbs        *entity.XPOrbManager
 	tnts          *entity.TNTManager
 	projectiles   *projectile.Manager
+	mobs          *entity.MobManager
 
 	tick atomic.Uint64
 
@@ -156,7 +158,8 @@ func New(config Config) (*World, error) {
 		chunkStreamPerTick = defaultChunksPerTick
 	}
 
-	return &World{
+	entMgr := entity.NewManager()
+	w := &World{
 		id:                       config.ID,
 		name:                     config.Name,
 		chunks:                   chunkManager,
@@ -164,7 +167,7 @@ func New(config Config) (*World, error) {
 		streaming:                streaming.NewManager(),
 		scheduler:                NewScheduler(schedulerCapacity),
 		tickScheduler:            tick.NewScheduler(),
-		entities:                 entity.NewManager(),
+		entities:                 entMgr,
 		tracker:                  entity.NewTracker(),
 		fallingBlocks:            entity.NewFallingBlockManager(),
 		items:                    entity.NewItemEntityManager(),
@@ -175,7 +178,9 @@ func New(config Config) (*World, error) {
 		chunkCompletionsPerTick:  chunkCompletions,
 		chunkUnloadBatchPerTick:  chunkUnloadBatch,
 		chunkStreamChunksPerTick: chunkStreamPerTick,
-	}, nil
+	}
+	w.mobs = entity.NewMobManager(entMgr, entMgr.AllocateID)
+	return w, nil
 }
 
 // ID returns stable world identifier.
@@ -216,6 +221,7 @@ func (w *World) Tick() {
 	w.tickXPOrbs()
 	w.tickTNT()
 	w.tickProjectiles()
+	w.tickMobs()
 	w.chunks.PumpLoadRequests()
 	w.chunks.ApplyLoadCompletions(w.chunkCompletionsPerTick)
 	w.chunks.UpdateActiveChunks()
@@ -887,6 +893,41 @@ func (w *World) tickProjectiles() {
 		w.broadcastRemoveEntity(id)
 		w.entities.Remove(id)
 	}
+}
+
+func (w *World) tickMobs() {
+	if w.mobs == nil {
+		return
+	}
+	drops := w.mobs.Tick()
+	for _, d := range drops {
+		if d.ItemID > 0 && d.Count > 0 {
+			eid := w.entities.AllocateID()
+			uuid := protocol.UUID{uint64(eid), uint64(eid) ^ 0xDEAD}
+			stack := inventory.NewSlot(d.ItemID, d.Count)
+			ie := entity.NewItemEntity(eid, uuid,
+				entity.Vec3{X: d.X + 0.5, Y: d.Y + 0.5, Z: d.Z + 0.5},
+				stack,
+			)
+			w.SpawnItemEntity(ie)
+		}
+	}
+}
+
+// MobManager returns the world's mob manager.
+func (w *World) MobManager() *entity.MobManager {
+	if w == nil {
+		return nil
+	}
+	return w.mobs
+}
+
+// SpawnMob creates and registers a mob entity in the world by type name.
+func (w *World) SpawnMob(typeName string, pos entity.Vec3) *entity.MobEntity {
+	if w == nil || w.mobs == nil {
+		return nil
+	}
+	return w.mobs.SpawnMob(typeName, pos)
 }
 
 func makeChunkSaveFunc(store *persistence.ChunkStore) chunk.ChunkSaveFunc {
