@@ -307,5 +307,44 @@ func RegisterPlay(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSetPassengers); err != nil {
 		return err
 	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewMultiBlockChange); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewBlockBreakAnimation); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewBlockAction); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewExplosion); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewStartConfiguration); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewPlayerChat); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewEnterCombatEvent); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewEndCombatEvent); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewEntityUpdateAttributes); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewEntityEffect); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewRemoveEntityEffect); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewUpdateLight); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewDifficulty); err != nil {
+		return err
+	}
 	return nil
 }
