@@ -10,6 +10,7 @@ import (
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/block/fluid"
 	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/entity/ai"
 	"github.com/vitismc/vitis/internal/entity/projectile"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/protocol"
@@ -81,6 +82,7 @@ type World struct {
 	tnts          *entity.TNTManager
 	projectiles   *projectile.Manager
 	mobs          *entity.MobManager
+	mobBrains     *ai.BrainRegistry
 
 	tick atomic.Uint64
 
@@ -180,6 +182,7 @@ func New(config Config) (*World, error) {
 		chunkStreamChunksPerTick: chunkStreamPerTick,
 	}
 	w.mobs = entity.NewMobManager(entMgr, entMgr.AllocateID)
+	w.mobBrains = ai.NewBrainRegistry()
 	return w, nil
 }
 
@@ -899,6 +902,12 @@ func (w *World) tickMobs() {
 	if w.mobs == nil {
 		return
 	}
+
+	if w.mobBrains != nil {
+		players := w.buildAIPlayerList()
+		w.mobBrains.TickAll(w.mobs.Mobs(), players, w.tick.Load(), w)
+	}
+
 	drops := w.mobs.Tick()
 	for _, d := range drops {
 		if d.ItemID > 0 && d.Count > 0 {
@@ -914,6 +923,25 @@ func (w *World) tickMobs() {
 	}
 }
 
+func (w *World) buildAIPlayerList() []ai.PlayerInfo {
+	trackedPlayers := w.tracker.Players()
+	if len(trackedPlayers) == 0 {
+		return nil
+	}
+	result := make([]ai.PlayerInfo, 0, len(trackedPlayers))
+	for _, p := range trackedPlayers {
+		if p.Removed() {
+			continue
+		}
+		result = append(result, ai.PlayerInfo{
+			EntityID: p.ID(),
+			Pos:      p.Position(),
+			GameMode: p.Living().GameMode(),
+		})
+	}
+	return result
+}
+
 // MobManager returns the world's mob manager.
 func (w *World) MobManager() *entity.MobManager {
 	if w == nil {
@@ -927,7 +955,11 @@ func (w *World) SpawnMob(typeName string, pos entity.Vec3) *entity.MobEntity {
 	if w == nil || w.mobs == nil {
 		return nil
 	}
-	return w.mobs.SpawnMob(typeName, pos)
+	mob := w.mobs.SpawnMob(typeName, pos)
+	if mob != nil && w.mobBrains != nil {
+		w.mobBrains.RegisterMob(mob)
+	}
+	return mob
 }
 
 func makeChunkSaveFunc(store *persistence.ChunkStore) chunk.ChunkSaveFunc {
