@@ -441,6 +441,10 @@ func (w *World) tickStreaming() {
 		}
 		return 0, 0, false
 	})
+
+	w.streaming.ForEachLoadedChunk(func(pos streaming.ChunkPos) {
+		w.chunks.Touch(pos.X, pos.Z)
+	})
 }
 
 // WorldAge returns the total age of the world in ticks.

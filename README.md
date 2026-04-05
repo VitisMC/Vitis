@@ -34,9 +34,14 @@ A high-performance Minecraft server software written in Go. Currently supports *
 - Block placement and breaking with world persistence
 - Creative and survival game modes
 - Fall damage, hunger, natural regeneration, starvation
-- Death, respawn, and combat (PvP with knockback)
+- Death, respawn, and combat (PvP with knockback, attack cooldown, weapon damage, sweeping edge, critical hits)
 - Inventory management (click, shift-click, drag, number keys)
-- Player data persistence (position, game mode, health)
+- Crafting system (1284 recipes, 2×2/3×3 grid matching with mirror support)
+- Food eating with 40+ item registry and hunger/saturation restoration
+- Mining speed with tool tiers, harvest rules, and block drops
+- Entity attributes with modifiers and dirty tracking
+- Armor and equipment system with vanilla damage reduction
+- Player data persistence (position, game mode, health, inventory)
 
 ### Entities
 - Entity physics with AABB collision detection

@@ -18,6 +18,7 @@ import (
 
 	"github.com/vitismc/vitis/internal/command"
 	"github.com/vitismc/vitis/internal/config"
+	"github.com/vitismc/vitis/internal/crafting"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/network"
@@ -311,6 +312,10 @@ func run() int {
 			Z:          spawnZ,
 			Windows:    inventory.NewWindowManager(),
 		})
+
+		if op := playerManager.GetByUUID(uuid); op != nil && op.Windows != nil {
+			op.Windows.SetCraftMatcher(crafting.Match)
+		}
 
 		if defaultWorld != nil {
 			w := defaultWorld

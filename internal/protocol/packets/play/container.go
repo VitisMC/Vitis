@@ -32,7 +32,7 @@ func (p *SetContainerContent) Encode(buf *protocol.Buffer) error {
 
 // SetContainerSlot updates a single slot in a container window.
 type SetContainerSlot struct {
-	WindowID int8
+	WindowID int32
 	StateID  int32
 	SlotIdx  int16
 	SlotData inventory.Slot
@@ -44,7 +44,7 @@ func (p *SetContainerSlot) ID() int32 {
 }
 func (p *SetContainerSlot) Decode(_ *protocol.Buffer) error { return nil }
 func (p *SetContainerSlot) Encode(buf *protocol.Buffer) error {
-	buf.WriteByte(byte(p.WindowID))
+	buf.WriteVarInt(p.WindowID)
 	buf.WriteVarInt(p.StateID)
 	buf.WriteInt16(p.SlotIdx)
 	inventory.EncodeSlot(buf, p.SlotData)
