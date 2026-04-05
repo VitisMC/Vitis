@@ -1,11 +1,14 @@
 package session
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/vitismc/vitis/internal/chat"
 	"github.com/vitismc/vitis/internal/command"
+	enchdata "github.com/vitismc/vitis/internal/data/generated/enchantment"
 	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
@@ -268,6 +271,29 @@ func (s *ServerControlAdapter) BroadcastMessage(message string) {
 	} else {
 		s.PM.Broadcast(playpacket.NewSystemChatText(message))
 	}
+}
+
+func (s *ServerControlAdapter) EnchantItem(entityID int32, enchantName string, level int) error {
+	if s.PM == nil {
+		return fmt.Errorf("no player manager")
+	}
+	info := enchdata.EnchantmentByID(enchdata.EnchantmentIDByName(enchantName))
+	if info == nil {
+		return fmt.Errorf("unknown enchantment: %s", enchantName)
+	}
+
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil || op.Windows == nil {
+		return fmt.Errorf("player not found")
+	}
+	heldIdx := inventory.HotbarStart + int(op.Windows.HeldSlot())
+	held := op.Windows.Inventory().Get(heldIdx)
+	if held.Empty() {
+		return fmt.Errorf("player is not holding an item")
+	}
+	held.SetEnchant(info.ID, int32(level))
+	op.Windows.Inventory().Set(heldIdx, held)
+	return nil
 }
 
 // Verify interface compliance.
