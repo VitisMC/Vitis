@@ -6,6 +6,8 @@ import (
 
 	mdt "github.com/vitismc/vitis/internal/data/generated/meta_data_type"
 	td "github.com/vitismc/vitis/internal/data/generated/tracked_data"
+	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/protocol"
 )
 
 const (
@@ -64,6 +66,8 @@ const (
 	IndexPlayerScore            = td.PlayerScoreId
 	IndexPlayerSkinParts        = td.PlayerPlayerModeCustomisation
 	IndexPlayerMainHand         = td.PlayerPlayerMainHand
+
+	IndexItemEntityItem = td.ItemEntityItem
 )
 
 const EndMarker byte = 0xFF
@@ -123,6 +127,11 @@ func (m *Map) SetPose(index byte, v int32) {
 // SetOptTextComponent sets an optional text component (nil = absent).
 func (m *Map) SetOptTextComponent(index byte, v *string) {
 	m.entries[index] = Entry{Index: index, Type: TypeOptTextComponent, Value: v}
+}
+
+// SetSlot sets an item stack metadata entry.
+func (m *Map) SetSlot(index byte, s inventory.Slot) {
+	m.entries[index] = Entry{Index: index, Type: TypeSlot, Value: s}
 }
 
 // Encode serializes all metadata entries to the wire format.
@@ -199,6 +208,11 @@ func encodeValue(buf []byte, typeID int32, value interface{}) []byte {
 	case TypeOptVarInt:
 		v := value.(int32)
 		return appendVarInt(buf, v)
+	case TypeSlot:
+		s := value.(inventory.Slot)
+		pb := &protocol.Buffer{}
+		inventory.EncodeSlot(pb, s)
+		return append(buf, pb.Bytes()...)
 	}
 	return buf
 }

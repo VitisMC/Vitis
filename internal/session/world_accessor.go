@@ -2,11 +2,15 @@ package session
 
 import (
 	"math"
+	"math/rand"
 
 	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/block/fluid"
+	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
+	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/world/chunk"
 	"github.com/vitismc/vitis/internal/world/tick"
 )
@@ -24,6 +28,7 @@ type WorldAccessor interface {
 	GetBlock(x, y, z int) int32
 	ScheduleTicksForBlock(x, y, z int, stateID int32)
 	NotifyNeighbors(x, y, z int)
+	SpawnItemDrop(x, y, z float64, itemID, count int32) *entity.ItemEntity
 }
 
 // DefaultWorldAccessor implements WorldAccessor using a chunk.Manager.
@@ -31,6 +36,8 @@ type DefaultWorldAccessor struct {
 	Chunks        *chunk.Manager
 	TickScheduler TickScheduler
 	CurrentTick   func() uint64
+	NextEntityID  func() int32
+	Items         *entity.ItemEntityManager
 }
 
 // GetChunk returns a loaded chunk from the manager.
@@ -155,6 +162,23 @@ func BlockFaceOffset(face int32) (dx, dy, dz int32) {
 	default:
 		return 0, 0, 0
 	}
+}
+
+// SpawnItemDrop creates an item entity at the given position and registers it.
+func (a *DefaultWorldAccessor) SpawnItemDrop(x, y, z float64, itemID, count int32) *entity.ItemEntity {
+	if a == nil || a.NextEntityID == nil || a.Items == nil {
+		return nil
+	}
+	if itemID <= 0 || count <= 0 {
+		return nil
+	}
+	eid := a.NextEntityID()
+	uuid := protocol.UUID{uint64(rand.Int63()), uint64(rand.Int63())}
+	stack := inventory.NewSlot(itemID, count)
+	pos := entity.Vec3{X: x + 0.5, Y: y + 0.5, Z: z + 0.5}
+	ie := entity.NewItemEntity(eid, uuid, pos, stack)
+	a.Items.Add(ie)
+	return ie
 }
 
 // resolveBlockStateFromItem maps an item ID to the default block state ID.

@@ -1,5 +1,5 @@
 # Binaries
-vitis
+/vitis
 *.exe
 *.exe~
 *.dll
@@ -7,8 +7,10 @@ vitis
 *.dylib
 
 # Runtime data
-/world/
-/logs/
+world/region/*.mca
+world/playerdata/*.dat
+world/playerdata/*.dat_old
+logs/
 
 # Data & reference files (fetched by scripts)
 .mcdata/
