@@ -28,5 +28,17 @@ func RegisterLogin(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StateLogin, protocol.DirectionInbound, loginpacket.NewEncryptionResponse); err != nil {
 		return err
 	}
+	if err := registry.RegisterPacket(version, protocol.StateLogin, protocol.DirectionOutbound, loginpacket.NewLoginPluginRequest); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateLogin, protocol.DirectionInbound, loginpacket.NewLoginPluginResponse); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateLogin, protocol.DirectionOutbound, loginpacket.NewCookieRequest); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateLogin, protocol.DirectionInbound, loginpacket.NewCookieResponse); err != nil {
+		return err
+	}
 	return nil
 }
