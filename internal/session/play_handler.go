@@ -1710,6 +1710,17 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 			X: bx, Y: by, Z: bz,
 			StateID: oldState, PlayerGM: gm,
 		}
+		if pm != nil {
+			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+				held := op.Windows.HeldItem()
+				if !held.Empty() {
+					ctx.ToolName = item.NameByID(held.ItemID)
+					if len(held.Enchantments) > 0 {
+						ctx.ToolEnchantments = held.Enchantments
+					}
+				}
+			}
+		}
 		drops = behavior.GetByState(oldState).OnBreak(ctx)
 	}
 
