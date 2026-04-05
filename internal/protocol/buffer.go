@@ -126,6 +126,26 @@ func (b *Buffer) WriteVarInt(value int32) {
 	b.w += n
 }
 
+// ReadVarLong reads one Minecraft VarLong from the current read index.
+func (b *Buffer) ReadVarLong() (int64, error) {
+	value, consumed, err := DecodeVarLong(b.data[b.r:b.w])
+	if err != nil {
+		if errors.Is(err, ErrVarLongIncomplete) {
+			return 0, ErrBufferUnderflow
+		}
+		return 0, err
+	}
+	b.r += consumed
+	return value, nil
+}
+
+// WriteVarLong writes one Minecraft VarLong to the current write index.
+func (b *Buffer) WriteVarLong(value int64) {
+	b.Ensure(maxVarLongBytes)
+	n := EncodeVarLong(b.data[b.w:], value)
+	b.w += n
+}
+
 // ReadBytes reads n bytes without copying.
 func (b *Buffer) ReadBytes(n int) ([]byte, error) {
 	if n < 0 {
