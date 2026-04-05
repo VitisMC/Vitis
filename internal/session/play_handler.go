@@ -15,7 +15,9 @@ import (
 	worldevent "github.com/vitismc/vitis/internal/data/generated/world_event"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/metadata"
+	"github.com/vitismc/vitis/internal/food"
 	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/logger"
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
@@ -380,6 +382,8 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		return err
 	}
 
+	eatingTracker := food.NewEatingTracker()
+
 	blockDigID := playpacket.NewBlockDig().ID()
 	if err := router.Register(protocol.StatePlay, blockDigID, func(s Session, packet protocol.Packet) error {
 		pkt, ok := packet.(*playpacket.BlockDig)
@@ -387,55 +391,93 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			return protocol.ErrNilPacket
 		}
 		gm := int32(1)
+		var playerEntity *entity.Player
 		if p, ok := s.Player().(*entity.Player); ok && p != nil {
 			gm = p.Living().GameMode()
+			playerEntity = p
 		}
 
-		shouldBreak := false
-		if gm == 1 && pkt.Status == playpacket.DigStarted {
-			shouldBreak = true
-		} else if gm != 1 && pkt.Status == playpacket.DigFinished {
-			shouldBreak = true
-		}
-
-		if shouldBreak {
-			var oldState int32
-			if wa != nil {
-				oldState = wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
-				wa.SetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), 0)
+		switch pkt.Status {
+		case playpacket.DigStarted:
+			if playerEntity != nil {
+				eatingTracker.Cancel(playerEntity.ID())
 			}
-
-			if oldState > 0 {
-				ctx := &behavior.Context{
-					X: int(pkt.Position.X), Y: int(pkt.Position.Y), Z: int(pkt.Position.Z),
-					StateID: oldState, PlayerGM: gm,
+			shouldBreak := gm == 1
+			if shouldBreak {
+				var oldState int32
+				if wa != nil {
+					oldState = wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
+					wa.SetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), 0)
 				}
-				_ = behavior.GetByState(oldState).OnBreak(ctx)
-			}
-
-			blockUpdate := &playpacket.BlockUpdate{
-				Position: pkt.Position,
-				BlockID:  0,
-			}
-			if err := s.Send(blockUpdate); err != nil {
-				return err
-			}
-			if pm != nil {
-				if op := pm.GetBySession(s); op != nil {
-					pm.BroadcastExcept(op.UUID, blockUpdate)
-					if oldState > 0 {
-						pm.BroadcastExcept(op.UUID, &playpacket.WorldEvent{
-							Event: worldevent.EventPARTICLESDESTROYBLOCK,
-							X:     int32(pkt.Position.X),
-							Y:     int32(pkt.Position.Y),
-							Z:     int32(pkt.Position.Z),
-							Data:  oldState,
-						})
+				if oldState > 0 {
+					ctx := &behavior.Context{
+						X: int(pkt.Position.X), Y: int(pkt.Position.Y), Z: int(pkt.Position.Z),
+						StateID: oldState, PlayerGM: gm,
+					}
+					_ = behavior.GetByState(oldState).OnBreak(ctx)
+				}
+				blockUpdate := &playpacket.BlockUpdate{Position: pkt.Position, BlockID: 0}
+				if err := s.Send(blockUpdate); err != nil {
+					return err
+				}
+				if pm != nil {
+					if op := pm.GetBySession(s); op != nil {
+						pm.BroadcastExcept(op.UUID, blockUpdate)
+						if oldState > 0 {
+							pm.BroadcastExcept(op.UUID, &playpacket.WorldEvent{
+								Event: worldevent.EventPARTICLESDESTROYBLOCK,
+								X:     int32(pkt.Position.X),
+								Y:     int32(pkt.Position.Y),
+								Z:     int32(pkt.Position.Z),
+								Data:  oldState,
+							})
+						}
 					}
 				}
+				wa.NotifyNeighbors(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
 			}
-			wa.NotifyNeighbors(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
+
+		case playpacket.DigFinished:
+			if gm != 1 {
+				var oldState int32
+				if wa != nil {
+					oldState = wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
+					wa.SetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), 0)
+				}
+				if oldState > 0 {
+					ctx := &behavior.Context{
+						X: int(pkt.Position.X), Y: int(pkt.Position.Y), Z: int(pkt.Position.Z),
+						StateID: oldState, PlayerGM: gm,
+					}
+					_ = behavior.GetByState(oldState).OnBreak(ctx)
+				}
+				blockUpdate := &playpacket.BlockUpdate{Position: pkt.Position, BlockID: 0}
+				if err := s.Send(blockUpdate); err != nil {
+					return err
+				}
+				if pm != nil {
+					if op := pm.GetBySession(s); op != nil {
+						pm.BroadcastExcept(op.UUID, blockUpdate)
+						if oldState > 0 {
+							pm.BroadcastExcept(op.UUID, &playpacket.WorldEvent{
+								Event: worldevent.EventPARTICLESDESTROYBLOCK,
+								X:     int32(pkt.Position.X),
+								Y:     int32(pkt.Position.Y),
+								Z:     int32(pkt.Position.Z),
+								Data:  oldState,
+							})
+						}
+					}
+				}
+				wa.NotifyNeighbors(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
+			}
+
+		case playpacket.DigShootArrow:
+			if playerEntity != nil {
+				completeEating(s, pm, playerEntity, eatingTracker)
+			}
 		}
+
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 	}); err != nil {
 		return err
@@ -608,6 +650,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			return nil
 		}
 		op.Windows.SetHeldSlot(int32(pkt.Slot))
+		if p, ok := s.Player().(*entity.Player); ok && p != nil {
+			eatingTracker.Cancel(p.ID())
+		}
 		held := op.Windows.HeldItem()
 		eqSlot := playpacket.EquipmentSlot{SlotID: 0, Empty: held.Empty(), ItemID: held.ItemID, Count: int32(held.ItemCount)}
 		pm.BroadcastExcept(op.UUID, &playpacket.EntityEquipment{
@@ -672,6 +717,30 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
+
+		if pm != nil {
+			if p, ok := s.Player().(*entity.Player); ok && p != nil {
+				living := p.Living()
+				gm := living.GameMode()
+				if gm != 1 && gm != 3 {
+					op := pm.GetBySession(s)
+					if op != nil && op.Windows != nil {
+						held := op.Windows.HeldItem()
+						if !held.Empty() {
+							itemName := item.NameByID(held.ItemID)
+							props := food.Get(itemName)
+							if props != nil {
+								canEat := living.FoodLevel() < 20 || props.CanAlwaysEat
+								if canEat {
+									eatingTracker.Start(p.ID(), itemName, held.ItemID, pkt.Hand, props)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 	}); err != nil {
 		return err
@@ -1442,4 +1511,49 @@ func dimensionTypeID(mgr *registry.Manager, name string) int32 {
 		return 0
 	}
 	return id
+}
+
+func completeEating(s Session, pm *PlayerManager, p *entity.Player, tracker *food.EatingTracker) {
+	es := tracker.Cancel(p.ID())
+	if es == nil {
+		return
+	}
+
+	living := p.Living()
+	newFood, newSat := food.Eat(living.FoodLevel(), living.FoodSaturation(), es.Nutrition, es.Saturation)
+	living.SetFoodLevel(newFood)
+	living.SetFoodSaturation(newSat)
+
+	if pm != nil {
+		op := pm.GetBySession(s)
+		if op != nil && op.Windows != nil {
+			remaining := op.Windows.ConsumeHeldItem()
+
+			_ = s.Send(&playpacket.SetContainerSlot{
+				WindowID: 0,
+				StateID:  op.Windows.StateID(),
+				SlotIdx:  int16(inventory.HotbarStart + int(op.Windows.HeldSlot())),
+				SlotData: remaining,
+			})
+		}
+	}
+
+	_ = s.Send(&playpacket.UpdateHealth{
+		Health:         living.Health(),
+		Food:           living.FoodLevel(),
+		FoodSaturation: living.FoodSaturation(),
+	})
+
+	if pm != nil {
+		pos := p.Position()
+		pm.Broadcast(&playpacket.SoundEffect{
+			SoundID:       gensound.SoundIDByName("entity.player.burp") + 1,
+			SoundCategory: soundcategory.CategoryPlayer,
+			X:             int32(pos.X * 8),
+			Y:             int32(pos.Y * 8),
+			Z:             int32(pos.Z * 8),
+			Volume:        1.0,
+			Pitch:         1.0,
+		})
+	}
 }
