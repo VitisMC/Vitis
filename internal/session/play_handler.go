@@ -444,6 +444,12 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 				ds := miningTracker.Cancel(playerEntity.ID())
 				if ds != nil {
 					breakBlock(s, pm, wa, pkt.Position, gm, ds.CanHarvest)
+				} else if wa != nil {
+					actual := wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
+					_ = s.Send(&playpacket.BlockUpdate{
+						Position: pkt.Position,
+						BlockID:  actual,
+					})
 				}
 			}
 
@@ -508,6 +514,10 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if wa != nil {
 			existing := wa.GetBlock(int(targetX), int(targetY), int(targetZ))
 			if block.IsSolid(existing) {
+				_ = s.Send(&playpacket.BlockUpdate{
+					Position: playpacket.BlockPos{X: targetX, Y: targetY, Z: targetZ},
+					BlockID:  existing,
+				})
 				return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 			}
 		}
@@ -517,6 +527,14 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			for _, op := range pm.Players() {
 				px, py, pz := op.X, op.Y, op.Z
 				if px >= tx && px < tx+1 && pz >= tz && pz < tz+1 && py >= ty-1.8 && py < ty+1 {
+					actual := int32(0)
+					if wa != nil {
+						actual = wa.GetBlock(int(targetX), int(targetY), int(targetZ))
+					}
+					_ = s.Send(&playpacket.BlockUpdate{
+						Position: playpacket.BlockPos{X: targetX, Y: targetY, Z: targetZ},
+						BlockID:  actual,
+					})
 					return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 				}
 			}
@@ -822,37 +840,22 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 								} else {
 									op.Windows.UpdateCraftTableOutput()
 								}
-								stateID, slots, cursor := op.Windows.SnapshotForResync(pkt.WindowID)
-								if slots != nil {
-									_ = s.Send(&playpacket.SetContainerContent{
-										WindowID: pkt.WindowID,
-										StateID:  stateID,
-										Slots:    slots,
-										Carried:  cursor,
-									})
-								}
 							}
 						} else {
-							accepted := op.Windows.HandleClick(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, nil, inventory.EmptySlot())
-							if !accepted {
-								stateID, slots, cursor := op.Windows.SnapshotForResync(pkt.WindowID)
-								if slots != nil {
-									_ = s.Send(&playpacket.SetContainerContent{
-										WindowID: pkt.WindowID,
-										StateID:  stateID,
-										Slots:    slots,
-										Carried:  cursor,
-									})
-								}
-							} else if pkt.WindowID == 0 && pkt.Slot >= int16(inventory.CraftInputStart) && pkt.Slot <= int16(inventory.CraftInputEnd) {
-								craftResult := op.Windows.UpdateCraftOutput()
-								_ = s.Send(&playpacket.SetContainerSlot{
-									WindowID: 0,
-									StateID:  op.Windows.CurrentStateID(),
-									SlotIdx:  int16(inventory.CraftOutputSlot),
-									SlotData: craftResult,
-								})
+							op.Windows.HandleClick(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, nil, inventory.EmptySlot())
+							if pkt.WindowID == 0 && pkt.Slot >= int16(inventory.CraftInputStart) && pkt.Slot <= int16(inventory.CraftInputEnd) {
+								op.Windows.UpdateCraftOutput()
 							}
+						}
+
+						stateID, slots, cursor := op.Windows.SnapshotForResync(pkt.WindowID)
+						if slots != nil {
+							_ = s.Send(&playpacket.SetContainerContent{
+								WindowID: pkt.WindowID,
+								StateID:  stateID,
+								Slots:    slots,
+								Carried:  cursor,
+							})
 						}
 					}
 				}
