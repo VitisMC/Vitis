@@ -56,6 +56,18 @@ This document outlines the current state and planned development direction for V
 - [x] Falling blocks
 - [x] Entity metadata sync and visibility
 
+### 🎮 Survival Mechanics
+- [x] Food registry (40+ items) with eating tracker, item consumption, and hunger/saturation restoration
+- [x] Mining speed calculator with tool tiers, harvest rules, and progress tracking
+- [x] Block drop system (item entity spawning on break)
+- [x] Entity attributes system (modifiers: add/multiply_base/multiply_total, dirty tracking, bootstrap sync)
+- [x] Armor and equipment system (armor/weapon registries, vanilla damage reduction formula)
+- [x] Improved combat (attack cooldown, weapon-based damage, sweeping edge, critical hit gate)
+- [x] Crafting system (1284 recipes from mcdata, 2×2/3×3 grid matching with mirror support)
+- [x] Block placement improvements (solid collision check, player overlap prevention, directional states, placement sounds)
+- [x] Client-server inventory synchronization (authoritative state ID, full resync on every click)
+- [x] Chunk keepalive (player-visible chunks stay loaded in the chunk manager)
+
 ### 💬 Multiplayer
 - [x] Entity animation, sneaking, sprinting, equipment broadcast
 - [x] Scoreboard and teams runtime
@@ -72,8 +84,6 @@ This document outlines the current state and planned development direction for V
 - [ ] **Loot tables** — evaluation engine exists, needs wiring to block/entity drops
 - [ ] **Metrics & profiling** — profiler and stats structs exist, need server loop integration
 - [ ] **Storage abstraction** — KV interface exists, needs persistence backend
-- [ ] **Crafting system** — 1557 recipe definitions generated, needs crafting table interaction
-- [ ] **Food item consumption** — hunger tick system works, eating items not yet wired
 
 ---
 
@@ -82,7 +92,7 @@ This document outlines the current state and planned development direction for V
 ### Short Term
 
 #### 🌍 World
-- [ ] Crafting table, stonecutter interaction (shaped, shapeless, special recipes)
+- [ ] Stonecutter interaction
 - [ ] Campfire cooking block entity
 - [ ] Enchantment table and anvil
 - [ ] Brewing stand and potion brewing
@@ -99,7 +109,6 @@ This document outlines the current state and planned development direction for V
 
 #### 👤 Player
 - [ ] Status effects and potions (speed, strength, poison, regeneration, etc.)
-- [ ] Food item eating (wire UseItem to restore hunger/saturation)
 - [ ] Experience system (enchanting cost, repair cost, anvil)
 - [ ] Advancements and achievement tracking
 - [ ] Recipe book unlocking

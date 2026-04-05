@@ -1,17 +1,15 @@
 package play
 
 import (
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
 // SetCreativeSlot is sent by the client in creative mode when picking/placing items.
-// In 1.21.4, the slot uses the new item component format.
 type SetCreativeSlot struct {
-	Slot      int16
-	ItemCount int32
-	ItemID    int32
-	Raw       []byte
+	SlotIndex int16
+	Item      inventory.Slot
 }
 
 func NewSetCreativeSlot() protocol.Packet { return &SetCreativeSlot{} }
@@ -20,29 +18,16 @@ func (p *SetCreativeSlot) ID() int32 { return int32(packetid.ServerboundSetCreat
 
 func (p *SetCreativeSlot) Decode(buf *protocol.Buffer) error {
 	var err error
-	if p.Slot, err = buf.ReadInt16(); err != nil {
+	if p.SlotIndex, err = buf.ReadInt16(); err != nil {
 		return err
 	}
-	if p.ItemCount, err = buf.ReadVarInt(); err != nil {
-		return err
-	}
-	if p.ItemCount > 0 {
-		if p.ItemID, err = buf.ReadVarInt(); err != nil {
-			return err
-		}
-	}
-	remaining := buf.Remaining()
-	if remaining > 0 {
-		p.Raw, err = buf.ReadBytes(remaining)
-	}
+	p.Item, err = inventory.DecodeSlot(buf)
 	return err
 }
 
 func (p *SetCreativeSlot) Encode(buf *protocol.Buffer) error {
-	buf.WriteInt16(p.Slot)
-	if len(p.Raw) > 0 {
-		buf.WriteBytes(p.Raw)
-	}
+	buf.WriteInt16(p.SlotIndex)
+	inventory.EncodeSlot(buf, p.Item)
 	return nil
 }
 

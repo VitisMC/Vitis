@@ -194,6 +194,21 @@ func (m *Manager) GetChunk(x, z int32) (*Chunk, bool) {
 	return loaded, true
 }
 
+// Touch updates the access timestamp for a chunk without returning it.
+// Used by the streaming system to keep player-visible chunks alive.
+func (m *Manager) Touch(x, z int32) {
+	if m == nil {
+		return
+	}
+	loaded, ok := m.storage.Get(x, z)
+	if !ok || loaded == nil {
+		return
+	}
+	if loaded.State() == StateLoaded {
+		loaded.Touch(m.tick)
+	}
+}
+
 // MarkForUnload marks one chunk for batched unload processing.
 func (m *Manager) MarkForUnload(x, z int32) bool {
 	if m == nil {
