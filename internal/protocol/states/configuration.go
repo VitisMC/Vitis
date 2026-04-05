@@ -34,5 +34,59 @@ func RegisterConfiguration(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewUpdateTags); err != nil {
 		return err
 	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewCookieRequest); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionInbound, cfgpacket.NewCookieResponse); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewDisconnect); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewClientboundKeepAlive); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionInbound, cfgpacket.NewServerboundKeepAlive); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewPing); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionInbound, cfgpacket.NewPong); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewResetChat); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewRemoveResourcePack); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewAddResourcePack); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionInbound, cfgpacket.NewResourcePackReceive); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewStoreCookie); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewTransfer); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewFeatureFlags); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewClientboundCustomReportDetails); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionInbound, cfgpacket.NewServerboundCustomReportDetails); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionOutbound, cfgpacket.NewClientboundServerLinks); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StateConfiguration, protocol.DirectionInbound, cfgpacket.NewServerboundServerLinks); err != nil {
+		return err
+	}
 	return nil
 }
