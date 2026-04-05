@@ -8,6 +8,7 @@ import (
 
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/command"
+	genentity "github.com/vitismc/vitis/internal/data/generated/entity"
 	entitystatus "github.com/vitismc/vitis/internal/data/generated/entity_status"
 	genparticle "github.com/vitismc/vitis/internal/data/generated/particle"
 	gensound "github.com/vitismc/vitis/internal/data/generated/sound"
@@ -16,7 +17,9 @@ import (
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/metadata"
 	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/logger"
+	"github.com/vitismc/vitis/internal/mining"
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
@@ -380,6 +383,8 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		return err
 	}
 
+	miningTracker := mining.NewTracker()
+
 	blockDigID := playpacket.NewBlockDig().ID()
 	if err := router.Register(protocol.StatePlay, blockDigID, func(s Session, packet protocol.Packet) error {
 		pkt, ok := packet.(*playpacket.BlockDig)
@@ -387,55 +392,55 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			return protocol.ErrNilPacket
 		}
 		gm := int32(1)
+		var playerEntity *entity.Player
 		if p, ok := s.Player().(*entity.Player); ok && p != nil {
 			gm = p.Living().GameMode()
+			playerEntity = p
 		}
 
-		shouldBreak := false
-		if gm == 1 && pkt.Status == playpacket.DigStarted {
-			shouldBreak = true
-		} else if gm != 1 && pkt.Status == playpacket.DigFinished {
-			shouldBreak = true
-		}
-
-		if shouldBreak {
-			var oldState int32
-			if wa != nil {
-				oldState = wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
-				wa.SetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), 0)
-			}
-
-			if oldState > 0 {
-				ctx := &behavior.Context{
-					X: int(pkt.Position.X), Y: int(pkt.Position.Y), Z: int(pkt.Position.Z),
-					StateID: oldState, PlayerGM: gm,
+		switch pkt.Status {
+		case playpacket.DigStarted:
+			if gm == 1 {
+				breakBlock(s, pm, wa, pkt.Position, gm, true)
+			} else {
+				heldItemName := getHeldItemName(pm, s)
+				onGround := playerEntity != nil && playerEntity.OnGround()
+				stateID := int32(0)
+				if wa != nil {
+					stateID = wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
 				}
-				_ = behavior.GetByState(oldState).OnBreak(ctx)
+				result := mining.CalculateBreakTime(stateID, heldItemName, onGround)
+				if result.Instant {
+					breakBlock(s, pm, wa, pkt.Position, gm, result.CanHarvest)
+				} else if result.Ticks > 0 && playerEntity != nil {
+					miningTracker.Start(playerEntity.ID(),
+						int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z),
+						stateID, result.Ticks, result.CanHarvest)
+				}
 			}
 
-			blockUpdate := &playpacket.BlockUpdate{
-				Position: pkt.Position,
-				BlockID:  0,
-			}
-			if err := s.Send(blockUpdate); err != nil {
-				return err
-			}
-			if pm != nil {
-				if op := pm.GetBySession(s); op != nil {
-					pm.BroadcastExcept(op.UUID, blockUpdate)
-					if oldState > 0 {
-						pm.BroadcastExcept(op.UUID, &playpacket.WorldEvent{
-							Event: worldevent.EventPARTICLESDESTROYBLOCK,
-							X:     int32(pkt.Position.X),
-							Y:     int32(pkt.Position.Y),
-							Z:     int32(pkt.Position.Z),
-							Data:  oldState,
+		case playpacket.DigCancelled:
+			if playerEntity != nil {
+				if ds := miningTracker.Cancel(playerEntity.ID()); ds != nil {
+					if pm != nil {
+						pm.Broadcast(&playpacket.BlockBreakAnimation{
+							EntityID:     playerEntity.ID(),
+							Position:     pkt.Position,
+							DestroyStage: -1,
 						})
 					}
 				}
 			}
-			wa.NotifyNeighbors(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
+
+		case playpacket.DigFinished:
+			if gm != 1 && playerEntity != nil {
+				ds := miningTracker.Cancel(playerEntity.ID())
+				if ds != nil {
+					breakBlock(s, pm, wa, pkt.Position, gm, ds.CanHarvest)
+				}
+			}
 		}
+
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 	}); err != nil {
 		return err
@@ -1442,4 +1447,97 @@ func dimensionTypeID(mgr *registry.Manager, name string) int32 {
 		return 0
 	}
 	return id
+}
+
+func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.BlockPos, gm int32, canHarvest bool) {
+	if wa == nil {
+		return
+	}
+
+	bx, by, bz := int(pos.X), int(pos.Y), int(pos.Z)
+	oldState := wa.GetBlock(bx, by, bz)
+	wa.SetBlock(bx, by, bz, 0)
+
+	var drops []behavior.Drop
+	if oldState > 0 && canHarvest {
+		ctx := &behavior.Context{
+			X: bx, Y: by, Z: bz,
+			StateID: oldState, PlayerGM: gm,
+		}
+		drops = behavior.GetByState(oldState).OnBreak(ctx)
+	}
+
+	blockUpdate := &playpacket.BlockUpdate{Position: pos, BlockID: 0}
+	if err := s.Send(blockUpdate); err != nil {
+		return
+	}
+
+	if pm != nil {
+		if op := pm.GetBySession(s); op != nil {
+			pm.BroadcastExcept(op.UUID, blockUpdate)
+			if oldState > 0 {
+				pm.BroadcastExcept(op.UUID, &playpacket.WorldEvent{
+					Event: worldevent.EventPARTICLESDESTROYBLOCK,
+					X:     int32(bx), Y: int32(by), Z: int32(bz),
+					Data: oldState,
+				})
+			}
+		}
+	}
+
+	wa.NotifyNeighbors(bx, by, bz)
+
+	for _, drop := range drops {
+		ie := wa.SpawnItemDrop(float64(bx), float64(by), float64(bz), drop.ItemID, drop.Count)
+		if ie == nil || pm == nil {
+			continue
+		}
+		ipos := ie.Position()
+		vel := ie.Velocity()
+		spawnPkt := &playpacket.SpawnEntity{
+			EntityID:   ie.ID(),
+			EntityUUID: ie.UUID(),
+			Type:       genentity.EntityItem,
+			X:          ipos.X,
+			Y:          ipos.Y,
+			Z:          ipos.Z,
+			VelocityX:  velocityToProtocol(vel.X),
+			VelocityY:  velocityToProtocol(vel.Y),
+			VelocityZ:  velocityToProtocol(vel.Z),
+		}
+		pm.Broadcast(spawnPkt)
+
+		md := metadata.New()
+		md.SetSlot(metadata.IndexItemEntityItem, ie.Stack())
+		pm.Broadcast(&playpacket.SetEntityMetadata{
+			EntityID: ie.ID(),
+			Metadata: md.Encode(),
+		})
+	}
+}
+
+func getHeldItemName(pm *PlayerManager, s Session) string {
+	if pm == nil {
+		return ""
+	}
+	op := pm.GetBySession(s)
+	if op == nil || op.Windows == nil {
+		return ""
+	}
+	held := op.Windows.HeldItem()
+	if held.Empty() {
+		return ""
+	}
+	return item.NameByID(held.ItemID)
+}
+
+func velocityToProtocol(v float64) int16 {
+	val := v * 8000
+	if val > 32767 {
+		return 32767
+	}
+	if val < -32768 {
+		return -32768
+	}
+	return int16(val)
 }
