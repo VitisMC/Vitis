@@ -47,6 +47,26 @@ type ServerControl interface {
 	BroadcastMessage(message string)
 	// EnchantItem applies an enchantment to the held item of a player.
 	EnchantItem(entityID int32, enchantName string, level int) error
+	// SetBlockAt sets a block at coordinates. Returns the placed state ID.
+	SetBlockAt(x, y, z int, blockName string) (int32, error)
+	// FillBlocks fills a region with a block. Returns count of blocks changed.
+	FillBlocks(x1, y1, z1, x2, y2, z2 int, blockName string) (int, error)
+	// ClearInventory clears items from a player. Returns count removed.
+	ClearInventory(entityID int32, itemName string, maxCount int) (int, error)
+	// GetGameRule returns the current value of a game rule.
+	GetGameRule(name string) (string, error)
+	// SetGameRule sets a game rule value.
+	SetGameRule(name, value string) error
+	// SetDefaultGameMode sets the default game mode for new players.
+	SetDefaultGameMode(mode int32) error
+	// SetWorldSpawn sets the world spawn position.
+	SetWorldSpawn(x, y, z int) error
+	// SetSpawnPoint sets a player's individual spawn point.
+	SetSpawnPoint(entityID int32, x, y, z int) error
+	// SendTitle sends a title/subtitle to a player.
+	SendTitle(entityID int32, title, subtitle string, fadeIn, stay, fadeOut int) error
+	// SendActionBar sends an action bar message to a player.
+	SendActionBar(entityID int32, text string) error
 }
 
 // RegisterBuiltinCommands registers all built-in commands.
@@ -68,6 +88,16 @@ func RegisterBuiltinCommands(registry *Registry, players PlayerLookup, server Se
 	registry.Register(cmdOp(players, server))
 	registry.Register(cmdDeop(players, server))
 	registry.Register(cmdEnchant(players, server))
+	registry.Register(cmdMe(server))
+	registry.Register(cmdTellraw(players, server))
+	registry.Register(cmdTitle(players, server))
+	registry.Register(cmdSetblock(server))
+	registry.Register(cmdFill(server))
+	registry.Register(cmdClear(players, server))
+	registry.Register(cmdGamerule(server))
+	registry.Register(cmdDefaultgamemode(server))
+	registry.Register(cmdSetworldspawn(server))
+	registry.Register(cmdSpawnpoint(players, server))
 }
 
 // --- /help ---
