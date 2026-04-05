@@ -9,6 +9,7 @@ import (
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
+	"github.com/vitismc/vitis/internal/world/weather"
 )
 
 // playerLookupAdapter adapts PlayerManager to command.PlayerLookup.
@@ -60,13 +61,19 @@ type WorldTimeAccessor interface {
 	WorldAge() int64
 }
 
+// WeatherAccessor provides weather control for the command bridge.
+type WeatherAccessor interface {
+	SetWeather(state weather.State, duration int32)
+}
+
 // ServerControlAdapter adapts session-layer components to the command.ServerControl interface.
 type ServerControlAdapter struct {
-	PM        *PlayerManager
-	OpList    *operator.List
-	StopFunc  func()
-	SeedValue int64
-	World     WorldTimeAccessor
+	PM           *PlayerManager
+	OpList       *operator.List
+	StopFunc     func()
+	SeedValue    int64
+	World        WorldTimeAccessor
+	WeatherWorld WeatherAccessor
 }
 
 // NewServerControl creates a command.ServerControl backed by session-layer components.
@@ -110,8 +117,12 @@ func (s *ServerControlAdapter) GetTime() int64 {
 	return 0
 }
 
-func (s *ServerControlAdapter) SetWeather(_ string, _ int) {
-	// TODO: broadcast weather change via GameEvent packet
+func (s *ServerControlAdapter) SetWeather(w string, duration int) {
+	if s.WeatherWorld == nil {
+		return
+	}
+	state := weather.ParseState(w)
+	s.WeatherWorld.SetWeather(state, int32(duration))
 }
 
 func (s *ServerControlAdapter) SetGameMode(entityID int32, mode int32) error {
