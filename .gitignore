@@ -7,8 +7,8 @@ vitis
 *.dylib
 
 # Runtime data
-world/
-logs/
+/world/
+/logs/
 
 # Data & reference files (fetched by scripts)
 .mcdata/
