@@ -69,15 +69,21 @@ Files under `internal/data/generated/` are auto-generated. Do **not** edit them 
 ./scripts/update_version.sh 1.21.4
 ```
 
+## Branch Model
+
+- **`main`** — stable branch, contains only tested and reviewed code
+- **`dev`** — development branch, all PRs go here first
+- `main` is updated only via merges from `dev` by maintainers
+
 ## Pull Requests
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-change`
+2. Create a feature branch from `dev`: `git checkout -b feature/my-change dev`
 3. Make your changes
 4. Run tests: `go test ./internal/... -count=1`
 5. Run vet: `go vet ./...`
 6. Commit with a clear message
-7. Open a pull request against `main`
+7. Open a pull request against **`dev`** (not `main`)
 
 ### PR Guidelines
 
@@ -85,6 +91,7 @@ Files under `internal/data/generated/` are auto-generated. Do **not** edit them 
 - Include a short description of what changed and why
 - Ensure all tests pass and the build is clean
 - Add tests for new functionality when practical
+- Do **not** open PRs directly against `main`
 
 ## Reporting Issues
 
