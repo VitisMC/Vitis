@@ -182,6 +182,17 @@ func (pm *PlayerManager) OnlinePlayerNames() []string {
 	return names
 }
 
+// Players returns a snapshot slice of all online players.
+func (pm *PlayerManager) Players() []*OnlinePlayer {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	out := make([]*OnlinePlayer, 0, len(pm.players))
+	for _, p := range pm.players {
+		out = append(out, p)
+	}
+	return out
+}
+
 // GetByEntityID returns the OnlinePlayer with the given entity ID, or nil.
 func (pm *PlayerManager) GetByEntityID(entityID int32) *OnlinePlayer {
 	pm.mu.RLock()
