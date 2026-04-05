@@ -36,3 +36,5 @@ Thumbs.db
 *.test
 *.out
 coverage.html
+
+.etc/
