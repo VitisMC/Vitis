@@ -307,5 +307,26 @@ func RegisterPlay(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSetPassengers); err != nil {
 		return err
 	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewServerboundTabComplete); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewClientboundTabComplete); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewEntityStatus); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewWorldEvent); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewWorldParticles); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewUpdateTeams); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewResetScore); err != nil {
+		return err
+	}
 	return nil
 }
