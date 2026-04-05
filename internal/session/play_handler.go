@@ -828,6 +828,13 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		playpacket.NewServerboundPlayCustomPayload,
 		playpacket.NewPlayerInput,
 		playpacket.NewServerboundRecipeBook,
+		playpacket.NewMessageAcknowledgement,
+		playpacket.NewChatSessionUpdate,
+		playpacket.NewConfigurationAcknowledged,
+		playpacket.NewVehicleMove,
+		playpacket.NewSteerBoat,
+		playpacket.NewUpdateSign,
+		playpacket.NewResourcePackReceive,
 	} {
 		pktID := factory().ID()
 		if err := router.Register(protocol.StatePlay, pktID, func(s Session, packet protocol.Packet) error {

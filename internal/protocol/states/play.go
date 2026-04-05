@@ -307,5 +307,26 @@ func RegisterPlay(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSetPassengers); err != nil {
 		return err
 	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewMessageAcknowledgement); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewChatSessionUpdate); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewConfigurationAcknowledged); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewVehicleMove); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSteerBoat); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewUpdateSign); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewResourcePackReceive); err != nil {
+		return err
+	}
 	return nil
 }
