@@ -409,5 +409,62 @@ func RegisterPlay(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSetSlotState); err != nil {
 		return err
 	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSpawnEntityExperienceOrb); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewStatistics); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSetCooldown); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewClientboundCustomPayload); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewClientboundVehicleMove); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewOpenBook); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewOpenSignEntity); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewFacePlayer); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewClientboundPlayerRotation); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewAttachEntity); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewEntitySoundEffect); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewStopSound); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSelectAdvancementTab); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSimulationDistance); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewUpdateViewDistance); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewCamera); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewCraftRecipeResponse); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewRecipeBookRemove); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewAdvancements); err != nil {
+		return err
+	}
 	return nil
 }
