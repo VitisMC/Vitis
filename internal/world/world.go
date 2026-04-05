@@ -290,6 +290,14 @@ func (w *World) EntityManager() *entity.Manager {
 	return w.entities
 }
 
+// ItemEntities returns the world's item entity manager.
+func (w *World) ItemEntities() *entity.ItemEntityManager {
+	if w == nil {
+		return nil
+	}
+	return w.items
+}
+
 // EntityTracker returns the world's entity tracker.
 func (w *World) EntityTracker() *entity.Tracker {
 	if w == nil {
