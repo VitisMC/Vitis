@@ -74,9 +74,11 @@ type WindowManager struct {
 }
 
 // NewWindowManager creates a window manager with a player inventory.
+// stateID starts at 1 to match the bootstrap's initial SetContainerContent.
 func NewWindowManager() *WindowManager {
 	return &WindowManager{
 		inventory: NewPlayerInventory(),
+		stateID:   1,
 	}
 }
 
@@ -361,7 +363,7 @@ func (wm *WindowManager) HandleClick(windowID, stateID int32, slotIndex int16, b
 		wm.cursorItem = carriedItem
 	}
 
-	wm.stateID = stateID
+	wm.stateID++
 	return true
 }
 
@@ -497,14 +499,16 @@ func (wm *WindowManager) tryShiftMove(target *Container, fromIdx int, item Slot)
 	return false
 }
 
-// SnapshotForResync returns the window ID, state ID, all slots, and cursor item for the given window.
+// SnapshotForResync increments the state ID and returns all slots and cursor
+// for the given window so the client can be fully re-synchronized.
 func (wm *WindowManager) SnapshotForResync(windowID int32) (stateID int32, slots []Slot, cursor Slot) {
-	wm.mu.RLock()
-	defer wm.mu.RUnlock()
+	wm.mu.Lock()
+	defer wm.mu.Unlock()
 	target := wm.containerForWindow(windowID)
 	if target == nil {
 		return wm.stateID, nil, wm.cursorItem
 	}
+	wm.stateID++
 	return wm.stateID, target.Slots(), wm.cursorItem
 }
 
