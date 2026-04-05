@@ -13,11 +13,34 @@ type Slot struct {
 	ComponentsAdd int32
 	ComponentsRem int32
 	RawComponents []byte
+	Enchantments  map[int32]int32
 }
 
 // Empty returns true if this slot has no item.
 func (s Slot) Empty() bool {
 	return s.ItemCount <= 0
+}
+
+// EnchantLevel returns the level of an enchantment on this item, or 0.
+func (s Slot) EnchantLevel(enchID int32) int32 {
+	if s.Enchantments == nil {
+		return 0
+	}
+	return s.Enchantments[enchID]
+}
+
+// SetEnchant sets an enchantment on this slot. Level <= 0 removes it.
+func (s *Slot) SetEnchant(enchID, level int32) {
+	if level <= 0 {
+		if s.Enchantments != nil {
+			delete(s.Enchantments, enchID)
+		}
+		return
+	}
+	if s.Enchantments == nil {
+		s.Enchantments = make(map[int32]int32)
+	}
+	s.Enchantments[enchID] = level
 }
 
 // EmptySlot returns a slot with no item.

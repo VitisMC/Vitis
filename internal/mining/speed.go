@@ -21,7 +21,8 @@ type BreakResult struct {
 // CalculateBreakTime computes the number of ticks required to break a block.
 // itemName is the namespaced name of the held tool (empty string for hand).
 // onGround indicates whether the player is standing on the ground.
-func CalculateBreakTime(stateID int32, itemName string, onGround bool) BreakResult {
+// efficiencyLevel is the efficiency enchantment level on the tool (0 if none).
+func CalculateBreakTime(stateID int32, itemName string, onGround bool, efficiencyLevel int32) BreakResult {
 	blockID := block.BlockIDFromState(stateID)
 	if blockID < 0 {
 		return BreakResult{CanHarvest: true, Ticks: 0, Instant: true}
@@ -50,6 +51,10 @@ func CalculateBreakTime(stateID int32, itemName string, onGround bool) BreakResu
 	speedMultiplier := 1.0
 	if tool.Type != ToolNone && tool.Type == rule.EffectiveTool {
 		speedMultiplier = tool.Speed
+	}
+
+	if efficiencyLevel > 0 && speedMultiplier > 1.0 {
+		speedMultiplier += float64(efficiencyLevel*efficiencyLevel) + 1.0
 	}
 
 	damage := speedMultiplier / info.Hardness
