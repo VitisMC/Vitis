@@ -835,6 +835,20 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		playpacket.NewSteerBoat,
 		playpacket.NewUpdateSign,
 		playpacket.NewResourcePackReceive,
+		playpacket.NewSetDifficulty,
+		playpacket.NewLockDifficulty,
+		playpacket.NewEnchantItem,
+		playpacket.NewEditBook,
+		playpacket.NewPickItemFromBlock,
+		playpacket.NewPickItemFromEntity,
+		playpacket.NewCraftRecipeRequest,
+		playpacket.NewDisplayedRecipe,
+		playpacket.NewNameItem,
+		playpacket.NewAdvancementTab,
+		playpacket.NewSelectTrade,
+		playpacket.NewSetBeaconEffect,
+		playpacket.NewSpectate,
+		playpacket.NewSetSlotState,
 	} {
 		pktID := factory().ID()
 		if err := router.Register(protocol.StatePlay, pktID, func(s Session, packet protocol.Packet) error {
