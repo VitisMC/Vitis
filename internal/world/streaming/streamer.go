@@ -8,13 +8,13 @@ var (
 
 const (
 	defaultChunksPerTick = 4
-	defaultViewDistance   = 10
+	defaultViewDistance  = 10
 )
 
 // StreamerConfig defines per-player chunk streamer settings.
 type StreamerConfig struct {
 	ChunksPerTick int
-	ViewDistance   int32
+	ViewDistance  int32
 	Provider      ChunkProvider
 	Sender        ChunkSender
 }
@@ -159,6 +159,13 @@ func (s *Streamer) View() *View {
 	return s.view
 }
 
+// ForEachLoaded calls fn for every chunk currently loaded on the client.
+func (s *Streamer) ForEachLoaded(fn func(pos ChunkPos)) {
+	for pos := range s.view.Loaded() {
+		fn(pos)
+	}
+}
+
 // Close releases streamer resources.
 func (s *Streamer) Close() {
 	if s.view != nil {
@@ -223,6 +230,14 @@ func (m *Manager) Tick(positionFn func(playerID int32) (chunkX, chunkZ int32, ok
 		totalUnloaded += unloaded
 	}
 	return totalSent, totalUnloaded
+}
+
+// ForEachLoadedChunk calls fn once for every chunk loaded on any player's client.
+// A chunk may be visited multiple times if watched by multiple players.
+func (m *Manager) ForEachLoadedChunk(fn func(pos ChunkPos)) {
+	for _, s := range m.streamers {
+		s.ForEachLoaded(fn)
+	}
 }
 
 // PlayerCount returns the number of registered streamers.
