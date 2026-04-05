@@ -307,5 +307,47 @@ func RegisterPlay(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionOutbound, playpacket.NewSetPassengers); err != nil {
 		return err
 	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSetDifficulty); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewLockDifficulty); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewEnchantItem); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewEditBook); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewPickItemFromBlock); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewPickItemFromEntity); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewCraftRecipeRequest); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewDisplayedRecipe); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewNameItem); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewAdvancementTab); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSelectTrade); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSetBeaconEffect); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSpectate); err != nil {
+		return err
+	}
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSetSlotState); err != nil {
+		return err
+	}
 	return nil
 }
