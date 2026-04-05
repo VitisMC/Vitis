@@ -117,6 +117,24 @@ func (wm *WindowManager) HeldItem() Slot {
 	return wm.inventory.HotbarSlot(int(wm.HeldSlot()))
 }
 
+// ConsumeHeldItem decrements the held item count by one.
+// Returns the updated slot after consumption.
+func (wm *WindowManager) ConsumeHeldItem() Slot {
+	wm.mu.Lock()
+	defer wm.mu.Unlock()
+	idx := HotbarStart + int(wm.heldSlot)
+	s := wm.inventory.Get(idx)
+	if s.Empty() {
+		return s
+	}
+	s.ItemCount--
+	if s.ItemCount <= 0 {
+		s = EmptySlot()
+	}
+	wm.inventory.Set(idx, s)
+	return s
+}
+
 // CursorItem returns the item currently attached to the cursor.
 func (wm *WindowManager) CursorItem() Slot {
 	wm.mu.RLock()

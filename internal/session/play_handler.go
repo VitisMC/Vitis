@@ -16,6 +16,7 @@ import (
 	worldevent "github.com/vitismc/vitis/internal/data/generated/world_event"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/metadata"
+	"github.com/vitismc/vitis/internal/food"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/logger"
@@ -384,6 +385,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 	}
 
 	miningTracker := mining.NewTracker()
+	eatingTracker := food.NewEatingTracker()
 
 	blockDigID := playpacket.NewBlockDig().ID()
 	if err := router.Register(protocol.StatePlay, blockDigID, func(s Session, packet protocol.Packet) error {
@@ -400,6 +402,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 		switch pkt.Status {
 		case playpacket.DigStarted:
+			if playerEntity != nil {
+				eatingTracker.Cancel(playerEntity.ID())
+			}
 			if gm == 1 {
 				breakBlock(s, pm, wa, pkt.Position, gm, true)
 			} else {
@@ -438,6 +443,11 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 				if ds != nil {
 					breakBlock(s, pm, wa, pkt.Position, gm, ds.CanHarvest)
 				}
+			}
+
+		case playpacket.DigShootArrow:
+			if playerEntity != nil {
+				completeEating(s, pm, playerEntity, eatingTracker)
 			}
 		}
 
@@ -613,6 +623,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			return nil
 		}
 		op.Windows.SetHeldSlot(int32(pkt.Slot))
+		if p, ok := s.Player().(*entity.Player); ok && p != nil {
+			eatingTracker.Cancel(p.ID())
+		}
 		held := op.Windows.HeldItem()
 		eqSlot := playpacket.EquipmentSlot{SlotID: 0, Empty: held.Empty(), ItemID: held.ItemID, Count: int32(held.ItemCount)}
 		pm.BroadcastExcept(op.UUID, &playpacket.EntityEquipment{
@@ -677,6 +690,30 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
+
+		if pm != nil {
+			if p, ok := s.Player().(*entity.Player); ok && p != nil {
+				living := p.Living()
+				gm := living.GameMode()
+				if gm != 1 && gm != 3 {
+					op := pm.GetBySession(s)
+					if op != nil && op.Windows != nil {
+						held := op.Windows.HeldItem()
+						if !held.Empty() {
+							itemName := item.NameByID(held.ItemID)
+							props := food.Get(itemName)
+							if props != nil {
+								canEat := living.FoodLevel() < 20 || props.CanAlwaysEat
+								if canEat {
+									eatingTracker.Start(p.ID(), itemName, held.ItemID, pkt.Hand, props)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 	}); err != nil {
 		return err
@@ -1540,4 +1577,49 @@ func velocityToProtocol(v float64) int16 {
 		return -32768
 	}
 	return int16(val)
+}
+
+func completeEating(s Session, pm *PlayerManager, p *entity.Player, tracker *food.EatingTracker) {
+	es := tracker.Cancel(p.ID())
+	if es == nil {
+		return
+	}
+
+	living := p.Living()
+	newFood, newSat := food.Eat(living.FoodLevel(), living.FoodSaturation(), es.Nutrition, es.Saturation)
+	living.SetFoodLevel(newFood)
+	living.SetFoodSaturation(newSat)
+
+	if pm != nil {
+		op := pm.GetBySession(s)
+		if op != nil && op.Windows != nil {
+			remaining := op.Windows.ConsumeHeldItem()
+
+			_ = s.Send(&playpacket.SetContainerSlot{
+				WindowID: 0,
+				StateID:  op.Windows.StateID(),
+				SlotIdx:  int16(inventory.HotbarStart + int(op.Windows.HeldSlot())),
+				SlotData: remaining,
+			})
+		}
+	}
+
+	_ = s.Send(&playpacket.UpdateHealth{
+		Health:         living.Health(),
+		Food:           living.FoodLevel(),
+		FoodSaturation: living.FoodSaturation(),
+	})
+
+	if pm != nil {
+		pos := p.Position()
+		pm.Broadcast(&playpacket.SoundEffect{
+			SoundID:       gensound.SoundIDByName("entity.player.burp") + 1,
+			SoundCategory: soundcategory.CategoryPlayer,
+			X:             int32(pos.X * 8),
+			Y:             int32(pos.Y * 8),
+			Z:             int32(pos.Z * 8),
+			Volume:        1.0,
+			Pitch:         1.0,
+		})
+	}
 }
