@@ -71,9 +71,89 @@ Files under `internal/data/generated/` are auto-generated. Do **not** edit them 
 
 ## Branch Model
 
-- **`main`** — stable branch, contains only tested and reviewed code
-- **`dev`** — development branch, all PRs go here first
-- `main` is updated only via merges from `dev` by maintainers
+### Main Branches
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable, production-ready code. Only updated via merges from `dev` by maintainers. |
+| `dev`  | Active development. All PRs target this branch. |
+
+### Feature Branches
+
+Create branches from `dev` using the following prefixes:
+
+| Prefix | Purpose | Example |
+|--------|---------|---------|
+| `feature/` | New functionality | `feature/inventory-drag` |
+| `fix/` | Bug fixes | `fix/chunk-unload-crash` |
+| `hotfix/` | Critical fixes for `main` | `hotfix/login-timeout` |
+| `docs/` | Documentation only | `docs/readme-badges` |
+| `refactor/` | Code refactoring (no behavior change) | `refactor/session-cleanup` |
+| `test/` | Adding or updating tests | `test/physics-collision` |
+| `chore/` | Maintenance, dependencies, configs | `chore/update-go-mod` |
+
+### Branch Naming Rules
+
+- Use lowercase with hyphens: `feature/player-death-event`
+- Keep names short but descriptive
+- Include issue number if applicable: `fix/123-chunk-leak`
+
+## Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation changes |
+| `style` | Formatting, no code change |
+| `refactor` | Code change without adding features or fixing bugs |
+| `perf` | Performance improvement |
+| `test` | Adding or updating tests |
+| `chore` | Maintenance (deps, configs, scripts) |
+| `ci` | CI/CD changes |
+| `revert` | Revert a previous commit |
+
+### Scope (optional)
+
+The affected module or area: `protocol`, `world`, `entity`, `session`, `network`, `inventory`, `command`, `config`, etc.
+
+### Examples
+
+```
+feat(inventory): add drag-click support
+
+fix(world): prevent chunk unload during player teleport
+
+docs: update README badges
+
+refactor(session): extract packet routing to separate file
+
+perf(protocol): use buffer pool for packet encoding
+
+test(physics): add AABB intersection edge cases
+
+chore: update go.mod dependencies
+```
+
+### Rules
+
+- Use imperative mood: "add feature" not "added feature"
+- First line max 72 characters
+- No period at the end of the subject line
+- Separate subject from body with a blank line
+- Body explains *what* and *why*, not *how*
 
 ## Pull Requests
 
