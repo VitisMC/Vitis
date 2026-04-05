@@ -1,6 +1,7 @@
 package play
 
 import (
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
@@ -81,8 +82,8 @@ type WindowClick struct {
 	Slot         int16
 	Button       int32
 	Mode         int32
-	ChangedSlots map[int16][]byte
-	CarriedRaw   []byte
+	ChangedSlots map[int16]inventory.Slot
+	CarriedItem  inventory.Slot
 }
 
 func NewWindowClick() protocol.Packet { return &WindowClick{} }
@@ -106,36 +107,9 @@ func (p *WindowClick) Decode(buf *protocol.Buffer) error {
 	if p.Mode, err = buf.ReadVarInt(); err != nil {
 		return err
 	}
-	slotCount, err := buf.ReadVarInt()
-	if err != nil {
-		return err
-	}
-	p.ChangedSlots = make(map[int16][]byte, slotCount)
-	for i := int32(0); i < slotCount; i++ {
-		slotIdx, err := buf.ReadInt16()
-		if err != nil {
-			return err
-		}
-		itemCount, err := buf.ReadVarInt()
-		if err != nil {
-			return err
-		}
-		if itemCount <= 0 {
-			p.ChangedSlots[slotIdx] = nil
-			continue
-		}
-		remaining := buf.Remaining()
-		if remaining > 0 {
-			raw, err := buf.ReadBytes(remaining)
-			if err != nil {
-				return err
-			}
-			p.ChangedSlots[slotIdx] = raw
-		}
-	}
 	remaining := buf.Remaining()
 	if remaining > 0 {
-		p.CarriedRaw, err = buf.ReadBytes(remaining)
+		_, err = buf.ReadBytes(remaining)
 	}
 	return err
 }
@@ -146,19 +120,11 @@ func (p *WindowClick) Encode(buf *protocol.Buffer) error {
 	buf.WriteByte(byte(p.Button))
 	buf.WriteVarInt(p.Mode)
 	buf.WriteVarInt(int32(len(p.ChangedSlots)))
-	for idx, raw := range p.ChangedSlots {
+	for idx, s := range p.ChangedSlots {
 		buf.WriteInt16(idx)
-		if raw == nil {
-			buf.WriteVarInt(0)
-		} else {
-			buf.WriteBytes(raw)
-		}
+		inventory.EncodeSlot(buf, s)
 	}
-	if len(p.CarriedRaw) > 0 {
-		buf.WriteBytes(p.CarriedRaw)
-	} else {
-		buf.WriteVarInt(0)
-	}
+	inventory.EncodeSlot(buf, p.CarriedItem)
 	return nil
 }
 

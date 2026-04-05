@@ -45,6 +45,11 @@ func EncodeSlot(buf *protocol.Buffer, s Slot) {
 }
 
 // DecodeSlot reads a slot from a protocol buffer (1.21.4 structured format).
+// When ComponentsAdd and ComponentsRem are both zero, no additional bytes are read.
+// Otherwise, removal component type IDs are skipped and any remaining addition
+// component data is captured as RawComponents. Note: this only works reliably
+// when the slot is the LAST element in the buffer. For multi-slot sequences,
+// use DecodeSlotSkip instead.
 func DecodeSlot(buf *protocol.Buffer) (Slot, error) {
 	var s Slot
 	var err error
@@ -63,6 +68,9 @@ func DecodeSlot(buf *protocol.Buffer) (Slot, error) {
 	if s.ComponentsRem, err = buf.ReadVarInt(); err != nil {
 		return s, err
 	}
+	if s.ComponentsAdd == 0 && s.ComponentsRem == 0 {
+		return s, nil
+	}
 	remaining := buf.Remaining()
 	if remaining > 0 {
 		s.RawComponents, err = buf.ReadBytes(remaining)
@@ -71,6 +79,39 @@ func DecodeSlot(buf *protocol.Buffer) (Slot, error) {
 		}
 	}
 	return s, nil
+}
+
+// DecodeSlotSkip reads a slot header (count, id, components add/rem) and
+// discards any component data. Returns only ItemCount and ItemID.
+// Safe for use in multi-slot sequences where component boundaries are unknown.
+func DecodeSlotSkip(buf *protocol.Buffer) (Slot, error) {
+	var s Slot
+	var err error
+	if s.ItemCount, err = buf.ReadVarInt(); err != nil {
+		return s, err
+	}
+	if s.ItemCount <= 0 {
+		return EmptySlot(), nil
+	}
+	if s.ItemID, err = buf.ReadVarInt(); err != nil {
+		return s, err
+	}
+	addCount, err := buf.ReadVarInt()
+	if err != nil {
+		return s, err
+	}
+	remCount, err := buf.ReadVarInt()
+	if err != nil {
+		return s, err
+	}
+	if addCount == 0 && remCount == 0 {
+		return s, nil
+	}
+	remaining := buf.Remaining()
+	if remaining > 0 {
+		_, err = buf.ReadBytes(remaining)
+	}
+	return s, err
 }
 
 const (
