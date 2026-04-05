@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/chat"
 	"github.com/vitismc/vitis/internal/command"
 	enchdata "github.com/vitismc/vitis/internal/data/generated/enchantment"
+	gamerules "github.com/vitismc/vitis/internal/data/generated/game_rules"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
@@ -65,11 +68,15 @@ type WorldTimeAccessor interface {
 
 // ServerControlAdapter adapts session-layer components to the command.ServerControl interface.
 type ServerControlAdapter struct {
-	PM        *PlayerManager
-	OpList    *operator.List
-	StopFunc  func()
-	SeedValue int64
-	World     WorldTimeAccessor
+	PM                     *PlayerManager
+	OpList                 *operator.List
+	StopFunc               func()
+	SeedValue              int64
+	World                  WorldTimeAccessor
+	WorldAccess            WorldAccessor
+	GameRules              map[string]string
+	DefaultGM              int32
+	SpawnX, SpawnY, SpawnZ int
 }
 
 // NewServerControl creates a command.ServerControl backed by session-layer components.
@@ -294,6 +301,218 @@ func (s *ServerControlAdapter) EnchantItem(entityID int32, enchantName string, l
 	held.SetEnchant(info.ID, int32(level))
 	op.Windows.Inventory().Set(heldIdx, held)
 	return nil
+}
+
+func (s *ServerControlAdapter) SetBlockAt(x, y, z int, blockName string) (int32, error) {
+	if s.WorldAccess == nil {
+		return 0, fmt.Errorf("no world access")
+	}
+	stateID := block.DefaultStateID(blockName)
+	if stateID < 0 {
+		return 0, fmt.Errorf("unknown block: %s", blockName)
+	}
+	s.WorldAccess.SetBlock(x, y, z, stateID)
+	s.WorldAccess.NotifyNeighbors(x, y, z)
+	if s.PM != nil {
+		s.PM.Broadcast(&playpacket.BlockUpdate{
+			Position: playpacket.BlockPos{X: int32(x), Y: int32(y), Z: int32(z)},
+			BlockID:  stateID,
+		})
+	}
+	return stateID, nil
+}
+
+func (s *ServerControlAdapter) FillBlocks(x1, y1, z1, x2, y2, z2 int, blockName string) (int, error) {
+	if s.WorldAccess == nil {
+		return 0, fmt.Errorf("no world access")
+	}
+	stateID := block.DefaultStateID(blockName)
+	if stateID < 0 {
+		return 0, fmt.Errorf("unknown block: %s", blockName)
+	}
+	minX, maxX := x1, x2
+	if minX > maxX {
+		minX, maxX = maxX, minX
+	}
+	minY, maxY := y1, y2
+	if minY > maxY {
+		minY, maxY = maxY, minY
+	}
+	minZ, maxZ := z1, z2
+	if minZ > maxZ {
+		minZ, maxZ = maxZ, minZ
+	}
+	volume := (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1)
+	if volume > 32768 {
+		return 0, fmt.Errorf("fill volume %d exceeds limit of 32768", volume)
+	}
+	count := 0
+	for bx := minX; bx <= maxX; bx++ {
+		for by := minY; by <= maxY; by++ {
+			for bz := minZ; bz <= maxZ; bz++ {
+				old := s.WorldAccess.GetBlock(bx, by, bz)
+				if old != stateID {
+					s.WorldAccess.SetBlock(bx, by, bz, stateID)
+					count++
+				}
+			}
+		}
+	}
+	if s.PM != nil {
+		for bx := minX; bx <= maxX; bx++ {
+			for by := minY; by <= maxY; by++ {
+				for bz := minZ; bz <= maxZ; bz++ {
+					s.PM.Broadcast(&playpacket.BlockUpdate{
+						Position: playpacket.BlockPos{X: int32(bx), Y: int32(by), Z: int32(bz)},
+						BlockID:  stateID,
+					})
+				}
+			}
+		}
+	}
+	return count, nil
+}
+
+func (s *ServerControlAdapter) ClearInventory(entityID int32, itemName string, maxCount int) (int, error) {
+	if s.PM == nil {
+		return 0, fmt.Errorf("no player manager")
+	}
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil || op.Windows == nil {
+		return 0, fmt.Errorf("player not found")
+	}
+	var filterID int32 = -1
+	if itemName != "" {
+		filterID = item.IDByName(itemName)
+		if filterID <= 0 {
+			return 0, fmt.Errorf("unknown item: %s", itemName)
+		}
+	}
+	inv := op.Windows.Inventory()
+	removed := 0
+	remaining := maxCount
+	if maxCount < 0 {
+		remaining = int(^uint(0) >> 1)
+	}
+	for i := 0; i < inv.Size(); i++ {
+		if remaining <= 0 {
+			break
+		}
+		sl := inv.Get(i)
+		if sl.Empty() {
+			continue
+		}
+		if filterID > 0 && sl.ItemID != filterID {
+			continue
+		}
+		take := int(sl.ItemCount)
+		if take > remaining {
+			take = remaining
+		}
+		sl.ItemCount -= int32(take)
+		if sl.ItemCount <= 0 {
+			inv.Set(i, inventory.EmptySlot())
+		} else {
+			inv.Set(i, sl)
+		}
+		removed += take
+		remaining -= take
+	}
+	return removed, nil
+}
+
+func (s *ServerControlAdapter) GetGameRule(name string) (string, error) {
+	info := gamerules.GameRuleByName(name)
+	if info == nil {
+		return "", fmt.Errorf("unknown game rule: %s", name)
+	}
+	if s.GameRules != nil {
+		if v, ok := s.GameRules[name]; ok {
+			return v, nil
+		}
+	}
+	if info.Type == "boolean" {
+		return "true", nil
+	}
+	return "0", nil
+}
+
+func (s *ServerControlAdapter) SetGameRule(name, value string) error {
+	info := gamerules.GameRuleByName(name)
+	if info == nil {
+		return fmt.Errorf("unknown game rule: %s", name)
+	}
+	if s.GameRules == nil {
+		s.GameRules = make(map[string]string)
+	}
+	s.GameRules[name] = value
+	return nil
+}
+
+func (s *ServerControlAdapter) SetDefaultGameMode(mode int32) error {
+	if mode < 0 || mode > 3 {
+		return fmt.Errorf("invalid game mode: %d", mode)
+	}
+	s.DefaultGM = mode
+	return nil
+}
+
+func (s *ServerControlAdapter) SetWorldSpawn(x, y, z int) error {
+	s.SpawnX, s.SpawnY, s.SpawnZ = x, y, z
+	if s.PM != nil {
+		s.PM.Broadcast(&playpacket.SetDefaultSpawnPosition{
+			X: int32(x), Y: int32(y), Z: int32(z),
+		})
+	}
+	return nil
+}
+
+func (s *ServerControlAdapter) SetSpawnPoint(entityID int32, x, y, z int) error {
+	if s.PM == nil {
+		return fmt.Errorf("no player manager")
+	}
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil {
+		return fmt.Errorf("player not found")
+	}
+	_ = op.Session.Send(&playpacket.SetDefaultSpawnPosition{
+		X: int32(x), Y: int32(y), Z: int32(z),
+	})
+	return nil
+}
+
+func (s *ServerControlAdapter) SendTitle(entityID int32, title, subtitle string, fadeIn, stay, fadeOut int) error {
+	if s.PM == nil {
+		return fmt.Errorf("no player manager")
+	}
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil {
+		return fmt.Errorf("player not found")
+	}
+	sess := op.Session
+	if fadeIn > 0 || stay > 0 || fadeOut > 0 {
+		_ = sess.Send(&playpacket.SetTitleTime{
+			FadeIn: int32(fadeIn), Stay: int32(stay), FadeOut: int32(fadeOut),
+		})
+	}
+	if subtitle != "" {
+		_ = sess.Send(&playpacket.SetTitleSubtitle{Text: subtitle})
+	}
+	if title != "" {
+		_ = sess.Send(&playpacket.SetTitleText{Text: title})
+	}
+	return nil
+}
+
+func (s *ServerControlAdapter) SendActionBar(entityID int32, text string) error {
+	if s.PM == nil {
+		return fmt.Errorf("no player manager")
+	}
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil {
+		return fmt.Errorf("player not found")
+	}
+	return op.Session.Send(&playpacket.ActionBar{Text: text})
 }
 
 // Verify interface compliance.
