@@ -75,7 +75,9 @@ func (m *mockServer) KickPlayer(name string, _ string) error {
 	m.kicked = append(m.kicked, name)
 	return nil
 }
-func (m *mockServer) BroadcastMessage(msg string) { m.broadcasts = append(m.broadcasts, msg) }
+func (m *mockServer) BroadcastMessage(msg string)       { m.broadcasts = append(m.broadcasts, msg) }
+func (m *mockServer) AddXP(_ int32, _ int32) error      { return nil }
+func (m *mockServer) SetXPLevel(_ int32, _ int32) error { return nil }
 
 func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry()
@@ -177,7 +179,7 @@ func TestBuiltinHelp(t *testing.T) {
 	lookup := &mockLookup{players: map[string]*mockSender{}}
 	RegisterBuiltinCommands(r, lookup, server)
 
-	if r.Count() != 16 {
+	if r.Count() != 17 {
 		t.Fatalf("expected 16 commands, got %d", r.Count())
 	}
 
