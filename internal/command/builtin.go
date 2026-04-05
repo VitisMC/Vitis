@@ -45,9 +45,11 @@ type ServerControl interface {
 	KickPlayer(name string, reason string) error
 	// BroadcastMessage broadcasts a message to all players.
 	BroadcastMessage(message string)
+	// EnchantItem applies an enchantment to the held item of a player.
+	EnchantItem(entityID int32, enchantName string, level int) error
 }
 
-// RegisterBuiltinCommands registers all 16 built-in commands.
+// RegisterBuiltinCommands registers all built-in commands.
 func RegisterBuiltinCommands(registry *Registry, players PlayerLookup, server ServerControl) {
 	registry.Register(cmdHelp(registry))
 	registry.Register(cmdGamemode(players, server))
@@ -65,6 +67,7 @@ func RegisterBuiltinCommands(registry *Registry, players PlayerLookup, server Se
 	registry.Register(cmdKill(players, server))
 	registry.Register(cmdOp(players, server))
 	registry.Register(cmdDeop(players, server))
+	registry.Register(cmdEnchant(players, server))
 }
 
 // --- /help ---
@@ -728,7 +731,54 @@ func tabCompletePlayers(players PlayerLookup) TabCompleter {
 	}
 }
 
-// parseCoordinates parses x, y, z with support for ~ (relative) notation.
+// --- /enchant ---
+func cmdEnchant(players PlayerLookup, server ServerControl) *Command {
+	return &Command{
+		Name:            "enchant",
+		Description:     "Enchants the held item of a player",
+		Usage:           "/enchant <player> <enchantment> [level]",
+		PermissionLevel: 2,
+		Children: []*CommandNode{
+			ArgumentNode("targets", ParserEntity, EntityFlagOnlyPlayers,
+				ArgumentNode("enchantment", ParserResource, nil,
+					ArgumentNode("level", ParserInteger, [2]int32{1, 255}).Executable(),
+				).Executable(),
+			),
+		},
+		Execute: func(ctx *Context) error {
+			if ctx.ArgCount() < 2 {
+				ctx.Reply("§7Usage: /enchant <player> <enchantment> [level]")
+				return nil
+			}
+			target := players.FindPlayerByName(ctx.Arg(0))
+			if target == nil {
+				ctx.ReplyError("Player not found: %s", ctx.Arg(0))
+				return nil
+			}
+			enchName := ctx.Arg(1)
+			if !strings.Contains(enchName, ":") {
+				enchName = "minecraft:" + enchName
+			}
+			level := 1
+			if ctx.ArgCount() >= 3 {
+				l, err := strconv.Atoi(ctx.Arg(2))
+				if err != nil || l < 1 {
+					ctx.ReplyError("Invalid level: %s", ctx.Arg(2))
+					return nil
+				}
+				level = l
+			}
+			if err := server.EnchantItem(target.EntityID(), enchName, level); err != nil {
+				ctx.ReplyError("Failed: %v", err)
+				return nil
+			}
+			ctx.Reply("§aApplied %s level %d to %s's held item", enchName, level, target.Name())
+			return nil
+		},
+		TabComplete: tabCompletePlayers(players),
+	}
+}
+
 func parseCoordinates(args []string, sender PlayerSender) (x, y, z float64, err error) {
 	if len(args) < 3 {
 		return 0, 0, 0, fmt.Errorf("expected 3 coordinates, got %d", len(args))
