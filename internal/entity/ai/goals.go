@@ -126,6 +126,8 @@ type MeleeAttackGoal struct {
 	AttackDist float64
 	Cooldown   int
 	cooldown   int
+	nav        *Navigator
+	replanTick int
 }
 
 func (g *MeleeAttackGoal) CanStart(ctx *Context) bool {
@@ -134,6 +136,8 @@ func (g *MeleeAttackGoal) CanStart(ctx *Context) bool {
 
 func (g *MeleeAttackGoal) Start(ctx *Context) {
 	g.cooldown = 0
+	g.nav = NewNavigator(g.Speed)
+	g.replanTick = 0
 }
 
 func (g *MeleeAttackGoal) Tick(ctx *Context) {
@@ -160,8 +164,7 @@ func (g *MeleeAttackGoal) Tick(ctx *Context) {
 	dx := targetPos.X - pos.X
 	dy := targetPos.Y - pos.Y
 	dz := targetPos.Z - pos.Z
-	distSq := dx*dx + dy*dy + dz*dz
-	dist := math.Sqrt(distSq)
+	dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
 
 	yaw := float32(math.Atan2(-dx, dz) * 180.0 / math.Pi)
 	pitch := float32(-math.Atan2(dy, math.Sqrt(dx*dx+dz*dz)) * 180.0 / math.Pi)
@@ -173,13 +176,22 @@ func (g *MeleeAttackGoal) Tick(ctx *Context) {
 	}
 
 	if dist > atkDist {
-		speed := g.Speed
-		if speed <= 0 {
-			speed = 0.2
+		g.replanTick--
+		if ctx.Blocks != nil && (!g.nav.HasPath() || g.replanTick <= 0) {
+			g.nav.NavigateTo(ctx.Mob, targetPos, ctx.Blocks)
+			g.replanTick = 20
 		}
-		nx := dx / dist * speed
-		nz := dz / dist * speed
-		ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+		if g.nav.HasPath() {
+			g.nav.FollowPath(ctx.Mob)
+		} else {
+			speed := g.Speed
+			if speed <= 0 {
+				speed = 0.2
+			}
+			nx := dx / dist * speed
+			nz := dz / dist * speed
+			ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+		}
 	}
 
 	if g.cooldown > 0 {
@@ -191,7 +203,11 @@ func (g *MeleeAttackGoal) CanContinue(ctx *Context) bool {
 	return ctx.Mob.Target() >= 0
 }
 
-func (g *MeleeAttackGoal) Stop(ctx *Context) {}
+func (g *MeleeAttackGoal) Stop(ctx *Context) {
+	if g.nav != nil {
+		g.nav.ClearPath()
+	}
+}
 
 // ShouldAttack returns true if the mob is in range and off cooldown.
 // The caller is responsible for applying damage.
