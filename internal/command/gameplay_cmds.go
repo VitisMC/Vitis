@@ -484,7 +484,7 @@ func cmdSummon(server ServerControl) *Command {
 		Usage:           "/summon <entity> [x y z]",
 		PermissionLevel: 2,
 		Children: []*CommandNode{
-			ArgumentNode("entity", ParserResource, nil,
+			ArgumentNode("entity", ParserEntitySummon, nil,
 				ArgumentNode("pos", ParserVec3, nil).Executable(),
 			).Executable(),
 		},
@@ -493,10 +493,7 @@ func cmdSummon(server ServerControl) *Command {
 				ctx.Reply("§7Usage: /summon <entity> [x y z]")
 				return nil
 			}
-			entityType := ctx.Arg(0)
-			if !strings.Contains(entityType, ":") {
-				entityType = "minecraft:" + entityType
-			}
+			entityType := strings.TrimPrefix(ctx.Arg(0), "minecraft:")
 
 			var x, y, z float64
 			if ctx.ArgCount() >= 4 {
@@ -569,10 +566,7 @@ func cmdEffect(players PlayerLookup, server ServerControl) *Command {
 					ctx.ReplyError("player not found: %s", ctx.Arg(1))
 					return nil
 				}
-				effectName := ctx.Arg(2)
-				if !strings.Contains(effectName, ":") {
-					effectName = "minecraft:" + effectName
-				}
+				effectName := strings.TrimPrefix(ctx.Arg(2), "minecraft:")
 				seconds := 30
 				if ctx.ArgCount() >= 4 {
 					d, err := strconv.Atoi(ctx.Arg(3))
@@ -610,10 +604,7 @@ func cmdEffect(players PlayerLookup, server ServerControl) *Command {
 				}
 				effectFilter := ""
 				if ctx.ArgCount() >= 3 {
-					effectFilter = ctx.Arg(2)
-					if !strings.Contains(effectFilter, ":") {
-						effectFilter = "minecraft:" + effectFilter
-					}
+					effectFilter = strings.TrimPrefix(ctx.Arg(2), "minecraft:")
 				}
 				if err := server.ClearEffects(target.EntityID(), effectFilter); err != nil {
 					ctx.ReplyError("%v", err)

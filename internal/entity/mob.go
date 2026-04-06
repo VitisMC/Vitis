@@ -153,7 +153,19 @@ func mobAttributes(def *MobTypeDef) *AttributeContainer {
 var mobTypeDefs = map[string]*MobTypeDef{}
 
 // RegisterMobTypeDef registers a mob type definition by name.
+// It auto-fills ProtocolID, Width, and Height from generated entity data if unset.
 func RegisterMobTypeDef(def *MobTypeDef) {
+	if info := genent.EntityByName(def.Name); info != nil {
+		if def.ProtocolID == 0 {
+			def.ProtocolID = info.ID
+		}
+		if def.Width == 0 {
+			def.Width = info.Width
+		}
+		if def.Height == 0 {
+			def.Height = info.Height
+		}
+	}
 	mobTypeDefs[def.Name] = def
 }
 
