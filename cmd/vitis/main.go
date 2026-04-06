@@ -229,6 +229,7 @@ func run() int {
 		}
 		if sc, ok := serverControl.(*session.ServerControlAdapter); ok {
 			sc.World = defaultWorld
+			sc.WeatherWorld = defaultWorld
 			sc.SeedValue = 42
 		}
 	}
@@ -263,6 +264,15 @@ func run() int {
 		}
 		cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ = spawnX, spawnY, spawnZ
 		cfg.GameMode = gameMode
+
+		if defaultWorld != nil && defaultWorld.Weather() != nil {
+			wJoin := defaultWorld.Weather().JoinPackets()
+			weatherPkts := make([]protocol.Packet, 0, len(wJoin))
+			for _, wp := range wJoin {
+				weatherPkts = append(weatherPkts, &playpacket.GameEvent{Event: wp.Event, Value: wp.Value})
+			}
+			cfg.WeatherPackets = weatherPkts
+		}
 
 		if err := session.SendPlayBootstrap(s, entityID, cfg); err != nil {
 			logger.Error("play bootstrap failed", "session", s.ID(), "error", err)
