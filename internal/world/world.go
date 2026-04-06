@@ -11,6 +11,7 @@ import (
 	"github.com/vitismc/vitis/internal/block/fluid"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/projectile"
+	"github.com/vitismc/vitis/internal/experience"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/world/chunk"
@@ -882,6 +883,53 @@ func (w *World) tickXPOrbs() {
 	removed := w.xpOrbs.TickAll(w, findPlayer)
 	for _, id := range removed {
 		w.broadcastRemoveEntity(id)
+	}
+
+	w.pickupXPOrbs()
+}
+
+func (w *World) pickupXPOrbs() {
+	players := w.tracker.Players()
+	if len(players) == 0 {
+		return
+	}
+
+	var pickedUp []int32
+	for id, orb := range w.xpOrbs.All() {
+		if orb.Removed() {
+			continue
+		}
+		for _, p := range players {
+			if p.Removed() {
+				continue
+			}
+			if !orb.IsInPickupRange(p.Position()) {
+				continue
+			}
+
+			living := p.Living()
+			result := experience.AddXP(living.XPLevel(), living.XPTotal(), orb.XPValue())
+			living.SetXP(result.Level, result.Total, result.Bar)
+
+			sess := p.Session()
+			if sess != nil {
+				_ = sess.Send(&playpacket.SetExperience{
+					ExperienceBar:   result.Bar,
+					ExperienceLevel: result.Level,
+					TotalExperience: result.Total,
+				})
+			}
+
+			orb.Remove()
+			pickedUp = append(pickedUp, id)
+			break
+		}
+	}
+
+	for _, id := range pickedUp {
+		w.xpOrbs.Remove(id)
+		w.broadcastRemoveEntity(id)
+		w.entities.Remove(id)
 	}
 }
 

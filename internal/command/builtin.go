@@ -45,9 +45,13 @@ type ServerControl interface {
 	KickPlayer(name string, reason string) error
 	// BroadcastMessage broadcasts a message to all players.
 	BroadcastMessage(message string)
+	// AddXP adds experience points to a player.
+	AddXP(entityID int32, amount int32) error
+	// SetXPLevel sets a player's experience level directly.
+	SetXPLevel(entityID int32, level int32) error
 }
 
-// RegisterBuiltinCommands registers all 16 built-in commands.
+// RegisterBuiltinCommands registers all 17 built-in commands.
 func RegisterBuiltinCommands(registry *Registry, players PlayerLookup, server ServerControl) {
 	registry.Register(cmdHelp(registry))
 	registry.Register(cmdGamemode(players, server))
@@ -65,6 +69,7 @@ func RegisterBuiltinCommands(registry *Registry, players PlayerLookup, server Se
 	registry.Register(cmdKill(players, server))
 	registry.Register(cmdOp(players, server))
 	registry.Register(cmdDeop(players, server))
+	registry.Register(cmdXP(players, server))
 }
 
 // --- /help ---
@@ -752,6 +757,123 @@ func parseCoordinates(args []string, sender PlayerSender) (x, y, z float64, err 
 		return 0, 0, 0, fmt.Errorf("invalid z: %w", err)
 	}
 	return x, y, z, nil
+}
+
+// --- /xp ---
+func cmdXP(players PlayerLookup, server ServerControl) *Command {
+	return &Command{
+		Name:            "xp",
+		Description:     "Adds or sets experience",
+		Usage:           "/xp <add|set> <player> <amount> [points|levels]",
+		Aliases:         []string{"experience"},
+		PermissionLevel: 2,
+		Children: []*CommandNode{
+			LiteralNode("add",
+				ArgumentNode("player", ParserString, StringSingleWord,
+					ArgumentNode("amount", ParserInteger, [2]int32{-2147483648, 2147483647},
+						LiteralNode("points").Executable(),
+						LiteralNode("levels").Executable(),
+					).Executable(),
+				),
+			),
+			LiteralNode("set",
+				ArgumentNode("player", ParserString, StringSingleWord,
+					ArgumentNode("amount", ParserInteger, [2]int32{0, 2147483647},
+						LiteralNode("points").Executable(),
+						LiteralNode("levels").Executable(),
+					).Executable(),
+				),
+			),
+			LiteralNode("query",
+				ArgumentNode("player", ParserString, StringSingleWord).Executable(),
+			),
+		},
+		Execute: func(ctx *Context) error {
+			if ctx.ArgCount() < 1 {
+				ctx.Reply("§7Usage: /xp <add|set|query> <player> <amount> [points|levels]")
+				return nil
+			}
+
+			sub := strings.ToLower(ctx.Arg(0))
+
+			if sub == "query" {
+				if ctx.ArgCount() < 2 {
+					ctx.ReplyError("Usage: /xp query <player>")
+					return nil
+				}
+				target := players.FindPlayerByName(ctx.Arg(1))
+				if target == nil {
+					ctx.ReplyError("Player not found: %s", ctx.Arg(1))
+					return nil
+				}
+				ctx.Reply("§7(XP query not yet supported)")
+				return nil
+			}
+
+			if sub != "add" && sub != "set" {
+				ctx.ReplyError("Unknown subcommand: %s", sub)
+				return nil
+			}
+
+			if ctx.ArgCount() < 3 {
+				ctx.ReplyError("Usage: /xp %s <player> <amount> [points|levels]", sub)
+				return nil
+			}
+
+			target := players.FindPlayerByName(ctx.Arg(1))
+			if target == nil {
+				ctx.ReplyError("Player not found: %s", ctx.Arg(1))
+				return nil
+			}
+
+			amount, err := strconv.Atoi(ctx.Arg(2))
+			if err != nil {
+				ctx.ReplyError("Invalid amount: %s", ctx.Arg(2))
+				return nil
+			}
+
+			unit := "points"
+			if ctx.ArgCount() >= 4 {
+				unit = strings.ToLower(ctx.Arg(3))
+			}
+
+			switch sub {
+			case "add":
+				if unit == "levels" {
+					if err := server.SetXPLevel(target.EntityID(), int32(amount)); err != nil {
+						ctx.ReplyError("failed to set xp level: %s", err)
+						return nil
+					}
+					ctx.Reply("§aAdded %d levels to %s", amount, ctx.Arg(1))
+				} else {
+					if err := server.AddXP(target.EntityID(), int32(amount)); err != nil {
+						ctx.ReplyError("failed to add xp: %s", err)
+						return nil
+					}
+					ctx.Reply("§aAdded %d experience points to %s", amount, ctx.Arg(1))
+				}
+			case "set":
+				if amount < 0 {
+					ctx.ReplyError("Amount must be non-negative for set")
+					return nil
+				}
+				if unit == "levels" {
+					if err := server.SetXPLevel(target.EntityID(), int32(amount)); err != nil {
+						ctx.ReplyError("failed to set xp level: %s", err)
+						return nil
+					}
+					ctx.Reply("§aSet %s to level %d", ctx.Arg(1), amount)
+				} else {
+					if err := server.AddXP(target.EntityID(), int32(amount)); err != nil {
+						ctx.ReplyError("failed to set xp: %s", err)
+						return nil
+					}
+					ctx.Reply("§aSet %s to %d experience points", ctx.Arg(1), amount)
+				}
+			}
+			return nil
+		},
+	}
 }
 
 func parseCoord(s string, base float64) (float64, error) {
