@@ -42,6 +42,10 @@ A high-performance Minecraft server software written in Go. Currently supports *
 - Entity attributes with modifiers and dirty tracking
 - Armor and equipment system with vanilla damage reduction
 - Player data persistence (position, game mode, health, inventory)
+- Weather system (clear, rain, thunder) with client sync
+- Status effects (39 effects, add/remove/clear/tick, client packet sync)
+- Experience system (points, levels, XP bar sync)
+- Enchantment system (data registry, `/enchant` command)
 
 ### Entities
 - Entity physics with AABB collision detection
@@ -51,6 +55,9 @@ A high-performance Minecraft server software written in Go. Currently supports *
 - Projectiles (arrows, snowballs, eggs, ender pearls)
 - Vehicles (boats, minecarts)
 - Falling blocks
+- Mob entity framework with 17+ mob types (passive, hostile, utility)
+- AI goal system (wander, target, melee attack, flee, A* pathfinding)
+- `/summon` command for mob spawning
 
 ### Multiplayer
 - Entity sync and visibility (animation, sneaking, sprinting, equipment)
@@ -58,7 +65,7 @@ A high-performance Minecraft server software written in Go. Currently supports *
 - Boss bars
 - Tab list with header/footer
 - Chat (profiled disguised chat messages)
-- Tab completion for commands
+- 30 built-in commands with tab completion
 - Sound and particle broadcast
 - Operator permissions system
 
@@ -68,7 +75,7 @@ A high-performance Minecraft server software written in Go. Currently supports *
 - Structured logging with configurable levels
 - Tick loop with configurable TPS and overload handling
 - Event bus with priority-sorted dispatch
-- Command system with tab completion
+- Command system with 30 built-in commands and tab completion
 
 ## Roadmap
 
@@ -129,14 +136,18 @@ internal/
     region/         Anvil .mca file format
     level/          level.dat and player data persistence
     persistence/    Chunk store abstraction
-  entity/           Entity types, physics, metadata
+  entity/           Entity types, physics, metadata, mobs, AI
     physics/        AABB collision, gravity, movement
+    ai/             Goal-based AI, A* pathfinding
     projectile/     Arrows, thrown items
     vehicle/        Boats, minecarts
+  effect/           Status effect manager
+  experience/       Experience and leveling system
+  enchantment/      Enchantment system
   block/            Block registry, behaviors, fluids
   item/             Item registry
   inventory/        Container and window management
-  command/          Command registry and built-in commands
+  command/          Command registry and 30 built-in commands
   config/           YAML configuration with hot-reload
   logger/           Structured logging (log/slog)
   event/            Event bus
