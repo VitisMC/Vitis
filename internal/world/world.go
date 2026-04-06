@@ -489,8 +489,18 @@ func (w *World) tickPlayers() {
 		living.TickLiving()
 		living.TickHunger()
 
+		diff := living.TickEffects()
+		sess := p.Session()
+		if sess != nil {
+			for _, id := range diff.Removed {
+				_ = sess.Send(&playpacket.RemoveEntityEffect{
+					EntityID: p.ID(),
+					EffectID: id,
+				})
+			}
+		}
+
 		if w.tick.Load()%20 == 0 && !living.IsDead() {
-			sess := p.Session()
 			if sess == nil {
 				continue
 			}
