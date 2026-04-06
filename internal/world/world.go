@@ -10,8 +10,10 @@ import (
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/block/fluid"
 	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/entity/ai"
 	"github.com/vitismc/vitis/internal/entity/projectile"
 	"github.com/vitismc/vitis/internal/experience"
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/world/chunk"
@@ -82,6 +84,8 @@ type World struct {
 	tnts          *entity.TNTManager
 	projectiles   *projectile.Manager
 	weather       *weather.Weather
+	mobs          *entity.MobManager
+	mobBrains     *ai.BrainRegistry
 
 	tick atomic.Uint64
 
@@ -159,7 +163,8 @@ func New(config Config) (*World, error) {
 		chunkStreamPerTick = defaultChunksPerTick
 	}
 
-	return &World{
+	entMgr := entity.NewManager()
+	w := &World{
 		id:                       config.ID,
 		name:                     config.Name,
 		chunks:                   chunkManager,
@@ -167,7 +172,7 @@ func New(config Config) (*World, error) {
 		streaming:                streaming.NewManager(),
 		scheduler:                NewScheduler(schedulerCapacity),
 		tickScheduler:            tick.NewScheduler(),
-		entities:                 entity.NewManager(),
+		entities:                 entMgr,
 		tracker:                  entity.NewTracker(),
 		fallingBlocks:            entity.NewFallingBlockManager(),
 		items:                    entity.NewItemEntityManager(),
@@ -179,7 +184,10 @@ func New(config Config) (*World, error) {
 		chunkCompletionsPerTick:  chunkCompletions,
 		chunkUnloadBatchPerTick:  chunkUnloadBatch,
 		chunkStreamChunksPerTick: chunkStreamPerTick,
-	}, nil
+	}
+	w.mobs = entity.NewMobManager(entMgr, entMgr.AllocateID)
+	w.mobBrains = ai.NewBrainRegistry()
+	return w, nil
 }
 
 // ID returns stable world identifier.
@@ -221,6 +229,7 @@ func (w *World) Tick() {
 	w.tickXPOrbs()
 	w.tickTNT()
 	w.tickProjectiles()
+	w.tickMobs()
 	w.chunks.PumpLoadRequests()
 	w.chunks.ApplyLoadCompletions(w.chunkCompletionsPerTick)
 	w.chunks.UpdateActiveChunks()
@@ -1001,6 +1010,70 @@ func (w *World) tickProjectiles() {
 		w.broadcastRemoveEntity(id)
 		w.entities.Remove(id)
 	}
+}
+
+func (w *World) tickMobs() {
+	if w.mobs == nil {
+		return
+	}
+
+	if w.mobBrains != nil {
+		players := w.buildAIPlayerList()
+		w.mobBrains.TickAll(w.mobs.Mobs(), players, w.tick.Load(), w)
+	}
+
+	drops := w.mobs.Tick()
+	for _, d := range drops {
+		if d.ItemID > 0 && d.Count > 0 {
+			eid := w.entities.AllocateID()
+			uuid := protocol.UUID{uint64(eid), uint64(eid) ^ 0xDEAD}
+			stack := inventory.NewSlot(d.ItemID, d.Count)
+			ie := entity.NewItemEntity(eid, uuid,
+				entity.Vec3{X: d.X + 0.5, Y: d.Y + 0.5, Z: d.Z + 0.5},
+				stack,
+			)
+			w.SpawnItemEntity(ie)
+		}
+	}
+}
+
+func (w *World) buildAIPlayerList() []ai.PlayerInfo {
+	trackedPlayers := w.tracker.Players()
+	if len(trackedPlayers) == 0 {
+		return nil
+	}
+	result := make([]ai.PlayerInfo, 0, len(trackedPlayers))
+	for _, p := range trackedPlayers {
+		if p.Removed() {
+			continue
+		}
+		result = append(result, ai.PlayerInfo{
+			EntityID: p.ID(),
+			Pos:      p.Position(),
+			GameMode: p.Living().GameMode(),
+		})
+	}
+	return result
+}
+
+// MobManager returns the world's mob manager.
+func (w *World) MobManager() *entity.MobManager {
+	if w == nil {
+		return nil
+	}
+	return w.mobs
+}
+
+// SpawnMob creates and registers a mob entity in the world by type name.
+func (w *World) SpawnMob(typeName string, pos entity.Vec3) *entity.MobEntity {
+	if w == nil || w.mobs == nil {
+		return nil
+	}
+	mob := w.mobs.SpawnMob(typeName, pos)
+	if mob != nil && w.mobBrains != nil {
+		w.mobBrains.RegisterMob(mob)
+	}
+	return mob
 }
 
 func makeChunkSaveFunc(store *persistence.ChunkStore) chunk.ChunkSaveFunc {

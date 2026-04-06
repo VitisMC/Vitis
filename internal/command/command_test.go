@@ -75,9 +75,20 @@ func (m *mockServer) KickPlayer(name string, _ string) error {
 	m.kicked = append(m.kicked, name)
 	return nil
 }
-func (m *mockServer) BroadcastMessage(msg string)       { m.broadcasts = append(m.broadcasts, msg) }
-func (m *mockServer) AddXP(_ int32, _ int32) error      { return nil }
-func (m *mockServer) SetXPLevel(_ int32, _ int32) error { return nil }
+func (m *mockServer) BroadcastMessage(msg string)                            { m.broadcasts = append(m.broadcasts, msg) }
+func (m *mockServer) EnchantItem(_ int32, _ string, _ int) error             { return nil }
+func (m *mockServer) SetBlockAt(_, _, _ int, _ string) (int32, error)        { return 0, nil }
+func (m *mockServer) FillBlocks(_, _, _, _, _, _ int, _ string) (int, error) { return 0, nil }
+func (m *mockServer) ClearInventory(_ int32, _ string, _ int) (int, error)   { return 0, nil }
+func (m *mockServer) GetGameRule(_ string) (string, error)                   { return "true", nil }
+func (m *mockServer) SetGameRule(_, _ string) error                          { return nil }
+func (m *mockServer) SetDefaultGameMode(_ int32) error                       { return nil }
+func (m *mockServer) SetWorldSpawn(_, _, _ int) error                        { return nil }
+func (m *mockServer) SetSpawnPoint(_ int32, _, _, _ int) error               { return nil }
+func (m *mockServer) SendTitle(_ int32, _, _ string, _, _, _ int) error      { return nil }
+func (m *mockServer) SendActionBar(_ int32, _ string) error                  { return nil }
+func (m *mockServer) AddXP(_ int32, _ int32) error                           { return nil }
+func (m *mockServer) SetXPLevel(_ int32, _ int32) error                      { return nil }
 
 func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry()
@@ -179,8 +190,8 @@ func TestBuiltinHelp(t *testing.T) {
 	lookup := &mockLookup{players: map[string]*mockSender{}}
 	RegisterBuiltinCommands(r, lookup, server)
 
-	if r.Count() != 17 {
-		t.Fatalf("expected 16 commands, got %d", r.Count())
+	if r.Count() != 28 {
+		t.Fatalf("expected 28 commands, got %d", r.Count())
 	}
 
 	sender := &mockSender{name: "Player", level: 4}

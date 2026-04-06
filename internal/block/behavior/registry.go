@@ -4,11 +4,26 @@ import "github.com/vitismc/vitis/internal/block"
 
 // Context carries information about a block interaction.
 type Context struct {
-	X, Y, Z     int
-	StateID     int32
-	Face        int32
-	PlayerGM    int32
-	FurnaceType int
+	X, Y, Z          int
+	StateID          int32
+	Face             int32
+	PlayerGM         int32
+	FurnaceType      int
+	ToolName         string
+	ToolEnchantments map[int32]int32
+}
+
+// HasSilkTouch returns true if the tool has the silk touch enchantment.
+func (c *Context) HasSilkTouch() bool {
+	return c.ToolEnchantments != nil && c.ToolEnchantments[33] > 0
+}
+
+// FortuneLevel returns the fortune enchantment level on the tool.
+func (c *Context) FortuneLevel() int32 {
+	if c.ToolEnchantments == nil {
+		return 0
+	}
+	return c.ToolEnchantments[13]
 }
 
 // Drop describes one item drop from a block.
