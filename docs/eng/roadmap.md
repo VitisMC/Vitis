@@ -74,8 +74,71 @@ This document outlines the current state and planned development direction for V
 - [x] Boss bars with per-viewer tracking
 - [x] Tab list with header/footer
 - [x] Chat (disguised chat messages)
-- [x] Command system with tab completion (20 built-in commands)
+- [x] Command system with tab completion (30 built-in commands)
 - [x] Sound and particle broadcast
+
+### 🌦️ Weather
+- [x] Weather system (clear, rain, thunder)
+- [x] Weather state sync with clients
+- [x] State duration and smooth transitions
+
+### ✨ Status Effects
+- [x] Effect manager (add, remove, clear, tick)
+- [x] 39 effects from vanilla data
+- [x] Client effect sync (EntityEffect / RemoveEntityEffect packets)
+- [x] `/effect` command (give/clear)
+
+### 🔮 Experience & Enchantments
+- [x] Experience system (points, levels, XP bar)
+- [x] Client XP sync
+- [x] `/xp` command (add/set/query)
+- [x] Enchantment system (data registry, `/enchant` command)
+
+### 🐾 Mobs
+- [x] Mob entity framework (type definitions, mob manager, spawning)
+- [x] AI goal system (wander, target, melee attack, flee, A* pathfinding)
+- [x] Passive mobs (cow, pig, sheep, chicken, wolf, bat) with drops
+- [x] Hostile mobs (zombie, skeleton, creeper, spider, enderman, drowned, husk, stray, cave spider)
+- [x] Utility mobs (iron golem, snow golem)
+- [x] `/summon` command with coordinate-based spawning
+- [x] Auto-fill ProtocolID and dimensions from protocol data
+
+### 📋 Commands
+
+30 built-in commands with tab completion:
+
+| Command | Description | Aliases | Permission |
+|---------|-------------|---------|------------|
+| `/help` | List available commands | `?` | 0 |
+| `/msg` | Send a private message | `tell`, `w` | 0 |
+| `/me` | Third-person action message | — | 0 |
+| `/list` | List online players | — | 0 |
+| `/gamemode` | Set game mode | `gm` | 2 |
+| `/tp` | Teleport a player | `teleport` | 2 |
+| `/give` | Give items to a player | — | 2 |
+| `/time` | Set/query world time | — | 2 |
+| `/weather` | Set weather | — | 2 |
+| `/say` | Server broadcast | — | 2 |
+| `/kick` | Kick a player | — | 2 |
+| `/kill` | Kill a player | — | 2 |
+| `/seed` | Show world seed | — | 2 |
+| `/difficulty` | Set difficulty | — | 2 |
+| `/enchant` | Enchant held item | — | 2 |
+| `/tellraw` | Send raw JSON text | — | 2 |
+| `/title` | Show title/subtitle | — | 2 |
+| `/setblock` | Place a block | — | 2 |
+| `/fill` | Fill area with blocks | — | 2 |
+| `/clear` | Clear inventory | — | 2 |
+| `/gamerule` | Get/set game rules | — | 2 |
+| `/defaultgamemode` | Set default game mode | — | 2 |
+| `/setworldspawn` | Set world spawn | — | 2 |
+| `/spawnpoint` | Set player spawn point | — | 2 |
+| `/xp` | Manage experience | `experience` | 2 |
+| `/summon` | Summon an entity | — | 2 |
+| `/effect` | Manage status effects | — | 2 |
+| `/op` | Grant operator | — | 3 |
+| `/deop` | Revoke operator | — | 3 |
+| `/stop` | Stop the server | — | 4 |
 
 ---
 
@@ -84,6 +147,7 @@ This document outlines the current state and planned development direction for V
 - [ ] **Loot tables** — evaluation engine exists, needs wiring to block/entity drops
 - [ ] **Metrics & profiling** — profiler and stats structs exist, need server loop integration
 - [ ] **Storage abstraction** — KV interface exists, needs persistence backend
+- [ ] **Natural mob spawning** — spawn rules (light level, biome, spawn limits)
 
 ---
 
@@ -108,18 +172,12 @@ This document outlines the current state and planned development direction for V
 - [ ] Creeper and ghast explosion block damage
 
 #### 👤 Player
-- [ ] Status effects and potions (speed, strength, poison, regeneration, etc.)
-- [ ] Experience system (enchanting cost, repair cost, anvil)
 - [ ] Advancements and achievement tracking
 - [ ] Recipe book unlocking
 - [ ] Bed sleeping and spawn point setting
 - [ ] Player-to-player trading (drop-based)
 
 #### 🐾 Entities
-- [ ] Basic mob AI (pathfinding, targeting, attack)
-- [ ] Passive mobs (cow, pig, sheep, chicken) with drops
-- [ ] Hostile mobs (zombie, skeleton, creeper, spider) with basic behavior
-- [ ] Mob spawning rules (light level, biome, spawn limits)
 - [ ] Mob loot drops (using loot table engine)
 - [ ] Animal breeding
 - [ ] Villager trading
@@ -139,7 +197,6 @@ This document outlines the current state and planned development direction for V
 #### 🌍 World
 - [ ] Multi-world support (Overworld, Nether, End with portals)
 - [ ] Dimension transitions (portal linking, coordinate scaling)
-- [ ] Weather system (rain, thunder, lightning strikes)
 - [ ] World pregeneration tool
 - [ ] WorldEdit-style region manipulation API
 - [ ] Custom world generators (API for plugins)
@@ -155,9 +212,8 @@ This document outlines the current state and planned development direction for V
 - [ ] Shield blocking and cooldown
 
 #### 🐾 Entities
-- [ ] Advanced mob AI (fleeing, herding, patrol, raids)
+- [ ] Advanced mob AI (herding, patrol, raids)
 - [ ] Boss mobs (Ender Dragon, Wither)
-- [ ] Neutral mobs (wolf, bee, iron golem, enderman)
 - [ ] Water mobs (fish, dolphin, squid, guardian)
 - [ ] Mount riding (horse, pig with saddle, strider)
 - [ ] Mob equipment (armor, weapons, drops)
