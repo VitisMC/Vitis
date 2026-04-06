@@ -292,7 +292,7 @@ func TestPlayerTrackingEnterLeave(t *testing.T) {
 	player := NewPlayer(mgr.AllocateID(), protocol.UUID{1, 1}, "TestPlayer", Vec3{8, 64, 8}, Vec2{}, sender, 2)
 	mgr.Add(player.Entity)
 
-	mob := NewMob(mgr.AllocateID(), protocol.UUID{2, 2}, 10, Vec3{10, 64, 10}, Vec2{})
+	mob := NewMobEntityByName(mgr.AllocateID(), protocol.UUID{2, 2}, "zombie", Vec3{10, 64, 10})
 	mgr.Add(mob.Entity)
 
 	spawns, despawns := player.UpdateTracking(mgr)
@@ -447,7 +447,7 @@ func TestTrackerFullCycle(t *testing.T) {
 	mgr.Add(player.Entity)
 	tracker.AddPlayer(player)
 
-	mob := NewMob(mgr.AllocateID(), protocol.UUID{2, 2}, 10, Vec3{10, 64, 10}, Vec2{})
+	mob := NewMobEntityByName(mgr.AllocateID(), protocol.UUID{2, 2}, "zombie", Vec3{10, 64, 10})
 	mgr.Add(mob.Entity)
 
 	tracker.Tick(mgr)
@@ -516,15 +516,25 @@ func TestTrackerAddRemovePlayer(t *testing.T) {
 	}
 }
 
-func TestMobStub(t *testing.T) {
-	mob := NewMob(1, protocol.UUID{}, 42, Vec3{10, 64, 20}, Vec2{90, 0})
-	if mob.MobType() != 42 {
-		t.Fatalf("expected mob type 42, got %d", mob.MobType())
+func TestMobEntity(t *testing.T) {
+	def := GetMobTypeDef("zombie")
+	if def == nil {
+		t.Fatal("zombie type def not registered")
+	}
+	mob := NewMobEntity(1, protocol.UUID{}, def, Vec3{10, 64, 20}, Vec2{90, 0})
+	if mob.MobType() != def.ProtocolID {
+		t.Fatalf("expected mob type %d, got %d", def.ProtocolID, mob.MobType())
 	}
 	if mob.Type() != EntityTypeMob {
 		t.Fatalf("expected EntityTypeMob, got %d", mob.Type())
 	}
-	mob.Tick()
+	if mob.Health() != 20 {
+		t.Fatalf("expected health 20, got %f", mob.Health())
+	}
+	mob.TickMob()
+	if mob.AgeTicks() != 1 {
+		t.Fatalf("expected age 1, got %d", mob.AgeTicks())
+	}
 }
 
 func TestVelocityToProtocol(t *testing.T) {

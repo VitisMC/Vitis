@@ -15,6 +15,7 @@ import (
 	gensound "github.com/vitismc/vitis/internal/data/generated/sound"
 	soundcategory "github.com/vitismc/vitis/internal/data/generated/sound_category"
 	worldevent "github.com/vitismc/vitis/internal/data/generated/world_event"
+	"github.com/vitismc/vitis/internal/enchantment"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/metadata"
 	"github.com/vitismc/vitis/internal/equipment"
@@ -417,7 +418,14 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 				if wa != nil {
 					stateID = wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
 				}
-				result := mining.CalculateBreakTime(stateID, heldItemName, onGround)
+				var effLevel int32
+				if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+					held := op.Windows.HeldItem()
+					if !held.Empty() {
+						effLevel = enchantment.EfficiencyLevel(slotEnchantList(held))
+					}
+				}
+				result := mining.CalculateBreakTime(stateID, heldItemName, onGround, effLevel)
 				if result.Instant {
 					breakBlock(s, pm, wa, pkt.Position, gm, result.CanHarvest)
 				} else if result.Ticks > 0 && playerEntity != nil {
@@ -1499,6 +1507,7 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 	}
 
 	var totalDefense, totalToughness float64
+	var enchProtection float64
 	if target.Windows != nil {
 		for slot := inventory.ArmorStart; slot <= inventory.ArmorEnd; slot++ {
 			as := target.Windows.GetSlot(slot)
@@ -1508,11 +1517,30 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 					totalDefense += ap.Defense
 					totalToughness += ap.Toughness
 				}
+				el := slotEnchantList(as)
+				enchProtection += enchantment.ProtectionFactor(el)
+				enchProtection += enchantment.FireProtectionFactor(el)
+				enchProtection += enchantment.BlastProtectionFactor(el)
+				enchProtection += enchantment.ProjectileProtectionFactor(el)
 			}
 		}
 	}
+	if enchProtection > 20 {
+		enchProtection = 20
+	}
+	if attacker.Windows != nil {
+		held := attacker.Windows.HeldItem()
+		if !held.Empty() {
+			elist := slotEnchantList(held)
+			baseDamage += float32(enchantment.SharpnessDamage(elist))
+		}
+	}
+
 	if totalDefense > 0 {
 		baseDamage = float32(equipment.CalculateDamageReduction(float64(baseDamage), totalDefense, totalToughness))
+	}
+	if enchProtection > 0 {
+		baseDamage *= float32(1.0 - enchProtection/25.0)
 	}
 
 	actual := targetLiving.Damage(baseDamage, "player")
@@ -1625,6 +1653,13 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		dz = 1
 	}
 	kbStrength := 0.4
+	if attacker.Windows != nil {
+		held := attacker.Windows.HeldItem()
+		if !held.Empty() {
+			kbLevel := enchantment.KnockbackLevel(slotEnchantList(held))
+			kbStrength += float64(kbLevel) * 0.4
+		}
+	}
 	vx := int16(dx * kbStrength * 8000)
 	vy := int16(0.4 * 8000)
 	vz := int16(dz * kbStrength * 8000)
@@ -1682,6 +1717,17 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 			X: bx, Y: by, Z: bz,
 			StateID: oldState, PlayerGM: gm,
 		}
+		if pm != nil {
+			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+				held := op.Windows.HeldItem()
+				if !held.Empty() {
+					ctx.ToolName = item.NameByID(held.ItemID)
+					if len(held.Enchantments) > 0 {
+						ctx.ToolEnchantments = held.Enchantments
+					}
+				}
+			}
+		}
 		drops = behavior.GetByState(oldState).OnBreak(ctx)
 	}
 
@@ -1732,6 +1778,17 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 			Metadata: md.Encode(),
 		})
 	}
+}
+
+func slotEnchantList(s inventory.Slot) *enchantment.List {
+	if len(s.Enchantments) == 0 {
+		return nil
+	}
+	entries := make([]enchantment.Entry, 0, len(s.Enchantments))
+	for id, lvl := range s.Enchantments {
+		entries = append(entries, enchantment.Entry{ID: id, Level: lvl})
+	}
+	return enchantment.FromEntries(entries)
 }
 
 func getHeldItemName(pm *PlayerManager, s Session) string {
