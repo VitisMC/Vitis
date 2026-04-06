@@ -597,11 +597,24 @@ func (s *ServerControlAdapter) SummonMob(entityType string, x, y, z float64) err
 	return nil
 }
 
+func findEffectByName(name string) *effectdata.EffectInfo {
+	if info := effectdata.EffectByName(name); info != nil {
+		return info
+	}
+	lower := strings.ToLower(name)
+	for i := range effectdata.Effects {
+		if strings.ToLower(effectdata.Effects[i].Name) == lower {
+			return &effectdata.Effects[i]
+		}
+	}
+	return nil
+}
+
 func (s *ServerControlAdapter) ApplyEffect(entityID int32, effectName string, durationTicks int32, amplifier int32) error {
 	if s.PM == nil {
 		return fmt.Errorf("no player manager")
 	}
-	info := effectdata.EffectByName(effectName)
+	info := findEffectByName(effectName)
 	if info == nil {
 		return fmt.Errorf("unknown effect: %s", effectName)
 	}
@@ -657,7 +670,7 @@ func (s *ServerControlAdapter) ClearEffects(entityID int32, effectName string) e
 			})
 		}
 	} else {
-		info := effectdata.EffectByName(effectName)
+		info := findEffectByName(effectName)
 		if info == nil {
 			return fmt.Errorf("unknown effect: %s", effectName)
 		}
