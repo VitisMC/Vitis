@@ -17,6 +17,7 @@ import (
 	"github.com/vitismc/vitis/internal/world/persistence"
 	"github.com/vitismc/vitis/internal/world/streaming"
 	"github.com/vitismc/vitis/internal/world/tick"
+	"github.com/vitismc/vitis/internal/world/weather"
 )
 
 const (
@@ -79,6 +80,7 @@ type World struct {
 	xpOrbs        *entity.XPOrbManager
 	tnts          *entity.TNTManager
 	projectiles   *projectile.Manager
+	weather       *weather.Weather
 
 	tick atomic.Uint64
 
@@ -171,6 +173,7 @@ func New(config Config) (*World, error) {
 		xpOrbs:                   entity.NewXPOrbManager(),
 		tnts:                     entity.NewTNTManager(),
 		projectiles:              projectile.NewManager(),
+		weather:                  weather.New(config.Seed),
 		schedulerDrainPerTick:    schedulerDrain,
 		chunkCompletionsPerTick:  chunkCompletions,
 		chunkUnloadBatchPerTick:  chunkUnloadBatch,
@@ -209,6 +212,7 @@ func (w *World) Tick() {
 		w.timeOfDay = 0
 	}
 
+	w.tickWeather()
 	w.scheduler.Drain(w.schedulerDrainPerTick)
 	w.processScheduledTicks()
 	w.tickFallingBlocks()
@@ -512,6 +516,58 @@ func (w *World) broadcastTime() {
 			continue
 		}
 		_ = sess.Send(&playpacket.UpdateTime{WorldAge: w.worldAge, TimeOfDay: w.timeOfDay, TickDayTime: true})
+	}
+}
+
+func (w *World) tickWeather() {
+	if w.weather == nil {
+		return
+	}
+	packets := w.weather.Tick()
+	if len(packets) == 0 {
+		return
+	}
+	players := w.tracker.Players()
+	for _, pkt := range packets {
+		ge := &playpacket.GameEvent{Event: pkt.Event, Value: pkt.Value}
+		for _, p := range players {
+			if p.Removed() {
+				continue
+			}
+			sess := p.Session()
+			if sess != nil {
+				_ = sess.Send(ge)
+			}
+		}
+	}
+}
+
+// Weather returns the world's weather system.
+func (w *World) Weather() *weather.Weather {
+	if w == nil {
+		return nil
+	}
+	return w.weather
+}
+
+// SetWeather changes the world weather and broadcasts the change to all players.
+func (w *World) SetWeather(state weather.State, duration int32) {
+	if w == nil || w.weather == nil {
+		return
+	}
+	packets := w.weather.SetWeather(state, duration)
+	players := w.tracker.Players()
+	for _, pkt := range packets {
+		ge := &playpacket.GameEvent{Event: pkt.Event, Value: pkt.Value}
+		for _, p := range players {
+			if p.Removed() {
+				continue
+			}
+			sess := p.Session()
+			if sess != nil {
+				_ = sess.Send(ge)
+			}
+		}
 	}
 }
 

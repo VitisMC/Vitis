@@ -102,6 +102,7 @@ type PlayBootstrapConfig struct {
 	TabFooter          string
 	SpawnChunks        SpawnChunkProvider
 	WorldBorderInit    protocol.Packet
+	WeatherPackets     []protocol.Packet
 }
 
 // GameModeFromString converts a game mode name to its protocol ID.
@@ -1139,6 +1140,12 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 	}
 	if err := s.Send(wbPkt); err != nil {
 		return err
+	}
+
+	for _, wp := range cfg.WeatherPackets {
+		if err := s.Send(wp); err != nil {
+			return err
+		}
 	}
 
 	tabHeader := cfg.TabHeader
