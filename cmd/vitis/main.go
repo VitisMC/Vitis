@@ -230,6 +230,7 @@ func run() int {
 		if sc, ok := serverControl.(*session.ServerControlAdapter); ok {
 			sc.World = defaultWorld
 			sc.WeatherWorld = defaultWorld
+			sc.MobSpawn = defaultWorld
 			sc.SeedValue = 42
 		}
 	}

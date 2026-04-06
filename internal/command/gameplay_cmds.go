@@ -475,3 +475,152 @@ func cmdSpawnpoint(players PlayerLookup, server ServerControl) *Command {
 		TabComplete: tabCompletePlayers(players),
 	}
 }
+
+// --- /summon ---
+func cmdSummon(server ServerControl) *Command {
+	return &Command{
+		Name:            "summon",
+		Description:     "Summons an entity",
+		Usage:           "/summon <entity> [x y z]",
+		PermissionLevel: 2,
+		Children: []*CommandNode{
+			ArgumentNode("entity", ParserEntitySummon, nil,
+				ArgumentNode("pos", ParserVec3, nil).Executable(),
+			).Executable(),
+		},
+		Execute: func(ctx *Context) error {
+			if ctx.ArgCount() < 1 {
+				ctx.Reply("§7Usage: /summon <entity> [x y z]")
+				return nil
+			}
+			entityType := strings.TrimPrefix(ctx.Arg(0), "minecraft:")
+
+			var x, y, z float64
+			if ctx.ArgCount() >= 4 {
+				ps, ok := ctx.Sender.(PlayerSender)
+				if !ok {
+					ctx.ReplyError("must specify coordinates from console")
+					return nil
+				}
+				var err error
+				x, y, z, err = parseCoordinates(ctx.Args[1:4], ps)
+				if err != nil {
+					ctx.ReplyError("invalid coordinates: %v", err)
+					return nil
+				}
+			} else if ps, ok := ctx.Sender.(PlayerSender); ok {
+				x, y, z = ps.Position()
+			} else {
+				ctx.ReplyError("must specify coordinates from console")
+				return nil
+			}
+
+			if err := server.SummonMob(entityType, x, y, z); err != nil {
+				ctx.ReplyError("%v", err)
+				return nil
+			}
+			ctx.Reply("§aSummoned %s at %.1f %.1f %.1f", entityType, x, y, z)
+			return nil
+		},
+	}
+}
+
+// --- /effect ---
+func cmdEffect(players PlayerLookup, server ServerControl) *Command {
+	return &Command{
+		Name:            "effect",
+		Description:     "Manages status effects",
+		Usage:           "/effect <give|clear> <player> [effect] [seconds] [amplifier]",
+		PermissionLevel: 2,
+		Children: []*CommandNode{
+			LiteralNode("give",
+				ArgumentNode("targets", ParserEntity, EntityFlagOnlyPlayers,
+					ArgumentNode("effect", ParserResource, nil,
+						ArgumentNode("seconds", ParserInteger, [2]int32{1, 1000000},
+							ArgumentNode("amplifier", ParserInteger, [2]int32{0, 255}).Executable(),
+						).Executable(),
+					).Executable(),
+				),
+			),
+			LiteralNode("clear",
+				ArgumentNode("targets", ParserEntity, EntityFlagOnlyPlayers,
+					ArgumentNode("effect", ParserResource, nil).Executable(),
+				).Executable(),
+			),
+		},
+		Execute: func(ctx *Context) error {
+			if ctx.ArgCount() < 1 {
+				ctx.Reply("§7Usage: /effect <give|clear> <player> [effect] [seconds] [amplifier]")
+				return nil
+			}
+
+			sub := strings.ToLower(ctx.Arg(0))
+			switch sub {
+			case "give":
+				if ctx.ArgCount() < 3 {
+					ctx.ReplyError("Usage: /effect give <player> <effect> [seconds] [amplifier]")
+					return nil
+				}
+				target := players.FindPlayerByName(ctx.Arg(1))
+				if target == nil {
+					ctx.ReplyError("player not found: %s", ctx.Arg(1))
+					return nil
+				}
+				effectName := strings.TrimPrefix(ctx.Arg(2), "minecraft:")
+				seconds := 30
+				if ctx.ArgCount() >= 4 {
+					d, err := strconv.Atoi(ctx.Arg(3))
+					if err != nil || d < 1 {
+						ctx.ReplyError("invalid duration: %s", ctx.Arg(3))
+						return nil
+					}
+					seconds = d
+				}
+				amplifier := 0
+				if ctx.ArgCount() >= 5 {
+					a, err := strconv.Atoi(ctx.Arg(4))
+					if err != nil || a < 0 {
+						ctx.ReplyError("invalid amplifier: %s", ctx.Arg(4))
+						return nil
+					}
+					amplifier = a
+				}
+				durationTicks := int32(seconds * 20)
+				if err := server.ApplyEffect(target.EntityID(), effectName, durationTicks, int32(amplifier)); err != nil {
+					ctx.ReplyError("%v", err)
+					return nil
+				}
+				ctx.Reply("§aApplied %s (amplifier %d) for %ds to %s", effectName, amplifier, seconds, target.Name())
+
+			case "clear":
+				if ctx.ArgCount() < 2 {
+					ctx.ReplyError("Usage: /effect clear <player> [effect]")
+					return nil
+				}
+				target := players.FindPlayerByName(ctx.Arg(1))
+				if target == nil {
+					ctx.ReplyError("player not found: %s", ctx.Arg(1))
+					return nil
+				}
+				effectFilter := ""
+				if ctx.ArgCount() >= 3 {
+					effectFilter = strings.TrimPrefix(ctx.Arg(2), "minecraft:")
+				}
+				if err := server.ClearEffects(target.EntityID(), effectFilter); err != nil {
+					ctx.ReplyError("%v", err)
+					return nil
+				}
+				if effectFilter == "" {
+					ctx.Reply("§aCleared all effects from %s", target.Name())
+				} else {
+					ctx.Reply("§aCleared %s from %s", effectFilter, target.Name())
+				}
+
+			default:
+				ctx.ReplyError("unknown subcommand: %s (use 'give' or 'clear')", sub)
+			}
+			return nil
+		},
+		TabComplete: tabCompletePlayers(players),
+	}
+}

@@ -1064,6 +1064,11 @@ func (w *World) MobManager() *entity.MobManager {
 	return w.mobs
 }
 
+// SummonMob spawns a mob entity at the given float64 coordinates.
+func (w *World) SummonMob(typeName string, x, y, z float64) {
+	w.SpawnMob(typeName, entity.Vec3{X: x, Y: y, Z: z})
+}
+
 // SpawnMob creates and registers a mob entity in the world by type name.
 func (w *World) SpawnMob(typeName string, pos entity.Vec3) *entity.MobEntity {
 	if w == nil || w.mobs == nil {

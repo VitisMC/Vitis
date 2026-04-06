@@ -7,8 +7,10 @@ import (
 	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/chat"
 	"github.com/vitismc/vitis/internal/command"
+	effectdata "github.com/vitismc/vitis/internal/data/generated/effect"
 	enchdata "github.com/vitismc/vitis/internal/data/generated/enchantment"
 	gamerules "github.com/vitismc/vitis/internal/data/generated/game_rules"
+	"github.com/vitismc/vitis/internal/effect"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/experience"
 	"github.com/vitismc/vitis/internal/inventory"
@@ -73,6 +75,11 @@ type WeatherAccessor interface {
 	SetWeather(state weather.State, duration int32)
 }
 
+// MobSpawner provides mob spawning for the command bridge.
+type MobSpawner interface {
+	SummonMob(typeName string, x, y, z float64)
+}
+
 // ServerControlAdapter adapts session-layer components to the command.ServerControl interface.
 type ServerControlAdapter struct {
 	PM                     *PlayerManager
@@ -82,6 +89,7 @@ type ServerControlAdapter struct {
 	World                  WorldTimeAccessor
 	WeatherWorld           WeatherAccessor
 	WorldAccess            WorldAccessor
+	MobSpawn               MobSpawner
 	GameRules              map[string]string
 	DefaultGM              int32
 	SpawnX, SpawnY, SpawnZ int
@@ -576,6 +584,101 @@ func (s *ServerControlAdapter) SetXPLevel(entityID int32, level int32) error {
 				TotalExperience: result.Total,
 			})
 			return nil
+		}
+	}
+	return nil
+}
+
+func (s *ServerControlAdapter) SummonMob(entityType string, x, y, z float64) error {
+	if s.MobSpawn == nil {
+		return fmt.Errorf("mob spawning not available")
+	}
+	s.MobSpawn.SummonMob(entityType, x, y, z)
+	return nil
+}
+
+func findEffectByName(name string) *effectdata.EffectInfo {
+	if info := effectdata.EffectByName(name); info != nil {
+		return info
+	}
+	lower := strings.ToLower(name)
+	for i := range effectdata.Effects {
+		if strings.ToLower(effectdata.Effects[i].Name) == lower {
+			return &effectdata.Effects[i]
+		}
+	}
+	return nil
+}
+
+func (s *ServerControlAdapter) ApplyEffect(entityID int32, effectName string, durationTicks int32, amplifier int32) error {
+	if s.PM == nil {
+		return fmt.Errorf("no player manager")
+	}
+	info := findEffectByName(effectName)
+	if info == nil {
+		return fmt.Errorf("unknown effect: %s", effectName)
+	}
+
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil {
+		return fmt.Errorf("player not found")
+	}
+	player, ok := op.Session.Player().(*entity.Player)
+	if !ok || player == nil {
+		return fmt.Errorf("player not found")
+	}
+
+	inst := effect.Instance{
+		ID:        info.ID,
+		Amplifier: amplifier,
+		Duration:  durationTicks,
+		Flags:     effect.FlagParticles | effect.FlagIcon,
+	}
+	player.Living().Effects().Add(inst)
+
+	_ = op.Session.Send(&playpacket.EntityEffect{
+		EntityID:  entityID,
+		EffectID:  info.ID,
+		Amplifier: amplifier,
+		Duration:  durationTicks,
+		Flags:     inst.Flags,
+	})
+	return nil
+}
+
+func (s *ServerControlAdapter) ClearEffects(entityID int32, effectName string) error {
+	if s.PM == nil {
+		return fmt.Errorf("no player manager")
+	}
+
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil {
+		return fmt.Errorf("player not found")
+	}
+	player, ok := op.Session.Player().(*entity.Player)
+	if !ok || player == nil {
+		return fmt.Errorf("player not found")
+	}
+
+	mgr := player.Living().Effects()
+	if effectName == "" {
+		ids := mgr.Clear()
+		for _, id := range ids {
+			_ = op.Session.Send(&playpacket.RemoveEntityEffect{
+				EntityID: entityID,
+				EffectID: id,
+			})
+		}
+	} else {
+		info := findEffectByName(effectName)
+		if info == nil {
+			return fmt.Errorf("unknown effect: %s", effectName)
+		}
+		if mgr.Remove(info.ID) {
+			_ = op.Session.Send(&playpacket.RemoveEntityEffect{
+				EntityID: entityID,
+				EffectID: info.ID,
+			})
 		}
 	}
 	return nil

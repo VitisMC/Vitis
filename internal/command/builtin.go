@@ -71,6 +71,12 @@ type ServerControl interface {
 	AddXP(entityID int32, amount int32) error
 	// SetXPLevel sets a player's experience level directly.
 	SetXPLevel(entityID int32, level int32) error
+	// SummonMob spawns a mob entity at the given coordinates.
+	SummonMob(entityType string, x, y, z float64) error
+	// ApplyEffect applies a status effect to a player.
+	ApplyEffect(entityID int32, effectName string, durationTicks int32, amplifier int32) error
+	// ClearEffects removes all or a specific effect from a player.
+	ClearEffects(entityID int32, effectName string) error
 }
 
 // RegisterBuiltinCommands registers all built-in commands.
@@ -103,6 +109,8 @@ func RegisterBuiltinCommands(registry *Registry, players PlayerLookup, server Se
 	registry.Register(cmdSetworldspawn(server))
 	registry.Register(cmdSpawnpoint(players, server))
 	registry.Register(cmdXP(players, server))
+	registry.Register(cmdSummon(server))
+	registry.Register(cmdEffect(players, server))
 }
 
 // --- /help ---
