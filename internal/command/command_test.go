@@ -89,6 +89,9 @@ func (m *mockServer) SendTitle(_ int32, _, _ string, _, _, _ int) error      { r
 func (m *mockServer) SendActionBar(_ int32, _ string) error                  { return nil }
 func (m *mockServer) AddXP(_ int32, _ int32) error                           { return nil }
 func (m *mockServer) SetXPLevel(_ int32, _ int32) error                      { return nil }
+func (m *mockServer) SummonMob(_ string, _, _, _ float64) error              { return nil }
+func (m *mockServer) ApplyEffect(_ int32, _ string, _ int32, _ int32) error  { return nil }
+func (m *mockServer) ClearEffects(_ int32, _ string) error                   { return nil }
 
 func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry()
@@ -190,8 +193,8 @@ func TestBuiltinHelp(t *testing.T) {
 	lookup := &mockLookup{players: map[string]*mockSender{}}
 	RegisterBuiltinCommands(r, lookup, server)
 
-	if r.Count() != 28 {
-		t.Fatalf("expected 28 commands, got %d", r.Count())
+	if r.Count() != 30 {
+		t.Fatalf("expected 30 commands, got %d", r.Count())
 	}
 
 	sender := &mockSender{name: "Player", level: 4}
