@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/logger"
 
 	"sync/atomic"
@@ -258,9 +259,11 @@ func run() int {
 		gameMode := cfg.GameMode
 		uuidStr := protocol.UUIDToString(uuid)
 		worldDir := "world"
+		var loadedPD *level.PlayerData
 		if pd, loadErr := level.LoadPlayerData(worldDir, uuidStr); loadErr == nil {
 			spawnX, spawnY, spawnZ = pd.PosX, pd.PosY, pd.PosZ
 			gameMode = pd.GameMode
+			loadedPD = pd
 			logger.Info("loaded playerdata", "session", s.ID(), "player", username, "x", spawnX, "y", spawnY, "z", spawnZ, "gamemode", gameMode)
 		}
 		cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ = spawnX, spawnY, spawnZ
@@ -292,6 +295,13 @@ func run() int {
 			playBootstrapCfg.ViewDistance,
 		)
 		player.Living().SetGameMode(gameMode)
+		if loadedPD != nil {
+			living := player.Living()
+			living.SetHealth(loadedPD.Health)
+			living.SetFoodLevel(loadedPD.FoodLevel)
+			living.SetFoodSaturation(loadedPD.FoodSat)
+			living.SetXP(loadedPD.XPLevel, loadedPD.XPTotal, 0)
+		}
 		s.BindPlayer(player)
 
 		var playerProps []playpacket.PlayerProperty
@@ -326,6 +336,20 @@ func run() int {
 
 		if op := playerManager.GetByUUID(uuid); op != nil && op.Windows != nil {
 			op.Windows.SetCraftMatcher(crafting.Match)
+			if loadedPD != nil && len(loadedPD.Inventory) > 0 {
+				inv := op.Windows.Inventory()
+				for _, is := range loadedPD.Inventory {
+					itemID := item.IDByName(is.ItemName)
+					if itemID < 0 {
+						continue
+					}
+					slot := inventory.NewSlot(itemID, int32(is.Count))
+					if len(is.Enchantments) > 0 {
+						slot.Enchantments = is.Enchantments
+					}
+					inv.Set(int(is.Slot), slot)
+				}
+			}
 		}
 
 		if defaultWorld != nil {
@@ -346,10 +370,37 @@ func run() int {
 						Yaw:       op.Yaw,
 						Pitch:     op.Pitch,
 						GameMode:  op.GameMode,
-						Health:    20.0,
-						FoodLevel: 20,
-						FoodSat:   5.0,
 						Dimension: "minecraft:overworld",
+					}
+					if p, ok := op.Session.Player().(*entity.Player); ok && p != nil {
+						living := p.Living()
+						pd.Health = living.Health()
+						pd.FoodLevel = living.FoodLevel()
+						pd.FoodSat = living.FoodSaturation()
+						pd.XPLevel = living.XPLevel()
+						pd.XPTotal = living.XPTotal()
+					}
+					if op.Windows != nil {
+						inv := op.Windows.Inventory()
+						slots := inv.Slots()
+						for i, s := range slots {
+							if s.Empty() {
+								continue
+							}
+							name := item.NameByID(s.ItemID)
+							if name == "" {
+								continue
+							}
+							is := level.InventorySlot{
+								Slot:     int8(i),
+								ItemName: name,
+								Count:    int8(s.ItemCount),
+							}
+							if len(s.Enchantments) > 0 {
+								is.Enchantments = s.Enchantments
+							}
+							pd.Inventory = append(pd.Inventory, is)
+						}
 					}
 					if saveErr := pd.Save(worldDir); saveErr != nil {
 						logger.Error("save playerdata failed", "player", username, "error", saveErr)

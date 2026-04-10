@@ -10,6 +10,14 @@ import (
 	"github.com/vitismc/vitis/internal/nbt"
 )
 
+// InventorySlot represents a single item in the player's inventory for persistence.
+type InventorySlot struct {
+	Slot         int8
+	ItemName     string
+	Count        int8
+	Enchantments map[int32]int32
+}
+
 // PlayerData holds persistent player state loaded from/saved to playerdata NBT files.
 type PlayerData struct {
 	UUID      string
@@ -26,6 +34,7 @@ type PlayerData struct {
 	Dimension string
 	XPLevel   int32
 	XPTotal   int32
+	Inventory []InventorySlot
 }
 
 // DefaultPlayerData returns a new player data with sensible defaults.
@@ -122,6 +131,42 @@ func (pd *PlayerData) parseCompound(c *nbt.Compound) {
 			pd.Pitch = pitch
 		}
 	}
+
+	if invList, ok := c.GetList("Inventory"); ok {
+		for _, elem := range invList.Elements() {
+			slotComp, ok := elem.(*nbt.Compound)
+			if !ok {
+				continue
+			}
+			is := InventorySlot{}
+			if v, ok := slotComp.GetByte("Slot"); ok {
+				is.Slot = v
+			}
+			if v, ok := slotComp.GetString("id"); ok {
+				is.ItemName = v
+			}
+			if v, ok := slotComp.GetByte("Count"); ok {
+				is.Count = v
+			}
+			if enchList, ok := slotComp.GetList("Enchantments"); ok {
+				is.Enchantments = make(map[int32]int32)
+				for _, ee := range enchList.Elements() {
+					ec, ok := ee.(*nbt.Compound)
+					if !ok {
+						continue
+					}
+					eid, _ := ec.GetInt("id")
+					elvl, _ := ec.GetInt("lvl")
+					if eid > 0 || elvl > 0 {
+						is.Enchantments[eid] = elvl
+					}
+				}
+			}
+			if is.ItemName != "" && is.Count > 0 {
+				pd.Inventory = append(pd.Inventory, is)
+			}
+		}
+	}
 }
 
 // Save writes player data to a gzipped NBT file in the world directory.
@@ -152,6 +197,28 @@ func (pd *PlayerData) Save(worldDir string) error {
 	rot.Add(pd.Yaw)
 	rot.Add(pd.Pitch)
 	c.PutList("Rotation", rot)
+
+	if len(pd.Inventory) > 0 {
+		invList := nbt.NewList(nbt.TagCompound)
+		for _, is := range pd.Inventory {
+			sc := nbt.NewCompound()
+			sc.PutByte("Slot", is.Slot)
+			sc.PutString("id", is.ItemName)
+			sc.PutByte("Count", is.Count)
+			if len(is.Enchantments) > 0 {
+				el := nbt.NewList(nbt.TagCompound)
+				for eid, elvl := range is.Enchantments {
+					ec := nbt.NewCompound()
+					ec.PutInt("id", eid)
+					ec.PutInt("lvl", elvl)
+					el.Add(ec)
+				}
+				sc.PutList("Enchantments", el)
+			}
+			invList.Add(sc)
+		}
+		c.PutList("Inventory", invList)
+	}
 
 	enc := nbt.NewEncoder(2048)
 	if err := enc.WriteNamedRootCompound("", c); err != nil {
