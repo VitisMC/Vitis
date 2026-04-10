@@ -514,7 +514,7 @@ func (w *World) tickPlayers() {
 			if living.IsDead() {
 				break
 			}
-			actual := living.ApplyDamage(src, 0, 0, 0)
+			actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
 			if actual > 0 && sess != nil {
 				_ = sess.Send(&playpacket.UpdateHealth{
 					Health:         living.Health(),

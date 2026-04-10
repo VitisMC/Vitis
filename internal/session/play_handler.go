@@ -902,6 +902,13 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 								Carried:  cursor,
 							})
 						}
+
+						if pkt.WindowID == 0 && IsEquipmentSlot(pkt.Slot) {
+							UpdateArmorStats(op)
+							if equipPkt := BuildFullEquipmentPacket(op.EntityID, op.Windows); equipPkt != nil {
+								pm.BroadcastExcept(uuid, equipPkt)
+							}
+						}
 					}
 				}
 			}

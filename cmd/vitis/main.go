@@ -350,6 +350,7 @@ func run() int {
 					inv.Set(int(is.Slot), slot)
 				}
 			}
+			session.UpdateArmorStats(op)
 		}
 
 		if defaultWorld != nil {

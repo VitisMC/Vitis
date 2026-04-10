@@ -85,9 +85,14 @@ func (pm *PlayerManager) AddPlayer(p *OnlinePlayer) {
 		_ = p.Session.Send(allPlayersInfo)
 	}
 
+	newEquipPkt := BuildFullEquipmentPacket(p.EntityID, p.Windows)
+
 	for _, existing := range pm.players {
 		_ = existing.Session.Send(newPlayerInfo)
 		_ = existing.Session.Send(newSpawnPkt)
+		if newEquipPkt != nil {
+			_ = existing.Session.Send(newEquipPkt)
+		}
 
 		existingSpawn := &playpacket.SpawnEntity{
 			EntityID:   existing.EntityID,
@@ -98,6 +103,9 @@ func (pm *PlayerManager) AddPlayer(p *OnlinePlayer) {
 			Z:          existing.Z,
 		}
 		_ = p.Session.Send(existingSpawn)
+		if existingEquip := BuildFullEquipmentPacket(existing.EntityID, existing.Windows); existingEquip != nil {
+			_ = p.Session.Send(existingEquip)
+		}
 	}
 
 	pm.players[p.UUID] = p

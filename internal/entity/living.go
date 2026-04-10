@@ -40,6 +40,10 @@ type LivingEntity struct {
 
 	attackCooldown int32
 
+	armorDefense   float64
+	armorToughness float64
+	armorEnchProt  float64
+
 	attributes *AttributeContainer
 	effects    *effect.Manager
 }
@@ -67,6 +71,22 @@ func (l *LivingEntity) AttackCooldown() int32 { return l.attackCooldown }
 
 // ResetAttackCooldown sets attack cooldown to the given number of ticks.
 func (l *LivingEntity) ResetAttackCooldown(ticks int32) { l.attackCooldown = ticks }
+
+// ArmorDefense returns cached total armor defense points.
+func (l *LivingEntity) ArmorDefense() float64 { return l.armorDefense }
+
+// ArmorToughness returns cached total armor toughness.
+func (l *LivingEntity) ArmorToughness() float64 { return l.armorToughness }
+
+// ArmorEnchProtection returns cached total enchantment protection factor.
+func (l *LivingEntity) ArmorEnchProtection() float64 { return l.armorEnchProt }
+
+// SetArmorStats updates cached armor defense, toughness, and enchantment protection.
+func (l *LivingEntity) SetArmorStats(defense, toughness, enchProt float64) {
+	l.armorDefense = defense
+	l.armorToughness = toughness
+	l.armorEnchProt = enchProt
+}
 
 // OnGround returns whether the underlying entity is on the ground.
 func (l *LivingEntity) OnGround() bool { return l.Entity.OnGround() }
