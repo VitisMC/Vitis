@@ -15,6 +15,7 @@ type InventorySlot struct {
 	Slot         int8
 	ItemName     string
 	Count        int8
+	Damage       int32
 	Enchantments map[int32]int32
 }
 
@@ -148,6 +149,9 @@ func (pd *PlayerData) parseCompound(c *nbt.Compound) {
 			if v, ok := slotComp.GetByte("Count"); ok {
 				is.Count = v
 			}
+			if v, ok := slotComp.GetInt("Damage"); ok {
+				is.Damage = v
+			}
 			if enchList, ok := slotComp.GetList("Enchantments"); ok {
 				is.Enchantments = make(map[int32]int32)
 				for _, ee := range enchList.Elements() {
@@ -205,6 +209,9 @@ func (pd *PlayerData) Save(worldDir string) error {
 			sc.PutByte("Slot", is.Slot)
 			sc.PutString("id", is.ItemName)
 			sc.PutByte("Count", is.Count)
+			if is.Damage > 0 {
+				sc.PutInt("Damage", is.Damage)
+			}
 			if len(is.Enchantments) > 0 {
 				el := nbt.NewList(nbt.TagCompound)
 				for eid, elvl := range is.Enchantments {

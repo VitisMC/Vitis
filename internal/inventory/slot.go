@@ -10,6 +10,7 @@ import (
 type Slot struct {
 	ItemCount     int32
 	ItemID        int32
+	Damage        int32
 	ComponentsAdd int32
 	ComponentsRem int32
 	RawComponents []byte

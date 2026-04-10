@@ -1594,6 +1594,31 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 	attackerLiving.AddExhaustion(0.1)
 	attackerLiving.ResetAttackCooldown(attackSpeedTicks)
 
+	if attacker.Windows != nil {
+		held := attacker.Windows.HeldItem()
+		if !held.Empty() && item.IsDurable(held.ItemID) {
+			unbreaking := held.EnchantLevel(item.EnchantUnbreakingID)
+			if item.ShouldConsumeDurability(unbreaking, false) {
+				newDmg, broken := item.ApplyDamage(held.ItemID, held.Damage, 1)
+				heldIdx := inventory.HotbarStart + int(attacker.Windows.HeldSlot())
+				if broken {
+					attacker.Windows.Inventory().Clear(heldIdx)
+					_ = s.Send(&playpacket.SetPlayerInventorySlot{
+						SlotIdx:  int32(heldIdx),
+						SlotData: inventory.EmptySlot(),
+					})
+				} else {
+					held.Damage = newDmg
+					attacker.Windows.Inventory().Set(heldIdx, held)
+					_ = s.Send(&playpacket.SetPlayerInventorySlot{
+						SlotIdx:  int32(heldIdx),
+						SlotData: held,
+					})
+				}
+			}
+		}
+	}
+
 	if isSword && cooldownProgress > 0.9 {
 		sweepDamage := float32(1.0)
 		for _, op := range pm.Players() {
@@ -1631,6 +1656,10 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 			Z:             target.Z,
 			ParticleCount: 1,
 		})
+	}
+
+	if target.Windows != nil {
+		damageArmorSlots(target)
 	}
 
 	_ = target.Session.Send(&playpacket.UpdateHealth{
@@ -1754,6 +1783,32 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 	if gm != 1 {
 		if p, ok := s.Player().(*entity.Player); ok && p != nil {
 			p.Living().AddExhaustion(0.005)
+		}
+		if pm != nil {
+			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+				held := op.Windows.HeldItem()
+				if !held.Empty() && item.IsDurable(held.ItemID) {
+					unbreaking := held.EnchantLevel(item.EnchantUnbreakingID)
+					if item.ShouldConsumeDurability(unbreaking, false) {
+						newDmg, broken := item.ApplyDamage(held.ItemID, held.Damage, 1)
+						heldIdx := inventory.HotbarStart + int(op.Windows.HeldSlot())
+						if broken {
+							op.Windows.Inventory().Clear(heldIdx)
+							_ = s.Send(&playpacket.SetPlayerInventorySlot{
+								SlotIdx:  int32(heldIdx),
+								SlotData: inventory.EmptySlot(),
+							})
+						} else {
+							held.Damage = newDmg
+							op.Windows.Inventory().Set(heldIdx, held)
+							_ = s.Send(&playpacket.SetPlayerInventorySlot{
+								SlotIdx:  int32(heldIdx),
+								SlotData: held,
+							})
+						}
+					}
+				}
+			}
 		}
 	}
 

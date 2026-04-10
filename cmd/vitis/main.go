@@ -344,6 +344,7 @@ func run() int {
 						continue
 					}
 					slot := inventory.NewSlot(itemID, int32(is.Count))
+					slot.Damage = is.Damage
 					if len(is.Enchantments) > 0 {
 						slot.Enchantments = is.Enchantments
 					}
@@ -396,6 +397,7 @@ func run() int {
 								Slot:     int8(i),
 								ItemName: name,
 								Count:    int8(s.ItemCount),
+								Damage:   s.Damage,
 							}
 							if len(s.Enchantments) > 0 {
 								is.Enchantments = s.Enchantments

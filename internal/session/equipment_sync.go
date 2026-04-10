@@ -101,3 +101,42 @@ func IsEquipmentSlot(slot int16) bool {
 	return (slot >= int16(inventory.ArmorStart) && slot <= int16(inventory.ArmorEnd)) ||
 		slot == int16(inventory.OffhandSlot)
 }
+
+// damageArmorSlots reduces durability by 1 on each equipped armor piece,
+// respecting the Unbreaking enchantment. Broken pieces are cleared.
+func damageArmorSlots(op *OnlinePlayer) {
+	if op == nil || op.Windows == nil {
+		return
+	}
+	inv := op.Windows.Inventory()
+	changed := false
+	for slot := inventory.ArmorStart; slot <= inventory.ArmorEnd; slot++ {
+		as := inv.Get(slot)
+		if as.Empty() || !item.IsDurable(as.ItemID) {
+			continue
+		}
+		unbreaking := as.EnchantLevel(item.EnchantUnbreakingID)
+		if !item.ShouldConsumeDurability(unbreaking, true) {
+			continue
+		}
+		newDmg, broken := item.ApplyDamage(as.ItemID, as.Damage, 1)
+		if broken {
+			inv.Clear(slot)
+			_ = op.Session.Send(&playpacket.SetPlayerInventorySlot{
+				SlotIdx:  int32(slot),
+				SlotData: inventory.EmptySlot(),
+			})
+		} else {
+			as.Damage = newDmg
+			inv.Set(slot, as)
+			_ = op.Session.Send(&playpacket.SetPlayerInventorySlot{
+				SlotIdx:  int32(slot),
+				SlotData: as,
+			})
+		}
+		changed = true
+	}
+	if changed {
+		UpdateArmorStats(op)
+	}
+}
