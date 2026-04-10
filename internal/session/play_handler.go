@@ -174,6 +174,40 @@ func checkFallDamage(s Session, oldY, newY float64, onGround bool) {
 	}
 }
 
+func applyMovementExhaustion(s Session, op *OnlinePlayer, oldX, oldY, oldZ, newX, newY, newZ float64, onGround bool) {
+	p, ok := s.Player().(*entity.Player)
+	if !ok || p == nil {
+		return
+	}
+	living := p.Living()
+	if living.IsDead() || living.GameMode() == 1 || living.GameMode() == 3 {
+		return
+	}
+
+	dx := newX - oldX
+	dy := newY - oldY
+	dz := newZ - oldZ
+	horizontal := math.Sqrt(dx*dx + dz*dz)
+
+	isSprinting := op.Flags&0x08 != 0
+
+	if dy > 0 && onGround {
+		if isSprinting {
+			living.AddExhaustion(0.2)
+		} else {
+			living.AddExhaustion(0.05)
+		}
+	}
+
+	if horizontal > 0.0001 {
+		if isSprinting {
+			living.AddExhaustion(float32(horizontal * 0.1))
+		} else {
+			living.AddExhaustion(float32(horizontal * 0.01))
+		}
+	}
+}
+
 func chunkCoord(v float64) int32 {
 	return int32(math.Floor(v / 16))
 }
@@ -226,6 +260,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if pm != nil {
 			if op := pm.GetBySession(s); op != nil {
 				checkFallDamage(s, op.Y, pkt.Y, pkt.OnGround)
+				applyMovementExhaustion(s, op, op.X, op.Y, op.Z, pkt.X, pkt.Y, pkt.Z, pkt.OnGround)
 				sendCenterChunkIfNeeded(s, op.X, op.Z, pkt.X, pkt.Z)
 				op.X, op.Y, op.Z = pkt.X, pkt.Y, pkt.Z
 				pm.BroadcastExcept(op.UUID, &playpacket.SyncEntityPosition{
@@ -257,6 +292,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if pm != nil {
 			if op := pm.GetBySession(s); op != nil {
 				checkFallDamage(s, op.Y, pkt.Y, pkt.OnGround)
+				applyMovementExhaustion(s, op, op.X, op.Y, op.Z, pkt.X, pkt.Y, pkt.Z, pkt.OnGround)
 				sendCenterChunkIfNeeded(s, op.X, op.Z, pkt.X, pkt.Z)
 				op.X, op.Y, op.Z = pkt.X, pkt.Y, pkt.Z
 				op.Yaw, op.Pitch = pkt.Yaw, pkt.Pitch
@@ -1548,6 +1584,7 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		return nil
 	}
 
+	attackerLiving.AddExhaustion(0.1)
 	attackerLiving.ResetAttackCooldown(attackSpeedTicks)
 
 	if isSword && cooldownProgress > 0.9 {
@@ -1705,6 +1742,12 @@ func dimensionTypeID(mgr *registry.Manager, name string) int32 {
 func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.BlockPos, gm int32, canHarvest bool) {
 	if wa == nil {
 		return
+	}
+
+	if gm != 1 {
+		if p, ok := s.Player().(*entity.Player); ok && p != nil {
+			p.Living().AddExhaustion(0.005)
+		}
 	}
 
 	bx, by, bz := int(pos.X), int(pos.Y), int(pos.Z)
