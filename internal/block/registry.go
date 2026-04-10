@@ -110,6 +110,39 @@ func StateID(name string, props map[string]string) int32 {
 	return stateID
 }
 
+// IsWater returns true if the state ID corresponds to a water block.
+func IsWater(stateID int32) bool {
+	return matchBlockName(stateID, "minecraft:water")
+}
+
+// IsLava returns true if the state ID corresponds to a lava block.
+func IsLava(stateID int32) bool {
+	return matchBlockName(stateID, "minecraft:lava")
+}
+
+// IsFire returns true if the state ID corresponds to fire or soul fire.
+func IsFire(stateID int32) bool {
+	return matchBlockName(stateID, "minecraft:fire") || matchBlockName(stateID, "minecraft:soul_fire")
+}
+
+// IsCactus returns true if the state ID corresponds to a cactus block.
+func IsCactus(stateID int32) bool {
+	return matchBlockName(stateID, "minecraft:cactus")
+}
+
+// IsSweetBerryBush returns true if the state ID corresponds to a sweet berry bush.
+func IsSweetBerryBush(stateID int32) bool {
+	return matchBlockName(stateID, "minecraft:sweet_berry_bush")
+}
+
+func matchBlockName(stateID int32, name string) bool {
+	bid := BlockIDFromState(stateID)
+	if bid < 0 {
+		return false
+	}
+	return genblock.Blocks[bid].Name == name
+}
+
 // PropertiesFromState extracts the property values for a given state ID.
 // Returns nil if the block has no properties.
 func PropertiesFromState(stateID int32) map[string]string {

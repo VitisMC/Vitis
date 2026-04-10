@@ -21,6 +21,11 @@ type LivingEntity struct {
 
 	lastDamageSource string
 	lastDamageAmount float32
+	lastDamageType   DamageType
+	lastAttackerID   int32
+
+	airSupply int32
+	fireTicks int32
 
 	foodLevel      int32
 	foodSaturation float32
@@ -47,6 +52,8 @@ func NewLivingEntity(e *Entity, maxHealth float32) *LivingEntity {
 		maxHealth:      maxHealth,
 		foodLevel:      20,
 		foodSaturation: 5.0,
+		airSupply:      300,
+		lastAttackerID: -1,
 		attributes:     DefaultPlayerAttributes(),
 		effects:        effect.NewManager(),
 	}

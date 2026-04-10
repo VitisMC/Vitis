@@ -509,6 +509,33 @@ func (w *World) tickPlayers() {
 			}
 		}
 
+		envDamages := living.TickEnvironment(w.getBlockAt)
+		for _, src := range envDamages {
+			if living.IsDead() {
+				break
+			}
+			actual := living.ApplyDamage(src, 0, 0, 0)
+			if actual > 0 && sess != nil {
+				_ = sess.Send(&playpacket.UpdateHealth{
+					Health:         living.Health(),
+					Food:           living.FoodLevel(),
+					FoodSaturation: living.FoodSaturation(),
+				})
+				_ = sess.Send(&playpacket.HurtAnimation{
+					EntityID: p.ID(),
+					Yaw:      0,
+				})
+				if living.IsDead() {
+					name := p.Username()
+					msg := formatDeathMessage(src.Type, name, "")
+					_ = sess.Send(&playpacket.DeathCombatEvent{
+						PlayerID: p.ID(),
+						Message:  msg,
+					})
+				}
+			}
+		}
+
 		if w.tick.Load()%20 == 0 && !living.IsDead() {
 			if sess == nil {
 				continue
@@ -520,6 +547,14 @@ func (w *World) tickPlayers() {
 			})
 		}
 	}
+}
+
+func formatDeathMessage(dtype entity.DamageType, victimName, attackerName string) string {
+	tmpl := dtype.DeathMessage()
+	if attackerName != "" {
+		return fmt.Sprintf(tmpl, victimName, attackerName)
+	}
+	return fmt.Sprintf(tmpl, victimName)
 }
 
 func (w *World) broadcastTime() {
