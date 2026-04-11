@@ -201,10 +201,15 @@ func encodeValue(buf []byte, typeID int32, value interface{}) []byte {
 		}
 		return append(buf, 0)
 	case TypeOptPosition:
-		if value == nil {
+		pos, ok := value.(*[3]int32)
+		if !ok || pos == nil {
 			return append(buf, 0)
 		}
-		return append(buf, 0)
+		buf = append(buf, 1)
+		encoded := uint64(((int64(pos[0]) & 0x3FFFFFF) << 38) | ((int64(pos[2]) & 0x3FFFFFF) << 12) | (int64(pos[1]) & 0xFFF))
+		var b [8]byte
+		binary.BigEndian.PutUint64(b[:], encoded)
+		return append(buf, b[:]...)
 	case TypeOptVarInt:
 		v := value.(int32)
 		return appendVarInt(buf, v)

@@ -10,6 +10,7 @@ import (
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/command"
 	genentity "github.com/vitismc/vitis/internal/data/generated/entity"
+	entitypose "github.com/vitismc/vitis/internal/data/generated/entity_pose"
 	entitystatus "github.com/vitismc/vitis/internal/data/generated/entity_status"
 	genparticle "github.com/vitismc/vitis/internal/data/generated/particle"
 	gensound "github.com/vitismc/vitis/internal/data/generated/sound"
@@ -524,6 +525,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 					StateID: clickedState, Face: pkt.Face,
 				}
 				if behavior.GetByState(clickedState).OnUse(ctx) {
+					if ctx.StateID == -2 && behavior.IsBed(clickedState) {
+						return handleBedUse(s, pm, wa, clickedState, int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), pkt.Sequence)
+					}
 					if ctx.StateID == -1 {
 						if furnaceType, wt, title, ok := behavior.IsFurnace(clickedState); ok {
 							return handleOpenFurnace(s, pm, wa, furnaceType, wt, title, pkt.Position.X, pkt.Position.Y, pkt.Position.Z, pkt.Sequence)
@@ -1964,5 +1968,135 @@ func completeEating(s Session, pm *PlayerManager, p *entity.Player, tracker *foo
 			Volume:        1.0,
 			Pitch:         1.0,
 		})
+	}
+}
+
+func handleBedUse(s Session, pm *PlayerManager, wa WorldAccessor, clickedState int32, bx, by, bz int, sequence int32) error {
+	if pm == nil {
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
+	op := pm.GetBySession(s)
+	if op == nil {
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
+
+	// Find the head position of the bed
+	hx, hy, hz := behavior.BedHeadPos(clickedState, bx, by, bz)
+
+	// Check if the bed is already occupied
+	headState := wa.GetBlock(hx, hy, hz)
+	if headState > 0 {
+		props := block.PropertiesFromState(headState)
+		if props != nil && props["occupied"] == "true" {
+			// Bed is occupied - send action bar message
+			_ = s.Send(&playpacket.SystemChatMessage{
+				Text:    "This bed is occupied",
+				Overlay: true,
+			})
+			return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+		}
+	}
+
+	// Set spawn point
+	op.SpawnX = hx
+	op.SpawnY = hy
+	op.SpawnZ = hz
+	op.HasSpawnPoint = true
+
+	// Set both halves to occupied
+	if headState > 0 {
+		newState := behavior.BedOccupiedState(headState, true)
+		wa.SetBlock(hx, hy, hz, newState)
+		pm.Broadcast(&playpacket.BlockUpdate{
+			Position: playpacket.BlockPos{X: int32(hx), Y: int32(hy), Z: int32(hz)},
+			BlockID:  newState,
+		})
+	}
+	fx, fy, fz := behavior.BedOtherHalfPos(clickedState, bx, by, bz)
+	footState := wa.GetBlock(fx, fy, fz)
+	if footState > 0 {
+		newFootState := behavior.BedOccupiedState(footState, true)
+		wa.SetBlock(fx, fy, fz, newFootState)
+		pm.Broadcast(&playpacket.BlockUpdate{
+			Position: playpacket.BlockPos{X: int32(fx), Y: int32(fy), Z: int32(fz)},
+			BlockID:  newFootState,
+		})
+	}
+
+	// Mark player as sleeping
+	op.Sleeping = true
+	op.Pose = entitypose.PoseSleeping
+
+	// Send sleeping metadata to all players
+	md := metadata.New()
+	md.SetPose(metadata.IndexPose, entitypose.PoseSleeping)
+	md.SetOptPosition(metadata.IndexLivingSleepingPos, &[3]int32{int32(hx), int32(hy), int32(hz)})
+	pm.Broadcast(&playpacket.SetEntityMetadata{
+		EntityID: op.EntityID,
+		Metadata: md.Encode(),
+	})
+
+	_ = s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+
+	// Check if all players are now sleeping → skip to dawn
+	if pm.AllSleeping() {
+		skipToDawn(pm, wa)
+	}
+
+	return nil
+}
+
+func skipToDawn(pm *PlayerManager, wa WorldAccessor) {
+	// Wake all players
+	for _, op := range pm.Players() {
+		wakePlayer(pm, op, wa)
+	}
+
+	// TODO: advance time to dawn when WorldTimeAccessor is available here
+	// For now, just send a system message
+	pm.Broadcast(&playpacket.SystemChatMessage{
+		Text:    "All players sleeping. Sweet dreams!",
+		Overlay: true,
+	})
+}
+
+func wakePlayer(pm *PlayerManager, op *OnlinePlayer, wa WorldAccessor) {
+	if !op.Sleeping {
+		return
+	}
+	op.Sleeping = false
+	op.Pose = entitypose.PoseStanding
+
+	// Clear sleeping metadata
+	md := metadata.New()
+	md.SetPose(metadata.IndexPose, entitypose.PoseStanding)
+	md.SetOptPosition(metadata.IndexLivingSleepingPos, nil)
+	pm.Broadcast(&playpacket.SetEntityMetadata{
+		EntityID: op.EntityID,
+		Metadata: md.Encode(),
+	})
+
+	// Unoccupy the bed at the spawn point if it still exists
+	if op.HasSpawnPoint && wa != nil {
+		bedState := wa.GetBlock(op.SpawnX, op.SpawnY, op.SpawnZ)
+		if bedState > 0 && behavior.IsBed(bedState) {
+			newState := behavior.BedOccupiedState(bedState, false)
+			wa.SetBlock(op.SpawnX, op.SpawnY, op.SpawnZ, newState)
+			pm.Broadcast(&playpacket.BlockUpdate{
+				Position: playpacket.BlockPos{X: int32(op.SpawnX), Y: int32(op.SpawnY), Z: int32(op.SpawnZ)},
+				BlockID:  newState,
+			})
+			// Also unoccupy the other half
+			ox, oy, oz := behavior.BedOtherHalfPos(bedState, op.SpawnX, op.SpawnY, op.SpawnZ)
+			otherState := wa.GetBlock(ox, oy, oz)
+			if otherState > 0 && behavior.IsBed(otherState) {
+				newOther := behavior.BedOccupiedState(otherState, false)
+				wa.SetBlock(ox, oy, oz, newOther)
+				pm.Broadcast(&playpacket.BlockUpdate{
+					Position: playpacket.BlockPos{X: int32(ox), Y: int32(oy), Z: int32(oz)},
+					BlockID:  newOther,
+				})
+			}
+		}
 	}
 }
