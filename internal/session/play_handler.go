@@ -550,6 +550,51 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 							pm.BroadcastExcept(op.UUID, blockUpdate)
 						}
 					}
+
+					// Double-door sync
+					if behavior.IsDoor(ctx.StateID) && wa != nil {
+						bx, by, bz := int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z)
+						if ax, ay, az, adjState, ok := behavior.FindAdjacentDoor(ctx.StateID, bx, by, bz, wa.GetBlock); ok {
+							wa.SetBlock(ax, ay, az, adjState)
+							adjUpdate := &playpacket.BlockUpdate{
+								Position: playpacket.BlockPos{X: int32(ax), Y: int32(ay), Z: int32(az)},
+								BlockID:  adjState,
+							}
+							if pm != nil {
+								pm.Broadcast(adjUpdate)
+							} else {
+								_ = s.Send(adjUpdate)
+							}
+						}
+					}
+
+					// Door/trapdoor/fence gate sounds
+					if behavior.IsDoor(ctx.StateID) || behavior.IsFenceGate(ctx.StateID) {
+						props := block.PropertiesFromState(ctx.StateID)
+						soundName := "block.wooden_door.open"
+						if props != nil && props["open"] == "false" {
+							soundName = "block.wooden_door.close"
+						}
+						if behavior.IsFenceGate(ctx.StateID) {
+							soundName = "block.fence_gate.open"
+							if props != nil && props["open"] == "false" {
+								soundName = "block.fence_gate.close"
+							}
+						}
+						sid := gensound.SoundIDByName(soundName)
+						if sid >= 0 && pm != nil {
+							pm.Broadcast(&playpacket.SoundEffect{
+								SoundID:       sid + 1,
+								SoundCategory: soundcategory.CategoryBlock,
+								X:             pkt.Position.X * 8,
+								Y:             pkt.Position.Y * 8,
+								Z:             pkt.Position.Z * 8,
+								Volume:        1.0,
+								Pitch:         1.0,
+							})
+						}
+					}
+
 					return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 				}
 			}
