@@ -749,8 +749,8 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		return err
 	}
 
-	entityActionID := playpacket.NewEntityAction().ID()
-	if err := router.Register(protocol.StatePlay, entityActionID, func(s Session, packet protocol.Packet) error {
+	eaID := playpacket.NewEntityAction().ID()
+	if err := router.Register(protocol.StatePlay, eaID, func(s Session, packet protocol.Packet) error {
 		pkt, ok := packet.(*playpacket.EntityAction)
 		if !ok {
 			return protocol.ErrNilPacket
@@ -766,9 +766,21 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		case 0: // start sneaking
 			op.Flags = (op.Flags | 0x02)
 			op.Pose = 5
+			// Stop shield blocking when sneaking
+			if p, ok := s.Player().(*entity.Player); ok && p != nil {
+				living := p.Living()
+				if living.IsBlocking() {
+					living.SetBlocking(false)
+				}
+			}
 		case 1: // stop sneaking
 			op.Flags = (op.Flags &^ 0x02)
 			op.Pose = 0
+		case 2: // leave bed
+			if wa != nil {
+				wakePlayer(pm, op, wa)
+			}
+			return nil
 		case 3: // start sprinting
 			op.Flags = (op.Flags | 0x08)
 		case 4: // stop sprinting
@@ -883,6 +895,29 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 									eatingTracker.Start(p.ID(), itemName, held.ItemID, pkt.Hand, props)
 								}
 							}
+						}
+
+						// Shield blocking: check main hand or offhand
+						var shieldName string
+						if pkt.Hand == 0 {
+							h := op.Windows.HeldItem()
+							if !h.Empty() {
+								shieldName = item.NameByID(h.ItemID)
+							}
+						} else {
+							oh := op.Windows.Inventory().Get(inventory.OffhandSlot)
+							if !oh.Empty() {
+								shieldName = item.NameByID(oh.ItemID)
+							}
+						}
+						if shieldName == "minecraft:shield" && living.ShieldCooldown() <= 0 {
+							living.SetBlocking(true)
+							smd := metadata.New()
+							smd.SetByte(metadata.IndexLivingHandStates, 0x01)
+							pm.Broadcast(&playpacket.SetEntityMetadata{
+								EntityID: op.EntityID,
+								Metadata: smd.Encode(),
+							})
 						}
 					}
 				}
@@ -1752,6 +1787,46 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		if !held.Empty() {
 			elist := slotEnchantList(held)
 			baseDamage += float32(enchantment.SharpnessDamage(elist))
+		}
+	}
+
+	// Shield blocking check
+	isAxe := strings.HasSuffix(attackerWeapon, "_axe")
+	if targetLiving.IsBlocking() && targetLiving.ShieldCooldown() <= 0 {
+		// Check if attack is from the front 180° arc
+		attackerPos := attackerPlayer.Position()
+		targetPos := targetPlayer.Position()
+		targetYaw := targetPlayer.Rotation().X
+		dx := attackerPos.X - targetPos.X
+		dz := attackerPos.Z - targetPos.Z
+		attackAngle := math.Atan2(dz, dx) * (180.0 / math.Pi)
+		facingAngle := float64(-targetYaw)
+		diff := attackAngle - facingAngle
+		for diff > 180 {
+			diff -= 360
+		}
+		for diff < -180 {
+			diff += 360
+		}
+		if diff > -90 && diff < 90 {
+			// Attack blocked by shield
+			if isAxe {
+				// Axe disables shield for 5 seconds (100 ticks)
+				targetLiving.SetShieldCooldown(100)
+				targetLiving.SetBlocking(false)
+			}
+			// Play shield block sound
+			pm.Broadcast(&playpacket.SoundEffect{
+				SoundID:       gensound.SoundIDByName("item.shield.block") + 1,
+				SoundCategory: soundcategory.CategoryPlayer,
+				X:             int32(target.X * 8),
+				Y:             int32(target.Y * 8),
+				Z:             int32(target.Z * 8),
+				Volume:        1.0,
+				Pitch:         1.0,
+			})
+			attackerLiving.ResetAttackCooldown(attackSpeedTicks)
+			return nil
 		}
 	}
 

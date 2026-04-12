@@ -44,6 +44,9 @@ type LivingEntity struct {
 	armorToughness float64
 	armorEnchProt  float64
 
+	blocking       bool
+	shieldCooldown int32
+
 	attributes *AttributeContainer
 	effects    *effect.Manager
 }
@@ -87,6 +90,18 @@ func (l *LivingEntity) SetArmorStats(defense, toughness, enchProt float64) {
 	l.armorToughness = toughness
 	l.armorEnchProt = enchProt
 }
+
+// IsBlocking returns true if the entity is actively blocking with a shield.
+func (l *LivingEntity) IsBlocking() bool { return l.blocking }
+
+// SetBlocking sets the shield blocking state.
+func (l *LivingEntity) SetBlocking(v bool) { l.blocking = v }
+
+// ShieldCooldown returns remaining shield cooldown ticks.
+func (l *LivingEntity) ShieldCooldown() int32 { return l.shieldCooldown }
+
+// SetShieldCooldown sets the shield cooldown (e.g. 100 ticks = 5 seconds after axe hit).
+func (l *LivingEntity) SetShieldCooldown(ticks int32) { l.shieldCooldown = ticks }
 
 // OnGround returns whether the underlying entity is on the ground.
 func (l *LivingEntity) OnGround() bool { return l.Entity.OnGround() }
@@ -193,6 +208,12 @@ func (l *LivingEntity) TickLiving() {
 	}
 	if l.attackCooldown > 0 {
 		l.attackCooldown--
+	}
+	if l.shieldCooldown > 0 {
+		l.shieldCooldown--
+		if l.shieldCooldown <= 0 {
+			l.blocking = false
+		}
 	}
 	if l.dead && l.deathTime > 0 && l.deathTime < 20 {
 		l.deathTime++
