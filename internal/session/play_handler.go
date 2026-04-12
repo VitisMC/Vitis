@@ -534,7 +534,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 							return handleOpenFurnace(s, pm, wa, furnaceType, wt, title, pkt.Position.X, pkt.Position.Y, pkt.Position.Z, pkt.Sequence)
 						}
 						if wt, title, slots, ok := behavior.IsContainer(clickedState); ok {
-							return handleOpenContainer(s, pm, wt, title, slots, pkt.Sequence)
+							return handleOpenContainer(s, pm, wa, clickedState, wt, title, slots, int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), pkt.Sequence)
 						}
 						return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 					}
@@ -1492,7 +1492,7 @@ func (p *WorldChunkProvider) GenerateSpawnChunk(cx, cz int32) []byte {
 	return nil
 }
 
-func handleOpenContainer(s Session, pm *PlayerManager, windowType int32, title string, slotCount int, sequence int32) error {
+func handleOpenContainer(s Session, pm *PlayerManager, wa WorldAccessor, clickedState int32, windowType int32, title string, slotCount int, bx, by, bz int, sequence int32) error {
 	if pm == nil {
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 	}
@@ -1501,18 +1501,30 @@ func handleOpenContainer(s Session, pm *PlayerManager, windowType int32, title s
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 	}
 
-	container := inventory.NewContainer(slotCount)
-	w := op.Windows.OpenWindow(windowType, title, container)
+	// Detect double chest
+	actualWindowType := windowType
+	actualSlotCount := slotCount
+	actualTitle := title
+	if behavior.IsChest(clickedState) {
+		if _, _, _, ok := behavior.FindDoubleChestHalf(clickedState, bx, by, bz); ok {
+			actualWindowType = 5 // Generic9x6
+			actualSlotCount = 54
+			actualTitle = "Large Chest"
+		}
+	}
+
+	container := inventory.NewContainer(actualSlotCount)
+	w := op.Windows.OpenWindow(actualWindowType, actualTitle, container)
 
 	if err := s.Send(&playpacket.OpenScreen{
 		WindowID:   w.ID,
-		WindowType: windowType,
-		Title:      title,
+		WindowType: actualWindowType,
+		Title:      actualTitle,
 	}); err != nil {
 		return err
 	}
 
-	slots := make([]inventory.Slot, slotCount)
+	slots := make([]inventory.Slot, actualSlotCount)
 	stateID := op.Windows.StateID()
 	if err := s.Send(&playpacket.SetContainerContent{
 		WindowID: w.ID,
@@ -1521,6 +1533,16 @@ func handleOpenContainer(s Session, pm *PlayerManager, windowType int32, title s
 		Carried:  inventory.EmptySlot(),
 	}); err != nil {
 		return err
+	}
+
+	// Send chest open animation via BlockAction
+	if behavior.IsChest(clickedState) && pm != nil {
+		pm.Broadcast(&playpacket.BlockAction{
+			Position:        playpacket.BlockPos{X: int32(bx), Y: int32(by), Z: int32(bz)},
+			ActionID:        1, // action: number of players viewing
+			ActionParameter: 1, // value: 1 player
+			BlockType:       block.BlockIDFromState(clickedState),
+		})
 	}
 
 	return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
