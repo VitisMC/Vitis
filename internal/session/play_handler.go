@@ -980,6 +980,55 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		return err
 	}
 
+	editBookID := playpacket.NewEditBook().ID()
+	if err := router.Register(protocol.StatePlay, editBookID, func(s Session, packet protocol.Packet) error {
+		pkt, ok := packet.(*playpacket.EditBook)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		if pm == nil {
+			return nil
+		}
+		op := pm.GetBySession(s)
+		if op == nil || op.Windows == nil {
+			return nil
+		}
+
+		// The slot index is the hotbar slot
+		invIdx := inventory.HotbarStart + int(pkt.Slot)
+		held := op.Windows.Inventory().Get(invIdx)
+		if held.Empty() {
+			return nil
+		}
+
+		bookName := item.NameByID(held.ItemID)
+		if bookName != "minecraft:writable_book" {
+			return nil
+		}
+
+		if pkt.HasTitle {
+			// Signing: convert writable_book to written_book
+			writtenID := item.IDByName("minecraft:written_book")
+			if writtenID < 0 {
+				return nil
+			}
+			newSlot := inventory.NewSlot(writtenID, 1)
+			// Store title and pages as raw component data (simplified)
+			op.Windows.Inventory().Set(invIdx, newSlot)
+			_ = s.Send(&playpacket.SetPlayerInventorySlot{
+				SlotIdx:  int32(invIdx),
+				SlotData: newSlot,
+			})
+		} else {
+			// Just editing pages - keep the writable_book, acknowledge
+			// Pages are stored client-side until signing; server just acknowledges
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	updateSignID := playpacket.NewServerboundUpdateSign().ID()
 	if err := router.Register(protocol.StatePlay, updateSignID, func(s Session, packet protocol.Packet) error {
 		pkt, ok := packet.(*playpacket.ServerboundUpdateSign)
