@@ -680,6 +680,18 @@ func (w *World) processBlockTick(t *tick.ScheduledTick) {
 		}
 		w.spawnFallingBlock(t.X, t.Y, t.Z, result.BlockStateID)
 	}
+
+	if result.SetBlock && result.NewBlockState > 0 {
+		w.setBlockAt(t.X, t.Y, t.Z, result.NewBlockState)
+		w.broadcastBlockUpdate(t.X, t.Y, t.Z, result.NewBlockState)
+	}
+
+	if result.Reschedule {
+		delay := b.TickDelay()
+		if delay > 0 {
+			w.tickScheduler.Schedule(t.X, t.Y, t.Z, w.tick.Load(), delay, tick.PriorityNormal, tick.TickTypeBlock, stateID)
+		}
+	}
 }
 
 func (w *World) spawnFallingBlock(x, y, z int, stateID int32) {
