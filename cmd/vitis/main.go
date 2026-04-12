@@ -33,6 +33,7 @@ import (
 	"github.com/vitismc/vitis/internal/session"
 	"github.com/vitismc/vitis/internal/tick"
 	"github.com/vitismc/vitis/internal/world"
+	"github.com/vitismc/vitis/internal/world/blockentity"
 	"github.com/vitismc/vitis/internal/world/level"
 	"github.com/vitismc/vitis/internal/world/persistence"
 )
@@ -435,11 +436,12 @@ func run() int {
 	var worldAccessor session.WorldAccessor
 	if defaultWorld != nil {
 		worldAccessor = &session.DefaultWorldAccessor{
-			Chunks:        defaultWorld.ChunkManager(),
-			TickScheduler: defaultWorld.TickScheduler(),
-			CurrentTick:   defaultWorld.CurrentTick,
-			NextEntityID:  func() int32 { return entityIDCounter.Add(1) },
-			Items:         defaultWorld.ItemEntities(),
+			Chunks:           defaultWorld.ChunkManager(),
+			TickScheduler:    defaultWorld.TickScheduler(),
+			CurrentTick:      defaultWorld.CurrentTick,
+			NextEntityID:     func() int32 { return entityIDCounter.Add(1) },
+			Items:            defaultWorld.ItemEntities(),
+			BlockEntityStore: blockentity.NewStore(),
 		}
 	}
 

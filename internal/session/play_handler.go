@@ -29,6 +29,7 @@ import (
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/registry"
+	"github.com/vitismc/vitis/internal/world/blockentity"
 	"github.com/vitismc/vitis/internal/world/chunk"
 	"github.com/vitismc/vitis/internal/world/terrain"
 )
@@ -703,6 +704,18 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			}
 			wa.ScheduleTicksForBlock(int(targetX), int(targetY), int(targetZ), blockToPlace)
 			wa.NotifyNeighbors(int(targetX), int(targetY), int(targetZ))
+
+			// Open sign editor if a sign was placed
+			blockName := block.NameFromState(blockToPlace)
+			if strings.Contains(blockName, "_sign") {
+				if bes := wa.BlockEntities(); bes != nil {
+					bes.SetSign(int(targetX), int(targetY), int(targetZ), &blockentity.SignData{})
+				}
+				_ = s.Send(&playpacket.OpenSignEditor{
+					X: targetX, Y: targetY, Z: targetZ,
+					IsFront: true,
+				})
+			}
 		}
 
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
@@ -961,6 +974,49 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 					}
 				}
 			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	updateSignID := playpacket.NewServerboundUpdateSign().ID()
+	if err := router.Register(protocol.StatePlay, updateSignID, func(s Session, packet protocol.Packet) error {
+		pkt, ok := packet.(*playpacket.ServerboundUpdateSign)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		if wa == nil {
+			return nil
+		}
+		bes := wa.BlockEntities()
+		if bes == nil {
+			return nil
+		}
+		sd := bes.GetSign(int(pkt.X), int(pkt.Y), int(pkt.Z))
+		if sd == nil {
+			sd = &blockentity.SignData{}
+			bes.SetSign(int(pkt.X), int(pkt.Y), int(pkt.Z), sd)
+		}
+		if pkt.IsFront {
+			sd.FrontLines = pkt.Lines
+		} else {
+			sd.BackLines = pkt.Lines
+		}
+
+		nbtData := blockentity.EncodeSignNBT(sd)
+		beType := blockentity.TypeSign
+		blockState := wa.GetBlock(int(pkt.X), int(pkt.Y), int(pkt.Z))
+		blockName := block.NameFromState(blockState)
+		if strings.Contains(blockName, "hanging") {
+			beType = blockentity.TypeHangSign
+		}
+		if pm != nil {
+			pm.Broadcast(&playpacket.BlockEntityData{
+				X: pkt.X, Y: pkt.Y, Z: pkt.Z,
+				Type:    beType,
+				NBTData: nbtData,
+			})
 		}
 		return nil
 	}); err != nil {
