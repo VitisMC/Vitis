@@ -322,7 +322,7 @@ func RegisterPlay(registry *protocol.Registry, version int32) error {
 	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewSteerBoat); err != nil {
 		return err
 	}
-	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewUpdateSign); err != nil {
+	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewServerboundUpdateSign); err != nil {
 		return err
 	}
 	if err := registry.RegisterPacket(version, protocol.StatePlay, protocol.DirectionInbound, playpacket.NewResourcePackReceive); err != nil {
