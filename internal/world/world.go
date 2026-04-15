@@ -9,6 +9,7 @@ import (
 	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/block/fluid"
+	"github.com/vitismc/vitis/internal/effect"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/ai"
 	"github.com/vitismc/vitis/internal/entity/projectile"
@@ -1087,17 +1088,21 @@ func (w *World) tickProjectiles() {
 
 	// Process thrown entity hits
 	for _, hit := range result.ThrownHits {
-		if !hit.HitResult.HitEntity {
-			continue
-		}
 		switch hit.ThrownType {
 		case projectile.ThrownSnowball, projectile.ThrownEgg:
-			src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, 0, -1)
-			w.applyProjectileDamage(hit.HitResult.EntityID, src, -1)
+			if hit.HitResult.HitEntity {
+				src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, 0, -1)
+				w.applyProjectileDamage(hit.HitResult.EntityID, src, -1)
+			}
 		case projectile.ThrownEnderPearl:
 			thrown := w.projectiles.GetThrown(hit.ThrownID)
 			if thrown != nil {
 				w.teleportOwnerToHit(thrown.OwnerID(), hit.HitResult)
+			}
+		case projectile.ThrownSplashPotion:
+			thrown := w.projectiles.GetThrown(hit.ThrownID)
+			if thrown != nil {
+				w.applySplashPotionArea(hit.HitResult, thrown.ItemID())
 			}
 		}
 	}
@@ -1219,6 +1224,88 @@ func (w *World) teleportOwnerToHit(ownerID int32, hr *projectile.HitResult) {
 			}
 		}
 		return
+	}
+}
+
+// applySplashPotionArea applies splash potion effects to all entities within range.
+func (w *World) applySplashPotionArea(hr *projectile.HitResult, potionID int32) {
+	if hr == nil {
+		return
+	}
+	pe := effect.PotionEffects(potionID)
+	if pe == nil {
+		return
+	}
+	splashEffects := effect.ScaleEffects(pe.Effects, effect.SplashDurationFactor())
+	center := entity.Vec3{X: hr.HitX, Y: hr.HitY, Z: hr.HitZ}
+	const splashRadius = 4.0
+	const splashRadiusSq = splashRadius * splashRadius
+
+	for _, p := range w.tracker.Players() {
+		if p.Removed() || p.IsDead() {
+			continue
+		}
+		pos := p.Position()
+		dx := pos.X - center.X
+		dy := pos.Y - center.Y
+		dz := pos.Z - center.Z
+		distSq := dx*dx + dy*dy + dz*dz
+		if distSq > splashRadiusSq {
+			continue
+		}
+		dist := math.Sqrt(distSq)
+		proximity := 1.0 - dist/splashRadius
+		if proximity < 0.25 {
+			proximity = 0.25
+		}
+		living := p.Living()
+		sess := p.Session()
+		for _, e := range splashEffects {
+			if effect.IsInstant(e.ID) {
+				action := effect.ApplyInstant(e.ID, e.Amplifier)
+				if action != nil {
+					if action.Heal > 0 {
+						action.Heal *= float32(proximity)
+					}
+					if action.Damage > 0 {
+						action.Damage *= float32(proximity)
+					}
+					if action.Heal > 0 && !living.IsDead() {
+						h := living.Health() + action.Heal
+						if h > living.MaxHealth() {
+							h = living.MaxHealth()
+						}
+						living.SetHealth(h)
+					}
+					if action.Damage > 0 {
+						living.Damage(action.Damage, "magic")
+					}
+				}
+			} else {
+				scaled := e
+				scaled.Duration = int32(float64(e.Duration) * proximity)
+				if scaled.Duration < 1 {
+					scaled.Duration = 1
+				}
+				living.Effects().Add(scaled)
+				if sess != nil {
+					_ = sess.Send(&playpacket.EntityEffect{
+						EntityID:  p.ID(),
+						EffectID:  scaled.ID,
+						Amplifier: scaled.Amplifier,
+						Duration:  scaled.Duration,
+						Flags:     scaled.Flags,
+					})
+				}
+			}
+		}
+		if sess != nil {
+			_ = sess.Send(&playpacket.UpdateHealth{
+				Health:         living.Health(),
+				Food:           living.FoodLevel(),
+				FoodSaturation: living.FoodSaturation(),
+			})
+		}
 	}
 }
 
