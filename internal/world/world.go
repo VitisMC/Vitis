@@ -1054,11 +1054,171 @@ func (w *World) SpawnThrown(t *projectile.ThrownEntity) {
 	w.projectiles.AddThrown(t)
 }
 
+// SpawnTrident creates and registers a trident projectile in the world.
+func (w *World) SpawnTrident(t *projectile.Trident) {
+	if w == nil || t == nil {
+		return
+	}
+	w.entities.Add(t.Entity)
+	w.projectiles.AddTrident(t)
+}
+
 func (w *World) tickProjectiles() {
-	result := w.projectiles.TickAll(w, nil)
+	finder := &worldEntityFinder{tracker: w.tracker, mobs: w.mobs}
+	result := w.projectiles.TickAll(w, finder)
+
+	// Process arrow entity hits
+	for _, hit := range result.ArrowHits {
+		if !hit.HitResult.HitEntity {
+			continue
+		}
+		arrow := w.projectiles.GetArrow(hit.ArrowID)
+		if arrow == nil {
+			continue
+		}
+		dmg := float32(arrow.ComputeHitDamage())
+		if dmg < 0.5 {
+			dmg = 0.5
+		}
+		src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, dmg, arrow.OwnerID())
+		w.applyProjectileDamage(hit.HitResult.EntityID, src, arrow.OwnerID())
+		arrow.Entity.Remove()
+	}
+
+	// Process thrown entity hits
+	for _, hit := range result.ThrownHits {
+		if !hit.HitResult.HitEntity {
+			continue
+		}
+		switch hit.ThrownType {
+		case projectile.ThrownSnowball, projectile.ThrownEgg:
+			src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, 0, -1)
+			w.applyProjectileDamage(hit.HitResult.EntityID, src, -1)
+		case projectile.ThrownEnderPearl:
+			thrown := w.projectiles.GetThrown(hit.ThrownID)
+			if thrown != nil {
+				w.teleportOwnerToHit(thrown.OwnerID(), hit.HitResult)
+			}
+		}
+	}
+
+	// Process trident entity hits
+	for _, hit := range result.TridentHits {
+		if !hit.HitResult.HitEntity {
+			continue
+		}
+		tr := w.projectiles.GetTrident(hit.TridentID)
+		if tr == nil {
+			continue
+		}
+		dmg := float32(tr.ComputeHitDamage())
+		src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, dmg, tr.OwnerID())
+		w.applyProjectileDamage(hit.HitResult.EntityID, src, tr.OwnerID())
+	}
+
 	for _, id := range result.RemovedIDs {
 		w.broadcastRemoveEntity(id)
 		w.entities.Remove(id)
+	}
+}
+
+// applyProjectileDamage applies damage from a projectile to a target entity.
+func (w *World) applyProjectileDamage(targetID int32, src *entity.DamageSource, ownerID int32) {
+	// Check if target is a player
+	for _, p := range w.tracker.Players() {
+		if p.ID() != targetID || p.Removed() || p.IsDead() {
+			continue
+		}
+		living := p.Living()
+		actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		sess := p.Session()
+		if sess == nil {
+			return
+		}
+		if actual > 0 || src.Amount == 0 {
+			_ = sess.Send(&playpacket.UpdateHealth{
+				Health:         living.Health(),
+				Food:           living.FoodLevel(),
+				FoodSaturation: living.FoodSaturation(),
+			})
+			// Broadcast hurt animation
+			hurtPkt := &playpacket.HurtAnimation{EntityID: p.ID(), Yaw: 0}
+			for _, op := range w.tracker.Players() {
+				if op.Removed() {
+					continue
+				}
+				if s := op.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+			if living.IsDead() {
+				attackerName := ""
+				if ownerID > 0 {
+					for _, ap := range w.tracker.Players() {
+						if ap.ID() == ownerID {
+							attackerName = ap.Username()
+							break
+						}
+					}
+				}
+				msg := formatDeathMessage(src.Type, p.Username(), attackerName)
+				_ = sess.Send(&playpacket.DeathCombatEvent{
+					PlayerID: p.ID(),
+					Message:  msg,
+				})
+			}
+		}
+		return
+	}
+
+	// Check if target is a mob
+	if w.mobs != nil {
+		mob := w.mobs.Get(targetID)
+		if mob != nil && !mob.IsDead() {
+			mob.Damage(src.Amount, src.Type.SourceName())
+			hurtPkt := &playpacket.HurtAnimation{EntityID: mob.ID(), Yaw: 0}
+			for _, p := range w.tracker.Players() {
+				if p.Removed() {
+					continue
+				}
+				if s := p.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+		}
+	}
+}
+
+// teleportOwnerToHit teleports the projectile owner to the hit location (ender pearl).
+func (w *World) teleportOwnerToHit(ownerID int32, hr *projectile.HitResult) {
+	if hr == nil {
+		return
+	}
+	for _, p := range w.tracker.Players() {
+		if p.ID() != ownerID || p.Removed() {
+			continue
+		}
+		newPos := entity.Vec3{X: hr.HitX, Y: hr.HitY, Z: hr.HitZ}
+		p.SetPosition(newPos)
+		sess := p.Session()
+		if sess != nil {
+			_ = sess.Send(&playpacket.SyncPlayerPosition{
+				X: newPos.X, Y: newPos.Y, Z: newPos.Z,
+				Yaw: float32(p.Rotation().X), Pitch: float32(p.Rotation().Y),
+			})
+			// Ender pearls deal 5 fall damage
+			living := p.Living()
+			src := entity.NewDamageSource(entity.DamageTypeFall, 5.0)
+			actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+			if actual > 0 {
+				_ = sess.Send(&playpacket.UpdateHealth{
+					Health:         living.Health(),
+					Food:           living.FoodLevel(),
+					FoodSaturation: living.FoodSaturation(),
+				})
+			}
+		}
+		return
 	}
 }
 
