@@ -12,6 +12,7 @@ import (
 	"github.com/vitismc/vitis/internal/effect"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/ai"
+	"github.com/vitismc/vitis/internal/entity/physics"
 	"github.com/vitismc/vitis/internal/entity/projectile"
 	"github.com/vitismc/vitis/internal/experience"
 	"github.com/vitismc/vitis/internal/inventory"
@@ -1016,16 +1017,172 @@ func (w *World) tickTNT() {
 			continue
 		}
 		pos := tnt.Position()
-
-		exp := entity.ComputeExplosion(w, pos.X, pos.Y+0.5, pos.Z, 4.0, nil)
-
-		for _, bp := range exp.AffectedBlocks {
-			w.setBlockAt(bp[0], bp[1], bp[2], 0)
-			w.broadcastBlockUpdate(bp[0], bp[1], bp[2], 0)
-		}
-
+		w.doExplosion(pos.X, pos.Y+0.5, pos.Z, 4.0)
 		w.broadcastRemoveEntity(id)
 		w.entities.Remove(id)
+	}
+}
+
+// doExplosion performs a full explosion: destroys blocks, damages entities, broadcasts packet.
+func (w *World) doExplosion(x, y, z, power float64) {
+	finder := func(box physics.AABB) []entity.ExplosionTarget {
+		var targets []entity.ExplosionTarget
+		for _, p := range w.tracker.Players() {
+			if p.Removed() || p.IsDead() {
+				continue
+			}
+			pos := p.Position()
+			hw := playerWidth / 2
+			pBox := physics.AABB{
+				MinX: pos.X - hw, MinY: pos.Y, MinZ: pos.Z - hw,
+				MaxX: pos.X + hw, MaxY: pos.Y + playerHeight, MaxZ: pos.Z + hw,
+			}
+			if box.Intersects(pBox) {
+				targets = append(targets, entity.ExplosionTarget{
+					EntityID: p.ID(), X: pos.X, Y: pos.Y, Z: pos.Z,
+					Width: playerWidth, Height: playerHeight,
+				})
+			}
+		}
+		if w.mobs != nil {
+			for _, mob := range w.mobs.Mobs() {
+				if mob.Entity.Removed() || mob.IsDead() {
+					continue
+				}
+				pos := mob.Position()
+				def := mob.TypeDef()
+				hw := def.Width / 2
+				mBox := physics.AABB{
+					MinX: pos.X - hw, MinY: pos.Y, MinZ: pos.Z - hw,
+					MaxX: pos.X + hw, MaxY: pos.Y + def.Height, MaxZ: pos.Z + hw,
+				}
+				if box.Intersects(mBox) {
+					targets = append(targets, entity.ExplosionTarget{
+						EntityID: mob.ID(), X: pos.X, Y: pos.Y, Z: pos.Z,
+						Width: def.Width, Height: def.Height,
+					})
+				}
+			}
+		}
+		return targets
+	}
+
+	exp := entity.ComputeExplosion(w, x, y, z, power, finder)
+
+	for _, bp := range exp.AffectedBlocks {
+		w.setBlockAt(bp[0], bp[1], bp[2], 0)
+		w.broadcastBlockUpdate(bp[0], bp[1], bp[2], 0)
+	}
+
+	for _, eff := range exp.AffectedEntities {
+		w.applyExplosionDamage(eff)
+	}
+
+	w.broadcastExplosion(exp)
+}
+
+func (w *World) applyExplosionDamage(eff entity.ExplosionEntityEffect) {
+	dmg := float32(eff.Damage)
+	if dmg <= 0 {
+		return
+	}
+	src := entity.NewDamageSource(entity.DamageTypeExplosion, dmg)
+
+	for _, p := range w.tracker.Players() {
+		if p.ID() != eff.EntityID || p.Removed() || p.IsDead() {
+			continue
+		}
+		living := p.Living()
+		actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		sess := p.Session()
+		if sess == nil {
+			return
+		}
+		if actual > 0 {
+			_ = sess.Send(&playpacket.UpdateHealth{
+				Health:         living.Health(),
+				Food:           living.FoodLevel(),
+				FoodSaturation: living.FoodSaturation(),
+			})
+			hurtPkt := &playpacket.HurtAnimation{EntityID: p.ID(), Yaw: 0}
+			for _, op := range w.tracker.Players() {
+				if op.Removed() {
+					continue
+				}
+				if s := op.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+			if living.IsDead() {
+				msg := formatDeathMessage(src.Type, p.Username(), "")
+				_ = sess.Send(&playpacket.DeathCombatEvent{
+					PlayerID: p.ID(),
+					Message:  msg,
+				})
+			}
+		}
+		return
+	}
+
+	if w.mobs != nil {
+		mob := w.mobs.Get(eff.EntityID)
+		if mob != nil && !mob.IsDead() {
+			mob.Damage(dmg, "explosion")
+			hurtPkt := &playpacket.HurtAnimation{EntityID: mob.ID(), Yaw: 0}
+			for _, p := range w.tracker.Players() {
+				if p.Removed() {
+					continue
+				}
+				if s := p.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+		}
+	}
+}
+
+func (w *World) broadcastExplosion(exp *entity.Explosion) {
+	records := make([]byte, 0, len(exp.AffectedBlocks)*3)
+	cx, cy, cz := int(math.Floor(exp.X)), int(math.Floor(exp.Y)), int(math.Floor(exp.Z))
+	for _, bp := range exp.AffectedBlocks {
+		records = append(records, byte(bp[0]-cx), byte(bp[1]-cy), byte(bp[2]-cz))
+	}
+
+	for _, p := range w.tracker.Players() {
+		if p.Removed() {
+			continue
+		}
+		sess := p.Session()
+		if sess == nil {
+			continue
+		}
+
+		var motX, motY, motZ float64
+		hasMotion := false
+		for _, eff := range exp.AffectedEntities {
+			if eff.EntityID == p.ID() {
+				motX = eff.KnockX
+				motY = eff.KnockY
+				motZ = eff.KnockZ
+				hasMotion = true
+				break
+			}
+		}
+
+		_ = sess.Send(&playpacket.Explosion{
+			X:                exp.X,
+			Y:                exp.Y,
+			Z:                exp.Z,
+			Strength:         float32(exp.Power),
+			RecordCount:      int32(len(exp.AffectedBlocks)),
+			Records:          records,
+			PlayerMotionX:    motX,
+			PlayerMotionY:    motY,
+			PlayerMotionZ:    motZ,
+			HasPlayerMotion:  hasMotion,
+			BlockInteraction: 1,
+			SoundName:        "minecraft:entity.generic.explode",
+		})
 	}
 }
 
