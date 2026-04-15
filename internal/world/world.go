@@ -18,6 +18,7 @@ import (
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/world/chunk"
 	"github.com/vitismc/vitis/internal/world/persistence"
+	"github.com/vitismc/vitis/internal/world/spawning"
 	"github.com/vitismc/vitis/internal/world/streaming"
 	"github.com/vitismc/vitis/internal/world/tick"
 	"github.com/vitismc/vitis/internal/world/weather"
@@ -86,6 +87,7 @@ type World struct {
 	weather       *weather.Weather
 	mobs          *entity.MobManager
 	mobBrains     *ai.BrainRegistry
+	spawner       *spawning.Spawner
 
 	tick atomic.Uint64
 
@@ -187,6 +189,7 @@ func New(config Config) (*World, error) {
 	}
 	w.mobs = entity.NewMobManager(entMgr, entMgr.AllocateID)
 	w.mobBrains = ai.NewBrainRegistry()
+	w.spawner = spawning.NewSpawner(spawning.DefaultOverworldSpawns, 20)
 	return w, nil
 }
 
@@ -1064,6 +1067,18 @@ func (w *World) tickMobs() {
 		return
 	}
 
+	// Natural mob spawning
+	if w.spawner != nil {
+		playerPositions := w.buildSpawnPlayerList()
+		requests := w.spawner.Tick(w.mobs, playerPositions, w)
+		for _, req := range requests {
+			mob := w.mobs.SpawnMob(req.TypeName, entity.Vec3{X: req.X, Y: req.Y, Z: req.Z})
+			if mob != nil && w.mobBrains != nil {
+				w.mobBrains.RegisterMob(mob)
+			}
+		}
+	}
+
 	if w.mobBrains != nil {
 		players := w.buildAIPlayerList()
 		w.mobBrains.TickAll(w.mobs.Mobs(), players, w.tick.Load(), w)
@@ -1082,6 +1097,27 @@ func (w *World) tickMobs() {
 			w.SpawnItemEntity(ie)
 		}
 	}
+}
+
+// GetBlock returns the block state at the given coordinates (implements spawning.BlockAccess).
+func (w *World) GetBlock(x, y, z int) int32 {
+	return w.getBlockAt(x, y, z)
+}
+
+func (w *World) buildSpawnPlayerList() []spawning.PlayerPos {
+	trackedPlayers := w.tracker.Players()
+	if len(trackedPlayers) == 0 {
+		return nil
+	}
+	result := make([]spawning.PlayerPos, 0, len(trackedPlayers))
+	for _, p := range trackedPlayers {
+		if p.Removed() {
+			continue
+		}
+		pos := p.Position()
+		result = append(result, spawning.PlayerPos{X: pos.X, Y: pos.Y, Z: pos.Z})
+	}
+	return result
 }
 
 func (w *World) buildAIPlayerList() []ai.PlayerInfo {
