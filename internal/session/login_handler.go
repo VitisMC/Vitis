@@ -20,6 +20,7 @@ type LoginConfig struct {
 	PublicKeyDER         []byte
 	OnLoginSuccess       func(session Session, name string, uuid protocol.UUID)
 	WhitelistChecker     func(uuid protocol.UUID) bool
+	BanChecker           func(uuid protocol.UUID) (banned bool, reason string)
 }
 
 type loginSessionKey struct{}
@@ -164,6 +165,22 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 
 // completeLogin sends SetCompression (if enabled) and LoginSuccess, then fires the callback.
 func completeLogin(s Session, name string, uuid protocol.UUID, properties []loginpacket.LoginProperty, cfg LoginConfig) error {
+	if cfg.BanChecker != nil {
+		if banned, reason := cfg.BanChecker(uuid); banned {
+			msg := "You are banned from this server!"
+			if reason != "" {
+				msg += "\nReason: " + reason
+			}
+			disconnect := &loginpacket.Disconnect{
+				Reason: fmt.Sprintf(`{"text":"%s"}`, msg),
+			}
+			_ = s.Send(disconnect)
+			s.Close()
+			logger.Info("ban_reject", "session", s.ID(), "name", name)
+			return nil
+		}
+	}
+
 	if cfg.WhitelistChecker != nil && !cfg.WhitelistChecker(uuid) {
 		disconnect := &loginpacket.Disconnect{
 			Reason: `{"text":"You are not white-listed on this server!"}`,

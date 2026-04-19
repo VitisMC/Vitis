@@ -173,6 +173,20 @@ func run() int {
 		logger.Info("whitelist loaded", "count", whitelist.Count())
 	}
 
+	banList := data.NewBanList("banned-players.json")
+	if err := banList.Load(); err != nil {
+		logger.Warn("failed to load banned-players.json", "error", err)
+	} else {
+		logger.Info("ban list loaded", "count", banList.Count())
+	}
+
+	ipBanList := data.NewIPBanList("banned-ips.json")
+	if err := ipBanList.Load(); err != nil {
+		logger.Warn("failed to load banned-ips.json", "error", err)
+	} else {
+		logger.Info("ip ban list loaded", "count", ipBanList.Count())
+	}
+
 	shutdownSignal := make(chan os.Signal, 1)
 	cmdRegistry := command.NewRegistry()
 	serverControl := session.NewServerControl(playerManager, func() {
@@ -182,6 +196,7 @@ func run() int {
 	command.RegisterBuiltinCommands(cmdRegistry, playerLookup, serverControl)
 	command.RegisterMultiplayerCommands(cmdRegistry, nil, nil, nil)
 	command.RegisterWhitelistCommands(cmdRegistry, whitelist)
+	command.RegisterBanCommands(cmdRegistry, &data.BanListAdapter{BL: banList}, ipBanList, &banKicker{players: playerLookup, server: serverControl})
 
 	playBootstrapCfg.CommandRegistry = cmdRegistry
 	logger.Info("command system initialized", "commands", cmdRegistry.Count())
@@ -200,6 +215,12 @@ func run() int {
 				return true
 			}
 			return whitelist.IsWhitelisted(uuid)
+		},
+		BanChecker: func(uuid protocol.UUID) (bool, string) {
+			if banList.IsBanned(uuid) {
+				return true, banList.GetBanReason(uuid)
+			}
+			return false, ""
 		},
 	}
 	if cfg.Server.OnlineMode {
@@ -730,6 +751,23 @@ func bootstrapWorldRuntime(cfg *config.Config) (*world.Manager, *tick.Loop, erro
 	}
 
 	return worldManager, loop, nil
+}
+
+type banKicker struct {
+	players command.PlayerLookup
+	server  command.ServerControl
+}
+
+func (bk *banKicker) KickPlayer(name string, reason string) error {
+	return bk.server.KickPlayer(name, reason)
+}
+
+func (bk *banKicker) FindPlayerByName(name string) command.PlayerSender {
+	return bk.players.FindPlayerByName(name)
+}
+
+func (bk *banKicker) OnlinePlayers() []string {
+	return bk.players.OnlinePlayers()
 }
 
 func shutdownWorldRuntime(ctx context.Context, worldManager *world.Manager, tickLoop *tick.Loop) error {
