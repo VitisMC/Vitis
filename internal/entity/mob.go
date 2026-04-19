@@ -5,6 +5,7 @@ import (
 
 	genattr "github.com/vitismc/vitis/internal/data/generated/attribute"
 	genent "github.com/vitismc/vitis/internal/data/generated/entity"
+	"github.com/vitismc/vitis/internal/entity/physics"
 	"github.com/vitismc/vitis/internal/protocol"
 )
 
@@ -110,12 +111,67 @@ func (m *MobEntity) XPReward() int32 { return m.typeDef.XPReward }
 // Living returns the underlying LivingEntity.
 func (m *MobEntity) Living() *LivingEntity { return m.LivingEntity }
 
-// TickMob advances mob state for one tick.
-func (m *MobEntity) TickMob() {
+// TickMob advances mob state for one tick, applying gravity and collision.
+func (m *MobEntity) TickMob(world physics.BlockAccess) {
 	m.LivingEntity.TickLiving()
 	m.ageTicks++
 
 	if m.IsDead() && m.DeathTime() >= 20 {
+		m.Entity.Remove()
+		return
+	}
+
+	if world == nil {
+		return
+	}
+
+	gravity := 0.08
+	if attr, ok := m.attributes.attrs[genattr.AttrGravity]; ok {
+		gravity = attr.Base
+	}
+	stepHeight := 0.6
+	if attr, ok := m.attributes.attrs[genattr.AttrStepHeight]; ok {
+		stepHeight = attr.Base
+	}
+
+	vel := m.Entity.Velocity()
+	vel.Y -= gravity
+	if vel.Y < physics.TerminalVelocity {
+		vel.Y = physics.TerminalVelocity
+	}
+
+	dims := physics.EntityDimensions{Width: m.typeDef.Width, Height: m.typeDef.Height}
+	box := dims.MakeBoundingBox(m.Entity.pos.X, m.Entity.pos.Y, m.Entity.pos.Z)
+
+	result := physics.MoveWithStepUp(world, box, vel.X, vel.Y, vel.Z, stepHeight, m.Entity.onGround)
+
+	m.Entity.pos.X += result.Dx
+	m.Entity.pos.Y += result.Dy
+	m.Entity.pos.Z += result.Dz
+	m.Entity.dirty |= DirtyPosition
+	m.Entity.onGround = result.OnGround
+
+	if result.CollidedX {
+		vel.X = 0
+	}
+	if result.CollidedY {
+		vel.Y = 0
+	}
+	if result.CollidedZ {
+		vel.Z = 0
+	}
+
+	if m.Entity.onGround {
+		vel.X *= 0.91 * 0.6
+		vel.Z *= 0.91 * 0.6
+	} else {
+		vel.X *= 0.91
+		vel.Z *= 0.91
+	}
+
+	m.Entity.vel = vel
+
+	if m.Entity.pos.Y < -128 {
 		m.Entity.Remove()
 	}
 }

@@ -1488,7 +1488,7 @@ func (w *World) tickMobs() {
 		w.mobBrains.TickAll(w.mobs.Mobs(), players, w.tick.Load(), w)
 	}
 
-	drops := w.mobs.Tick()
+	drops := w.mobs.Tick(w)
 	for _, d := range drops {
 		if d.ItemID > 0 && d.Count > 0 {
 			eid := w.entities.AllocateID()

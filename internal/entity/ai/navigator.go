@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/entity/physics"
 )
 
 // Navigator manages path-following for a single mob.
@@ -33,9 +34,9 @@ func (n *Navigator) ClearPath() {
 	n.path = nil
 }
 
-// FollowPath moves the mob along the current path for one tick.
+// FollowPath moves the mob along the current path for one tick using collision-aware movement.
 // Returns true if the mob reached the current waypoint.
-func (n *Navigator) FollowPath(mob *entity.MobEntity) bool {
+func (n *Navigator) FollowPath(mob *entity.MobEntity, world physics.BlockAccess) bool {
 	if n.path == nil || n.path.Done() {
 		return false
 	}
@@ -58,27 +59,26 @@ func (n *Navigator) FollowPath(mob *entity.MobEntity) bool {
 	}
 
 	if horizDistSq < speed*speed+0.1 && math.Abs(dy) < 1.5 {
-		mob.SetPosition(entity.Vec3{X: tx, Y: ty, Z: tz})
 		n.path.Advance()
 		return true
 	}
 
 	horizDist := math.Sqrt(horizDistSq)
 	if horizDist > 0.01 {
-		nx := dx / horizDist * speed
-		nz := dz / horizDist * speed
+		moveX := dx / horizDist * speed
+		moveZ := dz / horizDist * speed
 
-		newY := pos.Y
-		if dy > 0.5 {
-			newY += speed
-		} else if dy < -0.5 {
-			newY -= speed
-		}
-
-		yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
+		yaw := float32(math.Atan2(-moveX, moveZ) * 180.0 / math.Pi)
 		pitch := float32(-math.Atan2(dy, horizDist) * 180.0 / math.Pi)
 		mob.SetRotation(entity.Vec2{X: yaw, Y: pitch})
-		mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: newY, Z: pos.Z + nz})
+
+		vel := mob.Entity.Velocity()
+		vel.X = moveX
+		vel.Z = moveZ
+		if dy > 0.5 && mob.Entity.OnGround() {
+			vel.Y = 0.42
+		}
+		mob.Entity.SetVelocity(vel)
 	}
 
 	return false

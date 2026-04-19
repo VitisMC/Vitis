@@ -70,9 +70,9 @@ func TestWanderGoal(t *testing.T) {
 	goal.Start(ctx)
 	goal.Tick(ctx)
 
-	pos := mob.Position()
-	if pos.X == 0 && pos.Z == 0 {
-		t.Fatal("expected mob to move")
+	vel := mob.Entity.Velocity()
+	if vel.X == 0 && vel.Z == 0 {
+		t.Fatal("expected mob to have velocity")
 	}
 }
 
@@ -99,8 +99,8 @@ func TestMeleeAttackGoalWithTarget(t *testing.T) {
 	goal.Start(ctx)
 	goal.Tick(ctx)
 
-	pos := mob.Position()
-	if pos.X <= 0 {
+	vel := mob.Entity.Velocity()
+	if vel.X <= 0 {
 		t.Fatal("expected mob to move toward target")
 	}
 }
@@ -135,8 +135,8 @@ func TestPanicGoal(t *testing.T) {
 	goal.Start(ctx)
 	goal.Tick(ctx)
 
-	pos := mob.Position()
-	if pos.X == 0 && pos.Z == 0 {
+	vel := mob.Entity.Velocity()
+	if vel.X == 0 && vel.Z == 0 {
 		t.Fatal("expected mob to flee")
 	}
 }

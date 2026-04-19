@@ -190,12 +190,11 @@ func (g *RangedAttackGoal) Tick(ctx *Context) {
 	}
 
 	// Move toward target if too far
+	vel := ctx.Mob.Entity.Velocity()
 	if dist > atkDist {
-		nx := dx / dist * speed
-		nz := dz / dist * speed
-		ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+		vel.X = dx / dist * speed
+		vel.Z = dz / dist * speed
 	} else if dist > 4.0 {
-		// Strafe when in range
 		g.strafeTick++
 		if g.strafeTick > 40 {
 			g.strafeDir = -g.strafeDir
@@ -205,11 +204,10 @@ func (g *RangedAttackGoal) Tick(ctx *Context) {
 		if strafeSpeed <= 0 {
 			strafeSpeed = speed * 0.5
 		}
-		// Perpendicular movement
-		perpX := -dz / dist * float64(g.strafeDir) * strafeSpeed
-		perpZ := dx / dist * float64(g.strafeDir) * strafeSpeed
-		ctx.Mob.SetPosition(entity.Vec3{X: pos.X + perpX, Y: pos.Y, Z: pos.Z + perpZ})
+		vel.X = -dz / dist * float64(g.strafeDir) * strafeSpeed
+		vel.Z = dx / dist * float64(g.strafeDir) * strafeSpeed
 	}
+	ctx.Mob.Entity.SetVelocity(vel)
 
 	if g.cooldown > 0 {
 		g.cooldown--
@@ -293,7 +291,10 @@ func (g *AvoidSunlightGoal) Tick(ctx *Context) {
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
 	ctx.Mob.SetRotation(entity.Vec2{X: yaw, Y: 0})
-	ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+	vel := ctx.Mob.Entity.Velocity()
+	vel.X = nx
+	vel.Z = nz
+	ctx.Mob.Entity.SetVelocity(vel)
 }
 
 func (g *AvoidSunlightGoal) CanContinue(ctx *Context) bool {
@@ -392,7 +393,10 @@ func (g *TemptGoal) Tick(ctx *Context) {
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
 	ctx.Mob.SetRotation(entity.Vec2{X: yaw, Y: 0})
-	ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+	vel := ctx.Mob.Entity.Velocity()
+	vel.X = nx
+	vel.Z = nz
+	ctx.Mob.Entity.SetVelocity(vel)
 }
 
 func (g *TemptGoal) CanContinue(ctx *Context) bool {

@@ -531,7 +531,7 @@ func TestMobEntity(t *testing.T) {
 	if mob.Health() != 20 {
 		t.Fatalf("expected health 20, got %f", mob.Health())
 	}
-	mob.TickMob()
+	mob.TickMob(nil)
 	if mob.AgeTicks() != 1 {
 		t.Fatalf("expected age 1, got %d", mob.AgeTicks())
 	}

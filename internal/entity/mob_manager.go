@@ -3,6 +3,7 @@ package entity
 import (
 	"math/rand"
 
+	"github.com/vitismc/vitis/internal/entity/physics"
 	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/protocol"
 )
@@ -19,7 +20,7 @@ type MobManager struct {
 // NewMobManager creates a new mob manager.
 func NewMobManager(entityManager *Manager, nextEntityID func() int32) *MobManager {
 	return &MobManager{
-		mobs:         make(map[int32]*MobEntity, 64),
+		mobs:          make(map[int32]*MobEntity, 64),
 		entityManager: entityManager,
 		nextEntityID:  nextEntityID,
 	}
@@ -84,12 +85,12 @@ func (mm *MobManager) Mobs() map[int32]*MobEntity {
 
 // Tick advances all mob entities for one tick and processes removals.
 // Returns loot drops from mobs that died this tick.
-func (mm *MobManager) Tick() []MobDeathDrop {
+func (mm *MobManager) Tick(world physics.BlockAccess) []MobDeathDrop {
 	mm.removeScratch = mm.removeScratch[:0]
 	var drops []MobDeathDrop
 
 	for id, mob := range mm.mobs {
-		mob.TickMob()
+		mob.TickMob(world)
 
 		if mob.Entity.Removed() {
 			mm.removeScratch = append(mm.removeScratch, id)
@@ -109,9 +110,9 @@ func (mm *MobManager) Tick() []MobDeathDrop {
 // MobDeathDrop represents an item drop from a mob death.
 type MobDeathDrop struct {
 	X, Y, Z float64
-	ItemID   int32
-	Count    int32
-	XP       int32
+	ItemID  int32
+	Count   int32
+	XP      int32
 }
 
 func (mm *MobManager) generateDeathDrops(mob *MobEntity) []MobDeathDrop {
