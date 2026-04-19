@@ -19,6 +19,7 @@ type LoginConfig struct {
 	PrivateKey           *rsa.PrivateKey
 	PublicKeyDER         []byte
 	OnLoginSuccess       func(session Session, name string, uuid protocol.UUID)
+	WhitelistChecker     func(uuid protocol.UUID) bool
 }
 
 type loginSessionKey struct{}
@@ -163,6 +164,16 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 
 // completeLogin sends SetCompression (if enabled) and LoginSuccess, then fires the callback.
 func completeLogin(s Session, name string, uuid protocol.UUID, properties []loginpacket.LoginProperty, cfg LoginConfig) error {
+	if cfg.WhitelistChecker != nil && !cfg.WhitelistChecker(uuid) {
+		disconnect := &loginpacket.Disconnect{
+			Reason: `{"text":"You are not white-listed on this server!"}`,
+		}
+		_ = s.Send(disconnect)
+		s.Close()
+		logger.Info("whitelist_reject", "session", s.ID(), "name", name)
+		return nil
+	}
+
 	if ds, ok := s.(*DefaultSession); ok {
 		ds.sessionData.Store("login_name", name)
 		ds.sessionData.Store("login_uuid", uuid)

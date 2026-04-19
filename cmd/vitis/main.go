@@ -20,6 +20,7 @@ import (
 	"github.com/vitismc/vitis/internal/command"
 	"github.com/vitismc/vitis/internal/config"
 	"github.com/vitismc/vitis/internal/crafting"
+	"github.com/vitismc/vitis/internal/data"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/network"
@@ -165,6 +166,13 @@ func run() int {
 	}
 	playBootstrapCfg.OperatorList = opList
 
+	whitelist := data.NewWhitelist("whitelist.json")
+	if err := whitelist.Load(); err != nil {
+		logger.Warn("failed to load whitelist.json", "error", err)
+	} else {
+		logger.Info("whitelist loaded", "count", whitelist.Count())
+	}
+
 	shutdownSignal := make(chan os.Signal, 1)
 	cmdRegistry := command.NewRegistry()
 	serverControl := session.NewServerControl(playerManager, func() {
@@ -173,6 +181,7 @@ func run() int {
 	playerLookup := session.NewPlayerLookup(playerManager, opList)
 	command.RegisterBuiltinCommands(cmdRegistry, playerLookup, serverControl)
 	command.RegisterMultiplayerCommands(cmdRegistry, nil, nil, nil)
+	command.RegisterWhitelistCommands(cmdRegistry, whitelist)
 
 	playBootstrapCfg.CommandRegistry = cmdRegistry
 	logger.Info("command system initialized", "commands", cmdRegistry.Count())
@@ -182,6 +191,15 @@ func run() int {
 		OnlineMode:           cfg.Server.OnlineMode,
 		OnLoginSuccess: func(s session.Session, name string, uuid protocol.UUID) {
 			logger.Info("player login", "name", name, "uuid", protocol.UUIDToString(uuid), "session", s.ID())
+		},
+		WhitelistChecker: func(uuid protocol.UUID) bool {
+			if !whitelist.Enabled() {
+				return true
+			}
+			if opList.IsOp(uuid) {
+				return true
+			}
+			return whitelist.IsWhitelisted(uuid)
 		},
 	}
 	if cfg.Server.OnlineMode {
