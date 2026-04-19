@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"sync/atomic"
 
 	"github.com/vitismc/vitis/internal/block"
@@ -1069,9 +1070,24 @@ func (w *World) doExplosion(x, y, z, power float64) {
 
 	exp := entity.ComputeExplosion(w, x, y, z, power, finder)
 
+	const tntMinState int32 = 2137
+	const tntMaxState int32 = 2138
+
 	for _, bp := range exp.AffectedBlocks {
+		state := w.GetBlockStateAt(bp[0], bp[1], bp[2])
 		w.setBlockAt(bp[0], bp[1], bp[2], 0)
 		w.broadcastBlockUpdate(bp[0], bp[1], bp[2], 0)
+
+		if state >= tntMinState && state <= tntMaxState {
+			eid := w.entities.AllocateID()
+			uuid := protocol.UUID{uint64(eid), uint64(eid) ^ 0xBEEF}
+			fuse := int32(10 + rand.Intn(15))
+			tnt := entity.NewTNTEntityWithFuse(eid, uuid,
+				entity.Vec3{X: float64(bp[0]) + 0.5, Y: float64(bp[1]), Z: float64(bp[2]) + 0.5},
+				0, fuse,
+			)
+			w.SpawnTNT(tnt)
+		}
 	}
 
 	for _, eff := range exp.AffectedEntities {
