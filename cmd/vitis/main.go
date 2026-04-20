@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/network"
+	"github.com/vitismc/vitis/internal/network/query"
+	"github.com/vitismc/vitis/internal/network/rcon"
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
 	protocrypto "github.com/vitismc/vitis/internal/protocol/crypto"
@@ -574,6 +577,55 @@ func run() int {
 
 	logger.Info("Vitis listening", "address", listener.Addr().String())
 
+	var rconServer *rcon.Server
+	if cfg.RCON.Enabled && cfg.RCON.Password != "" {
+		rconPort := cfg.RCON.Port
+		if rconPort <= 0 {
+			rconPort = 25575
+		}
+		rconServer = rcon.New(rcon.Config{
+			Address:  net.JoinHostPort("", strconv.Itoa(rconPort)),
+			Password: cfg.RCON.Password,
+			Executor: func(cmd string) string {
+				var response strings.Builder
+				sender := &rconSender{out: &response}
+				if err := cmdRegistry.Dispatch(sender, cmd); err != nil {
+					return "Error: " + err.Error()
+				}
+				return response.String()
+			},
+		})
+		if err := rconServer.Start(); err != nil {
+			logger.Error("rcon start failed", "error", err)
+		} else {
+			logger.Info("rcon enabled", "port", rconPort)
+		}
+	}
+
+	var queryServer *query.Server
+	if cfg.Query.Enabled {
+		queryPort := cfg.Query.Port
+		if queryPort <= 0 {
+			queryPort = 25565
+		}
+		queryServer = query.New(query.Config{
+			Address: net.JoinHostPort("", strconv.Itoa(queryPort)),
+			Info: &query.DynamicServerInfo{
+				MotdValue:    cfg.Server.MOTD,
+				VersionValue: statusVersionName,
+				MaxPlayersV:  cfg.Server.MaxPlayers,
+				Port:         cfg.Server.Port,
+				IP:           cfg.Server.Host,
+				PlayerList:   func() []string { return playerLookup.OnlinePlayers() },
+			},
+		})
+		if err := queryServer.Start(); err != nil {
+			logger.Error("query start failed", "error", err)
+		} else {
+			logger.Info("query enabled", "port", queryPort)
+		}
+	}
+
 	session.StartConsoleReader(cmdRegistry, func() {
 		shutdownSignal <- syscall.SIGTERM
 	})
@@ -584,6 +636,13 @@ func run() int {
 
 	reloadCancel()
 	<-watchDone
+
+	if queryServer != nil {
+		queryServer.Stop()
+	}
+	if rconServer != nil {
+		rconServer.Stop()
+	}
 
 	shutdownContext, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
 	defer cancel()
@@ -752,6 +811,15 @@ func bootstrapWorldRuntime(cfg *config.Config) (*world.Manager, *tick.Loop, erro
 
 	return worldManager, loop, nil
 }
+
+type rconSender struct {
+	out *strings.Builder
+}
+
+func (r *rconSender) Name() string                 { return "Rcon" }
+func (r *rconSender) SendMessage(text string)      { r.out.WriteString(text + "\n") }
+func (r *rconSender) HasPermission(level int) bool { return true }
+func (r *rconSender) IsPlayer() bool               { return false }
 
 type banKicker struct {
 	players command.PlayerLookup
