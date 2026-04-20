@@ -43,6 +43,9 @@ type TickContext struct {
 type TickResult struct {
 	SpawnFallingBlock bool
 	BlockStateID      int32
+	NewBlockState     int32
+	SetBlock          bool
+	Reschedule        bool
 }
 
 // Behavior defines per-block custom logic.

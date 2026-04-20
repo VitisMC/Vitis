@@ -36,6 +36,62 @@ func IsContainer(stateID int32) (windowType int32, title string, slots int, ok b
 	return 0, "", 0, false
 }
 
+// IsChest returns true if the block state is a chest or trapped chest.
+func IsChest(stateID int32) bool {
+	bid := block.BlockIDFromState(stateID)
+	if bid < 0 {
+		return false
+	}
+	info := block.Info(bid)
+	if info == nil {
+		return false
+	}
+	return info.Name == "minecraft:chest" || info.Name == "minecraft:trapped_chest"
+}
+
+// FindDoubleChestHalf returns the position of the other half of a double chest,
+// or ok=false if this is a single chest. Chests have a "type" property:
+// "single", "left", or "right".
+func FindDoubleChestHalf(stateID int32, x, y, z int) (ox, oy, oz int, ok bool) {
+	props := block.PropertiesFromState(stateID)
+	if props == nil {
+		return 0, 0, 0, false
+	}
+	chestType := props["type"]
+	if chestType == "single" || chestType == "" {
+		return 0, 0, 0, false
+	}
+	facing := props["facing"]
+	dx, dz := 0, 0
+	switch facing {
+	case "north":
+		if chestType == "left" {
+			dx = 1
+		} else {
+			dx = -1
+		}
+	case "south":
+		if chestType == "left" {
+			dx = -1
+		} else {
+			dx = 1
+		}
+	case "west":
+		if chestType == "left" {
+			dz = -1
+		} else {
+			dz = 1
+		}
+	case "east":
+		if chestType == "left" {
+			dz = 1
+		} else {
+			dz = -1
+		}
+	}
+	return x + dx, y, z + dz, true
+}
+
 func init() {
 	chestBehavior := &ContainerBehavior{WindowType: 2, Title: "Chest", SlotCount: 27}
 	barrelBehavior := &ContainerBehavior{WindowType: 2, Title: "Barrel", SlotCount: 27}

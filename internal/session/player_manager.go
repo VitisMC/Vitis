@@ -10,17 +10,20 @@ import (
 
 // OnlinePlayer holds info about a connected player for tab list and visibility.
 type OnlinePlayer struct {
-	Session    Session
-	EntityID   int32
-	UUID       protocol.UUID
-	Name       string
-	GameMode   int32
-	Properties []playpacket.PlayerProperty
-	X, Y, Z    float64
-	Yaw, Pitch float32
-	Windows    *inventory.WindowManager
-	Flags      byte
-	Pose       int32
+	Session                Session
+	EntityID               int32
+	UUID                   protocol.UUID
+	Name                   string
+	GameMode               int32
+	Properties             []playpacket.PlayerProperty
+	X, Y, Z                float64
+	Yaw, Pitch             float32
+	Windows                *inventory.WindowManager
+	Flags                  byte
+	Pose                   int32
+	Sleeping               bool
+	SpawnX, SpawnY, SpawnZ int
+	HasSpawnPoint          bool
 }
 
 // PlayerManager tracks online players and handles tab list broadcasts.
@@ -85,9 +88,14 @@ func (pm *PlayerManager) AddPlayer(p *OnlinePlayer) {
 		_ = p.Session.Send(allPlayersInfo)
 	}
 
+	newEquipPkt := BuildFullEquipmentPacket(p.EntityID, p.Windows)
+
 	for _, existing := range pm.players {
 		_ = existing.Session.Send(newPlayerInfo)
 		_ = existing.Session.Send(newSpawnPkt)
+		if newEquipPkt != nil {
+			_ = existing.Session.Send(newEquipPkt)
+		}
 
 		existingSpawn := &playpacket.SpawnEntity{
 			EntityID:   existing.EntityID,
@@ -98,6 +106,9 @@ func (pm *PlayerManager) AddPlayer(p *OnlinePlayer) {
 			Z:          existing.Z,
 		}
 		_ = p.Session.Send(existingSpawn)
+		if existingEquip := BuildFullEquipmentPacket(existing.EntityID, existing.Windows); existingEquip != nil {
+			_ = p.Session.Send(existingEquip)
+		}
 	}
 
 	pm.players[p.UUID] = p
@@ -191,6 +202,22 @@ func (pm *PlayerManager) Players() []*OnlinePlayer {
 		out = append(out, p)
 	}
 	return out
+}
+
+// AllSleeping returns true if every online player is currently sleeping.
+// Returns false if there are no players.
+func (pm *PlayerManager) AllSleeping() bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	if len(pm.players) == 0 {
+		return false
+	}
+	for _, p := range pm.players {
+		if !p.Sleeping {
+			return false
+		}
+	}
+	return true
 }
 
 // GetByEntityID returns the OnlinePlayer with the given entity ID, or nil.

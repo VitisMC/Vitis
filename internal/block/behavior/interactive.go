@@ -1,6 +1,8 @@
 package behavior
 
 import (
+	"strings"
+
 	"github.com/vitismc/vitis/internal/block"
 )
 
@@ -121,4 +123,105 @@ func registerByName(name string, b Behavior) {
 	if info != nil {
 		Register(info.ID, b)
 	}
+}
+
+// IsDoor returns true if the block state is a door (not trapdoor).
+func IsDoor(stateID int32) bool {
+	bid := block.BlockIDFromState(stateID)
+	if bid < 0 {
+		return false
+	}
+	info := block.Info(bid)
+	if info == nil {
+		return false
+	}
+	return strings.HasSuffix(info.Name, "_door") && !strings.Contains(info.Name, "trapdoor")
+}
+
+// IsFenceGate returns true if the block state is a fence gate.
+func IsFenceGate(stateID int32) bool {
+	bid := block.BlockIDFromState(stateID)
+	if bid < 0 {
+		return false
+	}
+	info := block.Info(bid)
+	if info == nil {
+		return false
+	}
+	return strings.HasSuffix(info.Name, "_fence_gate")
+}
+
+// FindAdjacentDoor returns the position and toggled state of an adjacent door
+// that should be synced when the door at (x,y,z) is toggled.
+// Returns ok=false if no adjacent door needs toggling.
+func FindAdjacentDoor(stateID int32, x, y, z int, getBlock func(int, int, int) int32) (ax, ay, az int, newState int32, ok bool) {
+	props := block.PropertiesFromState(stateID)
+	if props == nil {
+		return 0, 0, 0, 0, false
+	}
+
+	facing := props["facing"]
+	hinge := props["hinge"]
+	openVal := props["open"]
+
+	// Determine offset to adjacent door based on facing and hinge
+	var dx, dz int
+	switch facing {
+	case "north":
+		if hinge == "left" {
+			dx = -1
+		} else {
+			dx = 1
+		}
+	case "south":
+		if hinge == "left" {
+			dx = 1
+		} else {
+			dx = -1
+		}
+	case "west":
+		if hinge == "left" {
+			dz = 1
+		} else {
+			dz = -1
+		}
+	case "east":
+		if hinge == "left" {
+			dz = -1
+		} else {
+			dz = 1
+		}
+	}
+
+	nx, ny, nz := x+dx, y, z+dz
+	neighborState := getBlock(nx, ny, nz)
+	if neighborState <= 0 || !IsDoor(neighborState) {
+		return 0, 0, 0, 0, false
+	}
+
+	neighborProps := block.PropertiesFromState(neighborState)
+	if neighborProps == nil {
+		return 0, 0, 0, 0, false
+	}
+
+	// Must face same direction, have opposite hinge
+	if neighborProps["facing"] != facing {
+		return 0, 0, 0, 0, false
+	}
+	oppositeHinge := "right"
+	if hinge == "right" {
+		oppositeHinge = "left"
+	}
+	if neighborProps["hinge"] != oppositeHinge {
+		return 0, 0, 0, 0, false
+	}
+
+	// Toggle the neighbor to match the new open state
+	neighborProps["open"] = openVal
+	nInfo := block.Info(block.BlockIDFromState(neighborState))
+	if nInfo == nil {
+		return 0, 0, 0, 0, false
+	}
+	newState = block.StateID(nInfo.Name, neighborProps)
+	return nx, ny, nz, newState, true
 }

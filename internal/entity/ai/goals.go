@@ -107,7 +107,10 @@ func (g *WanderGoal) Tick(ctx *Context) {
 
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
 	ctx.Mob.SetRotation(entity.Vec2{X: yaw, Y: 0})
-	ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+	vel := ctx.Mob.Entity.Velocity()
+	vel.X = nx
+	vel.Z = nz
+	ctx.Mob.Entity.SetVelocity(vel)
 }
 
 func (g *WanderGoal) CanContinue(ctx *Context) bool {
@@ -182,15 +185,16 @@ func (g *MeleeAttackGoal) Tick(ctx *Context) {
 			g.replanTick = 20
 		}
 		if g.nav.HasPath() {
-			g.nav.FollowPath(ctx.Mob)
+			g.nav.FollowPath(ctx.Mob, ctx.Blocks)
 		} else {
 			speed := g.Speed
 			if speed <= 0 {
 				speed = 0.2
 			}
-			nx := dx / dist * speed
-			nz := dz / dist * speed
-			ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+			vel := ctx.Mob.Entity.Velocity()
+			vel.X = dx / dist * speed
+			vel.Z = dz / dist * speed
+			ctx.Mob.Entity.SetVelocity(vel)
 		}
 	}
 
@@ -334,7 +338,10 @@ func (g *FleeGoal) Tick(ctx *Context) {
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
 	ctx.Mob.SetRotation(entity.Vec2{X: yaw, Y: 0})
-	ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+	vel := ctx.Mob.Entity.Velocity()
+	vel.X = nx
+	vel.Z = nz
+	ctx.Mob.Entity.SetVelocity(vel)
 }
 
 func (g *FleeGoal) CanContinue(ctx *Context) bool {
@@ -385,7 +392,10 @@ func (g *PanicGoal) Tick(ctx *Context) {
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
 	ctx.Mob.SetRotation(entity.Vec2{X: yaw, Y: 0})
-	ctx.Mob.SetPosition(entity.Vec3{X: pos.X + nx, Y: pos.Y, Z: pos.Z + nz})
+	vel := ctx.Mob.Entity.Velocity()
+	vel.X = nx
+	vel.Z = nz
+	ctx.Mob.Entity.SetVelocity(vel)
 }
 
 func (g *PanicGoal) CanContinue(ctx *Context) bool {
@@ -406,9 +416,9 @@ func (g *SwimGoal) CanStart(ctx *Context) bool {
 func (g *SwimGoal) Start(ctx *Context) {}
 
 func (g *SwimGoal) Tick(ctx *Context) {
-	pos := ctx.Mob.Position()
-	ctx.Mob.SetVelocity(entity.Vec3{X: 0, Y: 0.04, Z: 0})
-	ctx.Mob.SetPosition(entity.Vec3{X: pos.X, Y: pos.Y + 0.04, Z: pos.Z})
+	vel := ctx.Mob.Entity.Velocity()
+	vel.Y = 0.04
+	ctx.Mob.Entity.SetVelocity(vel)
 }
 
 func (g *SwimGoal) CanContinue(ctx *Context) bool {

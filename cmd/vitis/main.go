@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/logger"
 
 	"sync/atomic"
@@ -19,9 +21,12 @@ import (
 	"github.com/vitismc/vitis/internal/command"
 	"github.com/vitismc/vitis/internal/config"
 	"github.com/vitismc/vitis/internal/crafting"
+	"github.com/vitismc/vitis/internal/data"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/network"
+	"github.com/vitismc/vitis/internal/network/query"
+	"github.com/vitismc/vitis/internal/network/rcon"
 	"github.com/vitismc/vitis/internal/operator"
 	"github.com/vitismc/vitis/internal/protocol"
 	protocrypto "github.com/vitismc/vitis/internal/protocol/crypto"
@@ -32,6 +37,7 @@ import (
 	"github.com/vitismc/vitis/internal/session"
 	"github.com/vitismc/vitis/internal/tick"
 	"github.com/vitismc/vitis/internal/world"
+	"github.com/vitismc/vitis/internal/world/blockentity"
 	"github.com/vitismc/vitis/internal/world/level"
 	"github.com/vitismc/vitis/internal/world/persistence"
 )
@@ -163,6 +169,27 @@ func run() int {
 	}
 	playBootstrapCfg.OperatorList = opList
 
+	whitelist := data.NewWhitelist("whitelist.json")
+	if err := whitelist.Load(); err != nil {
+		logger.Warn("failed to load whitelist.json", "error", err)
+	} else {
+		logger.Info("whitelist loaded", "count", whitelist.Count())
+	}
+
+	banList := data.NewBanList("banned-players.json")
+	if err := banList.Load(); err != nil {
+		logger.Warn("failed to load banned-players.json", "error", err)
+	} else {
+		logger.Info("ban list loaded", "count", banList.Count())
+	}
+
+	ipBanList := data.NewIPBanList("banned-ips.json")
+	if err := ipBanList.Load(); err != nil {
+		logger.Warn("failed to load banned-ips.json", "error", err)
+	} else {
+		logger.Info("ip ban list loaded", "count", ipBanList.Count())
+	}
+
 	shutdownSignal := make(chan os.Signal, 1)
 	cmdRegistry := command.NewRegistry()
 	serverControl := session.NewServerControl(playerManager, func() {
@@ -171,6 +198,8 @@ func run() int {
 	playerLookup := session.NewPlayerLookup(playerManager, opList)
 	command.RegisterBuiltinCommands(cmdRegistry, playerLookup, serverControl)
 	command.RegisterMultiplayerCommands(cmdRegistry, nil, nil, nil)
+	command.RegisterWhitelistCommands(cmdRegistry, whitelist)
+	command.RegisterBanCommands(cmdRegistry, &data.BanListAdapter{BL: banList}, ipBanList, &banKicker{players: playerLookup, server: serverControl})
 
 	playBootstrapCfg.CommandRegistry = cmdRegistry
 	logger.Info("command system initialized", "commands", cmdRegistry.Count())
@@ -180,6 +209,21 @@ func run() int {
 		OnlineMode:           cfg.Server.OnlineMode,
 		OnLoginSuccess: func(s session.Session, name string, uuid protocol.UUID) {
 			logger.Info("player login", "name", name, "uuid", protocol.UUIDToString(uuid), "session", s.ID())
+		},
+		WhitelistChecker: func(uuid protocol.UUID) bool {
+			if !whitelist.Enabled() {
+				return true
+			}
+			if opList.IsOp(uuid) {
+				return true
+			}
+			return whitelist.IsWhitelisted(uuid)
+		},
+		BanChecker: func(uuid protocol.UUID) (bool, string) {
+			if banList.IsBanned(uuid) {
+				return true, banList.GetBanReason(uuid)
+			}
+			return false, ""
 		},
 	}
 	if cfg.Server.OnlineMode {
@@ -258,9 +302,11 @@ func run() int {
 		gameMode := cfg.GameMode
 		uuidStr := protocol.UUIDToString(uuid)
 		worldDir := "world"
+		var loadedPD *level.PlayerData
 		if pd, loadErr := level.LoadPlayerData(worldDir, uuidStr); loadErr == nil {
 			spawnX, spawnY, spawnZ = pd.PosX, pd.PosY, pd.PosZ
 			gameMode = pd.GameMode
+			loadedPD = pd
 			logger.Info("loaded playerdata", "session", s.ID(), "player", username, "x", spawnX, "y", spawnY, "z", spawnZ, "gamemode", gameMode)
 		}
 		cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ = spawnX, spawnY, spawnZ
@@ -292,6 +338,13 @@ func run() int {
 			playBootstrapCfg.ViewDistance,
 		)
 		player.Living().SetGameMode(gameMode)
+		if loadedPD != nil {
+			living := player.Living()
+			living.SetHealth(loadedPD.Health)
+			living.SetFoodLevel(loadedPD.FoodLevel)
+			living.SetFoodSaturation(loadedPD.FoodSat)
+			living.SetXP(loadedPD.XPLevel, loadedPD.XPTotal, 0)
+		}
 		s.BindPlayer(player)
 
 		var playerProps []playpacket.PlayerProperty
@@ -326,6 +379,22 @@ func run() int {
 
 		if op := playerManager.GetByUUID(uuid); op != nil && op.Windows != nil {
 			op.Windows.SetCraftMatcher(crafting.Match)
+			if loadedPD != nil && len(loadedPD.Inventory) > 0 {
+				inv := op.Windows.Inventory()
+				for _, is := range loadedPD.Inventory {
+					itemID := item.IDByName(is.ItemName)
+					if itemID < 0 {
+						continue
+					}
+					slot := inventory.NewSlot(itemID, int32(is.Count))
+					slot.Damage = is.Damage
+					if len(is.Enchantments) > 0 {
+						slot.Enchantments = is.Enchantments
+					}
+					inv.Set(int(is.Slot), slot)
+				}
+			}
+			session.UpdateArmorStats(op)
 		}
 
 		if defaultWorld != nil {
@@ -346,10 +415,38 @@ func run() int {
 						Yaw:       op.Yaw,
 						Pitch:     op.Pitch,
 						GameMode:  op.GameMode,
-						Health:    20.0,
-						FoodLevel: 20,
-						FoodSat:   5.0,
 						Dimension: "minecraft:overworld",
+					}
+					if p, ok := op.Session.Player().(*entity.Player); ok && p != nil {
+						living := p.Living()
+						pd.Health = living.Health()
+						pd.FoodLevel = living.FoodLevel()
+						pd.FoodSat = living.FoodSaturation()
+						pd.XPLevel = living.XPLevel()
+						pd.XPTotal = living.XPTotal()
+					}
+					if op.Windows != nil {
+						inv := op.Windows.Inventory()
+						slots := inv.Slots()
+						for i, s := range slots {
+							if s.Empty() {
+								continue
+							}
+							name := item.NameByID(s.ItemID)
+							if name == "" {
+								continue
+							}
+							is := level.InventorySlot{
+								Slot:     int8(i),
+								ItemName: name,
+								Count:    int8(s.ItemCount),
+								Damage:   s.Damage,
+							}
+							if len(s.Enchantments) > 0 {
+								is.Enchantments = s.Enchantments
+							}
+							pd.Inventory = append(pd.Inventory, is)
+						}
 					}
 					if saveErr := pd.Save(worldDir); saveErr != nil {
 						logger.Error("save playerdata failed", "player", username, "error", saveErr)
@@ -381,11 +478,12 @@ func run() int {
 	var worldAccessor session.WorldAccessor
 	if defaultWorld != nil {
 		worldAccessor = &session.DefaultWorldAccessor{
-			Chunks:        defaultWorld.ChunkManager(),
-			TickScheduler: defaultWorld.TickScheduler(),
-			CurrentTick:   defaultWorld.CurrentTick,
-			NextEntityID:  func() int32 { return entityIDCounter.Add(1) },
-			Items:         defaultWorld.ItemEntities(),
+			Chunks:           defaultWorld.ChunkManager(),
+			TickScheduler:    defaultWorld.TickScheduler(),
+			CurrentTick:      defaultWorld.CurrentTick,
+			NextEntityID:     func() int32 { return entityIDCounter.Add(1) },
+			Items:            defaultWorld.ItemEntities(),
+			BlockEntityStore: blockentity.NewStore(),
 		}
 	}
 
@@ -479,6 +577,55 @@ func run() int {
 
 	logger.Info("Vitis listening", "address", listener.Addr().String())
 
+	var rconServer *rcon.Server
+	if cfg.RCON.Enabled && cfg.RCON.Password != "" {
+		rconPort := cfg.RCON.Port
+		if rconPort <= 0 {
+			rconPort = 25575
+		}
+		rconServer = rcon.New(rcon.Config{
+			Address:  net.JoinHostPort("", strconv.Itoa(rconPort)),
+			Password: cfg.RCON.Password,
+			Executor: func(cmd string) string {
+				var response strings.Builder
+				sender := &rconSender{out: &response}
+				if err := cmdRegistry.Dispatch(sender, cmd); err != nil {
+					return "Error: " + err.Error()
+				}
+				return response.String()
+			},
+		})
+		if err := rconServer.Start(); err != nil {
+			logger.Error("rcon start failed", "error", err)
+		} else {
+			logger.Info("rcon enabled", "port", rconPort)
+		}
+	}
+
+	var queryServer *query.Server
+	if cfg.Query.Enabled {
+		queryPort := cfg.Query.Port
+		if queryPort <= 0 {
+			queryPort = 25565
+		}
+		queryServer = query.New(query.Config{
+			Address: net.JoinHostPort("", strconv.Itoa(queryPort)),
+			Info: &query.DynamicServerInfo{
+				MotdValue:    cfg.Server.MOTD,
+				VersionValue: statusVersionName,
+				MaxPlayersV:  cfg.Server.MaxPlayers,
+				Port:         cfg.Server.Port,
+				IP:           cfg.Server.Host,
+				PlayerList:   func() []string { return playerLookup.OnlinePlayers() },
+			},
+		})
+		if err := queryServer.Start(); err != nil {
+			logger.Error("query start failed", "error", err)
+		} else {
+			logger.Info("query enabled", "port", queryPort)
+		}
+	}
+
 	session.StartConsoleReader(cmdRegistry, func() {
 		shutdownSignal <- syscall.SIGTERM
 	})
@@ -489,6 +636,13 @@ func run() int {
 
 	reloadCancel()
 	<-watchDone
+
+	if queryServer != nil {
+		queryServer.Stop()
+	}
+	if rconServer != nil {
+		rconServer.Stop()
+	}
 
 	shutdownContext, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
 	defer cancel()
@@ -656,6 +810,32 @@ func bootstrapWorldRuntime(cfg *config.Config) (*world.Manager, *tick.Loop, erro
 	}
 
 	return worldManager, loop, nil
+}
+
+type rconSender struct {
+	out *strings.Builder
+}
+
+func (r *rconSender) Name() string                 { return "Rcon" }
+func (r *rconSender) SendMessage(text string)      { r.out.WriteString(text + "\n") }
+func (r *rconSender) HasPermission(level int) bool { return true }
+func (r *rconSender) IsPlayer() bool               { return false }
+
+type banKicker struct {
+	players command.PlayerLookup
+	server  command.ServerControl
+}
+
+func (bk *banKicker) KickPlayer(name string, reason string) error {
+	return bk.server.KickPlayer(name, reason)
+}
+
+func (bk *banKicker) FindPlayerByName(name string) command.PlayerSender {
+	return bk.players.FindPlayerByName(name)
+}
+
+func (bk *banKicker) OnlinePlayers() []string {
+	return bk.players.OnlinePlayers()
 }
 
 func shutdownWorldRuntime(ctx context.Context, worldManager *world.Manager, tickLoop *tick.Loop) error {

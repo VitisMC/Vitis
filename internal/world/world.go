@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"sync/atomic"
 
 	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/block/fluid"
+	"github.com/vitismc/vitis/internal/effect"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/ai"
+	"github.com/vitismc/vitis/internal/entity/physics"
 	"github.com/vitismc/vitis/internal/entity/projectile"
 	"github.com/vitismc/vitis/internal/experience"
 	"github.com/vitismc/vitis/internal/inventory"
@@ -18,6 +21,7 @@ import (
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/world/chunk"
 	"github.com/vitismc/vitis/internal/world/persistence"
+	"github.com/vitismc/vitis/internal/world/spawning"
 	"github.com/vitismc/vitis/internal/world/streaming"
 	"github.com/vitismc/vitis/internal/world/tick"
 	"github.com/vitismc/vitis/internal/world/weather"
@@ -86,6 +90,7 @@ type World struct {
 	weather       *weather.Weather
 	mobs          *entity.MobManager
 	mobBrains     *ai.BrainRegistry
+	spawner       *spawning.Spawner
 
 	tick atomic.Uint64
 
@@ -187,6 +192,7 @@ func New(config Config) (*World, error) {
 	}
 	w.mobs = entity.NewMobManager(entMgr, entMgr.AllocateID)
 	w.mobBrains = ai.NewBrainRegistry()
+	w.spawner = spawning.NewSpawner(spawning.DefaultOverworldSpawns, 20)
 	return w, nil
 }
 
@@ -509,6 +515,33 @@ func (w *World) tickPlayers() {
 			}
 		}
 
+		envDamages := living.TickEnvironment(w.getBlockAt)
+		for _, src := range envDamages {
+			if living.IsDead() {
+				break
+			}
+			actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+			if actual > 0 && sess != nil {
+				_ = sess.Send(&playpacket.UpdateHealth{
+					Health:         living.Health(),
+					Food:           living.FoodLevel(),
+					FoodSaturation: living.FoodSaturation(),
+				})
+				_ = sess.Send(&playpacket.HurtAnimation{
+					EntityID: p.ID(),
+					Yaw:      0,
+				})
+				if living.IsDead() {
+					name := p.Username()
+					msg := formatDeathMessage(src.Type, name, "")
+					_ = sess.Send(&playpacket.DeathCombatEvent{
+						PlayerID: p.ID(),
+						Message:  msg,
+					})
+				}
+			}
+		}
+
 		if w.tick.Load()%20 == 0 && !living.IsDead() {
 			if sess == nil {
 				continue
@@ -520,6 +553,14 @@ func (w *World) tickPlayers() {
 			})
 		}
 	}
+}
+
+func formatDeathMessage(dtype entity.DamageType, victimName, attackerName string) string {
+	tmpl := dtype.DeathMessage()
+	if attackerName != "" {
+		return fmt.Sprintf(tmpl, victimName, attackerName)
+	}
+	return fmt.Sprintf(tmpl, victimName)
 }
 
 func (w *World) broadcastTime() {
@@ -644,6 +685,18 @@ func (w *World) processBlockTick(t *tick.ScheduledTick) {
 			return
 		}
 		w.spawnFallingBlock(t.X, t.Y, t.Z, result.BlockStateID)
+	}
+
+	if result.SetBlock && result.NewBlockState > 0 {
+		w.setBlockAt(t.X, t.Y, t.Z, result.NewBlockState)
+		w.broadcastBlockUpdate(t.X, t.Y, t.Z, result.NewBlockState)
+	}
+
+	if result.Reschedule {
+		delay := b.TickDelay()
+		if delay > 0 {
+			w.tickScheduler.Schedule(t.X, t.Y, t.Z, w.tick.Load(), delay, tick.PriorityNormal, tick.TickTypeBlock, stateID)
+		}
 	}
 }
 
@@ -965,16 +1018,187 @@ func (w *World) tickTNT() {
 			continue
 		}
 		pos := tnt.Position()
-
-		exp := entity.ComputeExplosion(w, pos.X, pos.Y+0.5, pos.Z, 4.0, nil)
-
-		for _, bp := range exp.AffectedBlocks {
-			w.setBlockAt(bp[0], bp[1], bp[2], 0)
-			w.broadcastBlockUpdate(bp[0], bp[1], bp[2], 0)
-		}
-
+		w.doExplosion(pos.X, pos.Y+0.5, pos.Z, 4.0)
 		w.broadcastRemoveEntity(id)
 		w.entities.Remove(id)
+	}
+}
+
+// doExplosion performs a full explosion: destroys blocks, damages entities, broadcasts packet.
+func (w *World) doExplosion(x, y, z, power float64) {
+	finder := func(box physics.AABB) []entity.ExplosionTarget {
+		var targets []entity.ExplosionTarget
+		for _, p := range w.tracker.Players() {
+			if p.Removed() || p.IsDead() {
+				continue
+			}
+			pos := p.Position()
+			hw := playerWidth / 2
+			pBox := physics.AABB{
+				MinX: pos.X - hw, MinY: pos.Y, MinZ: pos.Z - hw,
+				MaxX: pos.X + hw, MaxY: pos.Y + playerHeight, MaxZ: pos.Z + hw,
+			}
+			if box.Intersects(pBox) {
+				targets = append(targets, entity.ExplosionTarget{
+					EntityID: p.ID(), X: pos.X, Y: pos.Y, Z: pos.Z,
+					Width: playerWidth, Height: playerHeight,
+				})
+			}
+		}
+		if w.mobs != nil {
+			for _, mob := range w.mobs.Mobs() {
+				if mob.Entity.Removed() || mob.IsDead() {
+					continue
+				}
+				pos := mob.Position()
+				def := mob.TypeDef()
+				hw := def.Width / 2
+				mBox := physics.AABB{
+					MinX: pos.X - hw, MinY: pos.Y, MinZ: pos.Z - hw,
+					MaxX: pos.X + hw, MaxY: pos.Y + def.Height, MaxZ: pos.Z + hw,
+				}
+				if box.Intersects(mBox) {
+					targets = append(targets, entity.ExplosionTarget{
+						EntityID: mob.ID(), X: pos.X, Y: pos.Y, Z: pos.Z,
+						Width: def.Width, Height: def.Height,
+					})
+				}
+			}
+		}
+		return targets
+	}
+
+	exp := entity.ComputeExplosion(w, x, y, z, power, finder)
+
+	const tntMinState int32 = 2137
+	const tntMaxState int32 = 2138
+
+	for _, bp := range exp.AffectedBlocks {
+		state := w.GetBlockStateAt(bp[0], bp[1], bp[2])
+		w.setBlockAt(bp[0], bp[1], bp[2], 0)
+		w.broadcastBlockUpdate(bp[0], bp[1], bp[2], 0)
+
+		if state >= tntMinState && state <= tntMaxState {
+			eid := w.entities.AllocateID()
+			uuid := protocol.UUID{uint64(eid), uint64(eid) ^ 0xBEEF}
+			fuse := int32(10 + rand.Intn(15))
+			tnt := entity.NewTNTEntityWithFuse(eid, uuid,
+				entity.Vec3{X: float64(bp[0]) + 0.5, Y: float64(bp[1]), Z: float64(bp[2]) + 0.5},
+				0, fuse,
+			)
+			w.SpawnTNT(tnt)
+		}
+	}
+
+	for _, eff := range exp.AffectedEntities {
+		w.applyExplosionDamage(eff)
+	}
+
+	w.broadcastExplosion(exp)
+}
+
+func (w *World) applyExplosionDamage(eff entity.ExplosionEntityEffect) {
+	dmg := float32(eff.Damage)
+	if dmg <= 0 {
+		return
+	}
+	src := entity.NewDamageSource(entity.DamageTypeExplosion, dmg)
+
+	for _, p := range w.tracker.Players() {
+		if p.ID() != eff.EntityID || p.Removed() || p.IsDead() {
+			continue
+		}
+		living := p.Living()
+		actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		sess := p.Session()
+		if sess == nil {
+			return
+		}
+		if actual > 0 {
+			_ = sess.Send(&playpacket.UpdateHealth{
+				Health:         living.Health(),
+				Food:           living.FoodLevel(),
+				FoodSaturation: living.FoodSaturation(),
+			})
+			hurtPkt := &playpacket.HurtAnimation{EntityID: p.ID(), Yaw: 0}
+			for _, op := range w.tracker.Players() {
+				if op.Removed() {
+					continue
+				}
+				if s := op.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+			if living.IsDead() {
+				msg := formatDeathMessage(src.Type, p.Username(), "")
+				_ = sess.Send(&playpacket.DeathCombatEvent{
+					PlayerID: p.ID(),
+					Message:  msg,
+				})
+			}
+		}
+		return
+	}
+
+	if w.mobs != nil {
+		mob := w.mobs.Get(eff.EntityID)
+		if mob != nil && !mob.IsDead() {
+			mob.Damage(dmg, "explosion")
+			hurtPkt := &playpacket.HurtAnimation{EntityID: mob.ID(), Yaw: 0}
+			for _, p := range w.tracker.Players() {
+				if p.Removed() {
+					continue
+				}
+				if s := p.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+		}
+	}
+}
+
+func (w *World) broadcastExplosion(exp *entity.Explosion) {
+	records := make([]byte, 0, len(exp.AffectedBlocks)*3)
+	cx, cy, cz := int(math.Floor(exp.X)), int(math.Floor(exp.Y)), int(math.Floor(exp.Z))
+	for _, bp := range exp.AffectedBlocks {
+		records = append(records, byte(bp[0]-cx), byte(bp[1]-cy), byte(bp[2]-cz))
+	}
+
+	for _, p := range w.tracker.Players() {
+		if p.Removed() {
+			continue
+		}
+		sess := p.Session()
+		if sess == nil {
+			continue
+		}
+
+		var motX, motY, motZ float64
+		hasMotion := false
+		for _, eff := range exp.AffectedEntities {
+			if eff.EntityID == p.ID() {
+				motX = eff.KnockX
+				motY = eff.KnockY
+				motZ = eff.KnockZ
+				hasMotion = true
+				break
+			}
+		}
+
+		_ = sess.Send(&playpacket.Explosion{
+			X:                exp.X,
+			Y:                exp.Y,
+			Z:                exp.Z,
+			Strength:         float32(exp.Power),
+			RecordCount:      int32(len(exp.AffectedBlocks)),
+			Records:          records,
+			PlayerMotionX:    motX,
+			PlayerMotionY:    motY,
+			PlayerMotionZ:    motZ,
+			HasPlayerMotion:  hasMotion,
+			BlockInteraction: 1,
+			SoundName:        "minecraft:entity.generic.explode",
+		})
 	}
 }
 
@@ -1004,11 +1228,257 @@ func (w *World) SpawnThrown(t *projectile.ThrownEntity) {
 	w.projectiles.AddThrown(t)
 }
 
+// SpawnTrident creates and registers a trident projectile in the world.
+func (w *World) SpawnTrident(t *projectile.Trident) {
+	if w == nil || t == nil {
+		return
+	}
+	w.entities.Add(t.Entity)
+	w.projectiles.AddTrident(t)
+}
+
 func (w *World) tickProjectiles() {
-	result := w.projectiles.TickAll(w, nil)
+	finder := &worldEntityFinder{tracker: w.tracker, mobs: w.mobs}
+	result := w.projectiles.TickAll(w, finder)
+
+	// Process arrow entity hits
+	for _, hit := range result.ArrowHits {
+		if !hit.HitResult.HitEntity {
+			continue
+		}
+		arrow := w.projectiles.GetArrow(hit.ArrowID)
+		if arrow == nil {
+			continue
+		}
+		dmg := float32(arrow.ComputeHitDamage())
+		if dmg < 0.5 {
+			dmg = 0.5
+		}
+		src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, dmg, arrow.OwnerID())
+		w.applyProjectileDamage(hit.HitResult.EntityID, src, arrow.OwnerID())
+		arrow.Entity.Remove()
+	}
+
+	// Process thrown entity hits
+	for _, hit := range result.ThrownHits {
+		switch hit.ThrownType {
+		case projectile.ThrownSnowball, projectile.ThrownEgg:
+			if hit.HitResult.HitEntity {
+				src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, 0, -1)
+				w.applyProjectileDamage(hit.HitResult.EntityID, src, -1)
+			}
+		case projectile.ThrownEnderPearl:
+			thrown := w.projectiles.GetThrown(hit.ThrownID)
+			if thrown != nil {
+				w.teleportOwnerToHit(thrown.OwnerID(), hit.HitResult)
+			}
+		case projectile.ThrownSplashPotion:
+			thrown := w.projectiles.GetThrown(hit.ThrownID)
+			if thrown != nil {
+				w.applySplashPotionArea(hit.HitResult, thrown.ItemID())
+			}
+		}
+	}
+
+	// Process trident entity hits
+	for _, hit := range result.TridentHits {
+		if !hit.HitResult.HitEntity {
+			continue
+		}
+		tr := w.projectiles.GetTrident(hit.TridentID)
+		if tr == nil {
+			continue
+		}
+		dmg := float32(tr.ComputeHitDamage())
+		src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, dmg, tr.OwnerID())
+		w.applyProjectileDamage(hit.HitResult.EntityID, src, tr.OwnerID())
+	}
+
 	for _, id := range result.RemovedIDs {
 		w.broadcastRemoveEntity(id)
 		w.entities.Remove(id)
+	}
+}
+
+// applyProjectileDamage applies damage from a projectile to a target entity.
+func (w *World) applyProjectileDamage(targetID int32, src *entity.DamageSource, ownerID int32) {
+	// Check if target is a player
+	for _, p := range w.tracker.Players() {
+		if p.ID() != targetID || p.Removed() || p.IsDead() {
+			continue
+		}
+		living := p.Living()
+		actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		sess := p.Session()
+		if sess == nil {
+			return
+		}
+		if actual > 0 || src.Amount == 0 {
+			_ = sess.Send(&playpacket.UpdateHealth{
+				Health:         living.Health(),
+				Food:           living.FoodLevel(),
+				FoodSaturation: living.FoodSaturation(),
+			})
+			// Broadcast hurt animation
+			hurtPkt := &playpacket.HurtAnimation{EntityID: p.ID(), Yaw: 0}
+			for _, op := range w.tracker.Players() {
+				if op.Removed() {
+					continue
+				}
+				if s := op.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+			if living.IsDead() {
+				attackerName := ""
+				if ownerID > 0 {
+					for _, ap := range w.tracker.Players() {
+						if ap.ID() == ownerID {
+							attackerName = ap.Username()
+							break
+						}
+					}
+				}
+				msg := formatDeathMessage(src.Type, p.Username(), attackerName)
+				_ = sess.Send(&playpacket.DeathCombatEvent{
+					PlayerID: p.ID(),
+					Message:  msg,
+				})
+			}
+		}
+		return
+	}
+
+	// Check if target is a mob
+	if w.mobs != nil {
+		mob := w.mobs.Get(targetID)
+		if mob != nil && !mob.IsDead() {
+			mob.Damage(src.Amount, src.Type.SourceName())
+			hurtPkt := &playpacket.HurtAnimation{EntityID: mob.ID(), Yaw: 0}
+			for _, p := range w.tracker.Players() {
+				if p.Removed() {
+					continue
+				}
+				if s := p.Session(); s != nil {
+					_ = s.Send(hurtPkt)
+				}
+			}
+		}
+	}
+}
+
+// teleportOwnerToHit teleports the projectile owner to the hit location (ender pearl).
+func (w *World) teleportOwnerToHit(ownerID int32, hr *projectile.HitResult) {
+	if hr == nil {
+		return
+	}
+	for _, p := range w.tracker.Players() {
+		if p.ID() != ownerID || p.Removed() {
+			continue
+		}
+		newPos := entity.Vec3{X: hr.HitX, Y: hr.HitY, Z: hr.HitZ}
+		p.SetPosition(newPos)
+		sess := p.Session()
+		if sess != nil {
+			_ = sess.Send(&playpacket.SyncPlayerPosition{
+				X: newPos.X, Y: newPos.Y, Z: newPos.Z,
+				Yaw: float32(p.Rotation().X), Pitch: float32(p.Rotation().Y),
+			})
+			// Ender pearls deal 5 fall damage
+			living := p.Living()
+			src := entity.NewDamageSource(entity.DamageTypeFall, 5.0)
+			actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+			if actual > 0 {
+				_ = sess.Send(&playpacket.UpdateHealth{
+					Health:         living.Health(),
+					Food:           living.FoodLevel(),
+					FoodSaturation: living.FoodSaturation(),
+				})
+			}
+		}
+		return
+	}
+}
+
+// applySplashPotionArea applies splash potion effects to all entities within range.
+func (w *World) applySplashPotionArea(hr *projectile.HitResult, potionID int32) {
+	if hr == nil {
+		return
+	}
+	pe := effect.PotionEffects(potionID)
+	if pe == nil {
+		return
+	}
+	splashEffects := effect.ScaleEffects(pe.Effects, effect.SplashDurationFactor())
+	center := entity.Vec3{X: hr.HitX, Y: hr.HitY, Z: hr.HitZ}
+	const splashRadius = 4.0
+	const splashRadiusSq = splashRadius * splashRadius
+
+	for _, p := range w.tracker.Players() {
+		if p.Removed() || p.IsDead() {
+			continue
+		}
+		pos := p.Position()
+		dx := pos.X - center.X
+		dy := pos.Y - center.Y
+		dz := pos.Z - center.Z
+		distSq := dx*dx + dy*dy + dz*dz
+		if distSq > splashRadiusSq {
+			continue
+		}
+		dist := math.Sqrt(distSq)
+		proximity := 1.0 - dist/splashRadius
+		if proximity < 0.25 {
+			proximity = 0.25
+		}
+		living := p.Living()
+		sess := p.Session()
+		for _, e := range splashEffects {
+			if effect.IsInstant(e.ID) {
+				action := effect.ApplyInstant(e.ID, e.Amplifier)
+				if action != nil {
+					if action.Heal > 0 {
+						action.Heal *= float32(proximity)
+					}
+					if action.Damage > 0 {
+						action.Damage *= float32(proximity)
+					}
+					if action.Heal > 0 && !living.IsDead() {
+						h := living.Health() + action.Heal
+						if h > living.MaxHealth() {
+							h = living.MaxHealth()
+						}
+						living.SetHealth(h)
+					}
+					if action.Damage > 0 {
+						living.Damage(action.Damage, "magic")
+					}
+				}
+			} else {
+				scaled := e
+				scaled.Duration = int32(float64(e.Duration) * proximity)
+				if scaled.Duration < 1 {
+					scaled.Duration = 1
+				}
+				living.Effects().Add(scaled)
+				if sess != nil {
+					_ = sess.Send(&playpacket.EntityEffect{
+						EntityID:  p.ID(),
+						EffectID:  scaled.ID,
+						Amplifier: scaled.Amplifier,
+						Duration:  scaled.Duration,
+						Flags:     scaled.Flags,
+					})
+				}
+			}
+		}
+		if sess != nil {
+			_ = sess.Send(&playpacket.UpdateHealth{
+				Health:         living.Health(),
+				Food:           living.FoodLevel(),
+				FoodSaturation: living.FoodSaturation(),
+			})
+		}
 	}
 }
 
@@ -1017,12 +1487,24 @@ func (w *World) tickMobs() {
 		return
 	}
 
+	// Natural mob spawning
+	if w.spawner != nil {
+		playerPositions := w.buildSpawnPlayerList()
+		requests := w.spawner.Tick(w.mobs, playerPositions, w)
+		for _, req := range requests {
+			mob := w.mobs.SpawnMob(req.TypeName, entity.Vec3{X: req.X, Y: req.Y, Z: req.Z})
+			if mob != nil && w.mobBrains != nil {
+				w.mobBrains.RegisterMob(mob)
+			}
+		}
+	}
+
 	if w.mobBrains != nil {
 		players := w.buildAIPlayerList()
 		w.mobBrains.TickAll(w.mobs.Mobs(), players, w.tick.Load(), w)
 	}
 
-	drops := w.mobs.Tick()
+	drops := w.mobs.Tick(w)
 	for _, d := range drops {
 		if d.ItemID > 0 && d.Count > 0 {
 			eid := w.entities.AllocateID()
@@ -1035,6 +1517,27 @@ func (w *World) tickMobs() {
 			w.SpawnItemEntity(ie)
 		}
 	}
+}
+
+// GetBlock returns the block state at the given coordinates (implements spawning.BlockAccess).
+func (w *World) GetBlock(x, y, z int) int32 {
+	return w.getBlockAt(x, y, z)
+}
+
+func (w *World) buildSpawnPlayerList() []spawning.PlayerPos {
+	trackedPlayers := w.tracker.Players()
+	if len(trackedPlayers) == 0 {
+		return nil
+	}
+	result := make([]spawning.PlayerPos, 0, len(trackedPlayers))
+	for _, p := range trackedPlayers {
+		if p.Removed() {
+			continue
+		}
+		pos := p.Position()
+		result = append(result, spawning.PlayerPos{X: pos.X, Y: pos.Y, Z: pos.Z})
+	}
+	return result
 }
 
 func (w *World) buildAIPlayerList() []ai.PlayerInfo {

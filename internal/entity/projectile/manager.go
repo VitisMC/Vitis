@@ -2,15 +2,17 @@ package projectile
 
 // Manager manages all projectile entities in a world.
 type Manager struct {
-	arrows map[int32]*Arrow
-	thrown map[int32]*ThrownEntity
+	arrows   map[int32]*Arrow
+	thrown   map[int32]*ThrownEntity
+	tridents map[int32]*Trident
 }
 
 // NewManager creates a new projectile manager.
 func NewManager() *Manager {
 	return &Manager{
-		arrows: make(map[int32]*Arrow, 32),
-		thrown: make(map[int32]*ThrownEntity, 32),
+		arrows:   make(map[int32]*Arrow, 32),
+		thrown:   make(map[int32]*ThrownEntity, 32),
+		tridents: make(map[int32]*Trident, 16),
 	}
 }
 
@@ -44,6 +46,30 @@ func (m *Manager) RemoveThrown(id int32) {
 		return
 	}
 	delete(m.thrown, id)
+}
+
+// AddTrident registers a trident.
+func (m *Manager) AddTrident(t *Trident) {
+	if m == nil || t == nil {
+		return
+	}
+	m.tridents[t.Entity.ID()] = t
+}
+
+// RemoveTrident removes a trident by ID.
+func (m *Manager) RemoveTrident(id int32) {
+	if m == nil {
+		return
+	}
+	delete(m.tridents, id)
+}
+
+// GetTrident returns a trident by ID.
+func (m *Manager) GetTrident(id int32) *Trident {
+	if m == nil {
+		return nil
+	}
+	return m.tridents[id]
 }
 
 // GetArrow returns an arrow by ID.
@@ -98,6 +124,7 @@ func (m *Manager) ThrownCount() int {
 type TickResult struct {
 	ArrowHits   []ArrowHitEvent
 	ThrownHits  []ThrownHitEvent
+	TridentHits []TridentHitEvent
 	RemovedIDs  []int32
 }
 
@@ -112,6 +139,12 @@ type ThrownHitEvent struct {
 	ThrownID   int32
 	ThrownType ThrownType
 	HitResult  *HitResult
+}
+
+// TridentHitEvent describes a trident that hit a block or entity.
+type TridentHitEvent struct {
+	TridentID int32
+	HitResult *HitResult
 }
 
 // TickAll advances all projectiles and returns hit events and removed IDs.
@@ -153,9 +186,26 @@ func (m *Manager) TickAll(world BlockAccessProvider, finder EntityFinder) TickRe
 		}
 	}
 
+	for id, tr := range m.tridents {
+		tr.Tick(world, finder)
+
+		if tr.Entity.Removed() {
+			result.RemovedIDs = append(result.RemovedIDs, id)
+			continue
+		}
+
+		if hr := tr.LastHitResult(); hr != nil {
+			result.TridentHits = append(result.TridentHits, TridentHitEvent{
+				TridentID: id,
+				HitResult: hr,
+			})
+		}
+	}
+
 	for _, id := range result.RemovedIDs {
 		delete(m.arrows, id)
 		delete(m.thrown, id)
+		delete(m.tridents, id)
 	}
 
 	return result

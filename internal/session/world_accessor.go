@@ -11,6 +11,7 @@ import (
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/protocol"
+	"github.com/vitismc/vitis/internal/world/blockentity"
 	"github.com/vitismc/vitis/internal/world/chunk"
 	"github.com/vitismc/vitis/internal/world/tick"
 )
@@ -29,15 +30,17 @@ type WorldAccessor interface {
 	ScheduleTicksForBlock(x, y, z int, stateID int32)
 	NotifyNeighbors(x, y, z int)
 	SpawnItemDrop(x, y, z float64, itemID, count int32) *entity.ItemEntity
+	BlockEntities() *blockentity.Store
 }
 
 // DefaultWorldAccessor implements WorldAccessor using a chunk.Manager.
 type DefaultWorldAccessor struct {
-	Chunks        *chunk.Manager
-	TickScheduler TickScheduler
-	CurrentTick   func() uint64
-	NextEntityID  func() int32
-	Items         *entity.ItemEntityManager
+	Chunks           *chunk.Manager
+	TickScheduler    TickScheduler
+	CurrentTick      func() uint64
+	NextEntityID     func() int32
+	Items            *entity.ItemEntityManager
+	BlockEntityStore *blockentity.Store
 }
 
 // GetChunk returns a loaded chunk from the manager.
@@ -162,6 +165,14 @@ func BlockFaceOffset(face int32) (dx, dy, dz int32) {
 	default:
 		return 0, 0, 0
 	}
+}
+
+// BlockEntities returns the block entity store.
+func (a *DefaultWorldAccessor) BlockEntities() *blockentity.Store {
+	if a == nil {
+		return nil
+	}
+	return a.BlockEntityStore
 }
 
 // SpawnItemDrop creates an item entity at the given position and registers it.

@@ -8,6 +8,21 @@ type Config struct {
 	World       WorldConfig       `yaml:"world"`
 	Logging     LoggingConfig     `yaml:"logging"`
 	Performance PerformanceConfig `yaml:"performance"`
+	RCON        RCONConfig        `yaml:"rcon"`
+	Query       QueryConfig       `yaml:"query"`
+}
+
+// QueryConfig contains GS4 query protocol settings.
+type QueryConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Port    int  `yaml:"port"`
+}
+
+// RCONConfig contains RCON server settings.
+type RCONConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Port     int    `yaml:"port"`
+	Password string `yaml:"password"`
 }
 
 // ServerConfig contains listener and gameplay capacity settings.
