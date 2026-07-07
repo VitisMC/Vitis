@@ -542,6 +542,7 @@ func (s *ServerControlAdapter) ClearInventory(entityID int32, itemName string, m
 	inv := op.Windows.Inventory()
 	removed := 0
 	remaining := maxCount
+	var changed []int
 	if maxCount < 0 {
 		remaining = int(^uint(0) >> 1)
 	}
@@ -566,8 +567,17 @@ func (s *ServerControlAdapter) ClearInventory(entityID int32, itemName string, m
 		} else {
 			inv.Set(i, sl)
 		}
+		changed = append(changed, i)
 		removed += take
 		remaining -= take
+	}
+	for _, idx := range changed {
+		if err := op.Session.Send(&playpacket.SetPlayerInventorySlot{
+			SlotIdx:  int32(idx),
+			SlotData: inv.Get(idx),
+		}); err != nil {
+			return removed, err
+		}
 	}
 	return removed, nil
 }

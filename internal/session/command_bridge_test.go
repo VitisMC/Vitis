@@ -159,6 +159,92 @@ func TestServerControlGiveItemRejectsWhenInventoryIsFull(t *testing.T) {
 	}
 }
 
+func TestServerControlClearInventorySyncsChangedSlots(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	windows := inventory.NewWindowManager()
+	stoneID := item.IDByName("minecraft:stone")
+	dirtID := item.IDByName("minecraft:dirt")
+	windows.Inventory().Set(inventory.MainInventoryStart, inventory.NewSlot(stoneID, 4))
+	windows.Inventory().Set(inventory.MainInventoryStart+1, inventory.NewSlot(dirtID, 2))
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		Windows:  windows,
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	removed, err := control.ClearInventory(7, "", -1)
+	if err != nil {
+		t.Fatalf("clear inventory failed: %v", err)
+	}
+	if removed != 6 {
+		t.Fatalf("removed = %d, want 6", removed)
+	}
+	if !windows.Inventory().Get(inventory.MainInventoryStart).Empty() || !windows.Inventory().Get(inventory.MainInventoryStart+1).Empty() {
+		t.Fatal("expected changed inventory slots to be empty")
+	}
+
+	packets := session.packets()
+	if len(packets) != 2 {
+		t.Fatalf("packet count = %d, want 2", len(packets))
+	}
+	for index, packet := range packets {
+		slotPacket, ok := packet.(*playpacket.SetPlayerInventorySlot)
+		if !ok {
+			t.Fatalf("packet %d type = %T, want *play.SetPlayerInventorySlot", index, packet)
+		}
+		wantSlot := int32(inventory.MainInventoryStart + index)
+		if slotPacket.SlotIdx != wantSlot || !slotPacket.SlotData.Empty() {
+			t.Fatalf("packet %d = slot %d empty=%v, want slot %d empty", index, slotPacket.SlotIdx, slotPacket.SlotData.Empty(), wantSlot)
+		}
+	}
+}
+
+func TestServerControlClearInventorySupportsMaxCount(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	windows := inventory.NewWindowManager()
+	stoneID := item.IDByName("minecraft:stone")
+	windows.Inventory().Set(inventory.MainInventoryStart, inventory.NewSlot(stoneID, 5))
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		Windows:  windows,
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	removed, err := control.ClearInventory(7, "minecraft:stone", 2)
+	if err != nil {
+		t.Fatalf("clear inventory failed: %v", err)
+	}
+	if removed != 2 {
+		t.Fatalf("removed = %d, want 2", removed)
+	}
+	slot := windows.Inventory().Get(inventory.MainInventoryStart)
+	if slot.ItemID != stoneID || slot.ItemCount != 3 {
+		t.Fatalf("slot = id %d count %d, want stone x3", slot.ItemID, slot.ItemCount)
+	}
+
+	packets := session.packets()
+	if len(packets) != 1 {
+		t.Fatalf("packet count = %d, want 1", len(packets))
+	}
+	slotPacket, ok := packets[0].(*playpacket.SetPlayerInventorySlot)
+	if !ok {
+		t.Fatalf("packet type = %T, want *play.SetPlayerInventorySlot", packets[0])
+	}
+	if slotPacket.SlotIdx != int32(inventory.MainInventoryStart) || slotPacket.SlotData.ItemCount != 3 {
+		t.Fatalf("slot packet = idx %d count %d, want idx %d count 3", slotPacket.SlotIdx, slotPacket.SlotData.ItemCount, inventory.MainInventoryStart)
+	}
+}
+
 func TestServerControlGameRulesValidateAndNormalizeValues(t *testing.T) {
 	control := NewServerControl(nil, nil, nil).(*ServerControlAdapter)
 
