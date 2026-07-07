@@ -159,6 +159,49 @@ func TestServerControlGiveItemRejectsWhenInventoryIsFull(t *testing.T) {
 	}
 }
 
+func TestServerControlGameRulesValidateAndNormalizeValues(t *testing.T) {
+	control := NewServerControl(nil, nil, nil).(*ServerControlAdapter)
+
+	if value, err := control.GetGameRule("keepInventory"); err != nil || value != "false" {
+		t.Fatalf("keepInventory default = %q err=%v, want false", value, err)
+	}
+	if value, err := control.GetGameRule("randomTickSpeed"); err != nil || value != "3" {
+		t.Fatalf("randomTickSpeed default = %q err=%v, want 3", value, err)
+	}
+
+	if err := control.SetGameRule("keepInventory", "TRUE"); err != nil {
+		t.Fatalf("set boolean rule failed: %v", err)
+	}
+	if value, _ := control.GetGameRule("keepInventory"); value != "true" {
+		t.Fatalf("keepInventory = %q, want true", value)
+	}
+
+	if err := control.SetGameRule("randomTickSpeed", "003"); err != nil {
+		t.Fatalf("set integer rule failed: %v", err)
+	}
+	if value, _ := control.GetGameRule("randomTickSpeed"); value != "3" {
+		t.Fatalf("randomTickSpeed = %q, want 3", value)
+	}
+}
+
+func TestServerControlGameRulesRejectWrongValueTypes(t *testing.T) {
+	control := NewServerControl(nil, nil, nil).(*ServerControlAdapter)
+
+	if err := control.SetGameRule("keepInventory", "yes"); err == nil {
+		t.Fatal("expected boolean validation error")
+	}
+	if value, _ := control.GetGameRule("keepInventory"); value != "false" {
+		t.Fatalf("keepInventory = %q, want unchanged false", value)
+	}
+
+	if err := control.SetGameRule("randomTickSpeed", "fast"); err == nil {
+		t.Fatal("expected integer validation error")
+	}
+	if value, _ := control.GetGameRule("randomTickSpeed"); value != "3" {
+		t.Fatalf("randomTickSpeed = %q, want unchanged 3", value)
+	}
+}
+
 func TestSendPlayBootstrapSendsDifficulty(t *testing.T) {
 	session := &captureSession{}
 	cfg := DefaultPlayBootstrapConfig()

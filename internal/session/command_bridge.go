@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -576,15 +577,14 @@ func (s *ServerControlAdapter) GetGameRule(name string) (string, error) {
 	if info == nil {
 		return "", fmt.Errorf("unknown game rule: %s", name)
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.GameRules != nil {
 		if v, ok := s.GameRules[name]; ok {
 			return v, nil
 		}
 	}
-	if info.Type == "boolean" {
-		return "true", nil
-	}
-	return "0", nil
+	return defaultGameRuleValue(info), nil
 }
 
 func (s *ServerControlAdapter) SetGameRule(name, value string) error {
@@ -592,11 +592,80 @@ func (s *ServerControlAdapter) SetGameRule(name, value string) error {
 	if info == nil {
 		return fmt.Errorf("unknown game rule: %s", name)
 	}
+	normalized, err := validateGameRuleValue(info, value)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.GameRules == nil {
 		s.GameRules = make(map[string]string)
 	}
-	s.GameRules[name] = value
+	s.GameRules[name] = normalized
 	return nil
+}
+
+func validateGameRuleValue(info *gamerules.GameRuleInfo, value string) (string, error) {
+	switch info.Type {
+	case "boolean":
+		switch strings.ToLower(value) {
+		case "true":
+			return "true", nil
+		case "false":
+			return "false", nil
+		default:
+			return "", fmt.Errorf("game rule %s expects true or false", info.Name)
+		}
+	case "integer":
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return "", fmt.Errorf("game rule %s expects an integer", info.Name)
+		}
+		return strconv.FormatInt(parsed, 10), nil
+	default:
+		return "", fmt.Errorf("game rule %s has unsupported type %q", info.Name, info.Type)
+	}
+}
+
+func defaultGameRuleValue(info *gamerules.GameRuleInfo) string {
+	if info.Type == "integer" {
+		if value, ok := defaultIntegerGameRules[info.Name]; ok {
+			return value
+		}
+		return "0"
+	}
+	if value, ok := defaultBooleanGameRules[info.Name]; ok {
+		return value
+	}
+	return "true"
+}
+
+var defaultBooleanGameRules = map[string]string{
+	"keepInventory":              "false",
+	"reducedDebugInfo":           "false",
+	"disablePlayerMovementCheck": "false",
+	"disableElytraMovementCheck": "false",
+	"doLimitedCrafting":          "false",
+	"disableRaids":               "false",
+	"doImmediateRespawn":         "false",
+	"universalAnger":             "false",
+	"tntExplosionDropDecay":      "false",
+	"lavaSourceConversion":       "false",
+}
+
+var defaultIntegerGameRules = map[string]string{
+	"randomTickSpeed":                  "3",
+	"spawnRadius":                      "10",
+	"maxEntityCramming":                "24",
+	"maxCommandChainLength":            "65536",
+	"maxCommandForkCount":              "65536",
+	"commandModificationBlockLimit":    "32768",
+	"playersNetherPortalDefaultDelay":  "80",
+	"playersNetherPortalCreativeDelay": "1",
+	"playersSleepingPercentage":        "100",
+	"snowAccumulationHeight":           "1",
+	"minecartMaxSpeed":                 "8",
+	"spawnChunkRadius":                 "2",
 }
 
 func (s *ServerControlAdapter) SetDefaultGameMode(mode int32) error {
