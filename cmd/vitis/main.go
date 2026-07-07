@@ -198,6 +198,9 @@ func run() int {
 	if err := serverControl.SetDefaultGameMode(playBootstrapCfg.GameMode); err != nil {
 		logger.Warn("failed to initialize default game mode", "error", err)
 	}
+	if err := serverControl.SetWorldSpawn(int(playBootstrapCfg.SpawnX), int(playBootstrapCfg.SpawnY), int(playBootstrapCfg.SpawnZ)); err != nil {
+		logger.Warn("failed to initialize world spawn", "error", err)
+	}
 	playerLookup := session.NewPlayerLookup(playerManager, opList)
 	command.RegisterBuiltinCommands(cmdRegistry, playerLookup, serverControl)
 	command.RegisterMultiplayerCommands(cmdRegistry, nil, nil, nil)
@@ -303,7 +306,8 @@ func run() int {
 		cfg.PlayerUUID = uuid
 		cfg.PlayerName = username
 
-		spawnX, spawnY, spawnZ := cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ
+		worldSpawnX, worldSpawnY, worldSpawnZ := serverControl.GetWorldSpawn()
+		spawnX, spawnY, spawnZ := float64(worldSpawnX)+0.5, float64(worldSpawnY), float64(worldSpawnZ)+0.5
 		gameMode := cfg.GameMode
 		uuidStr := protocol.UUIDToString(uuid)
 		worldDir := "world"

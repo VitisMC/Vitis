@@ -308,6 +308,39 @@ func TestServerControlDefaultGameModeStoresRuntimeValue(t *testing.T) {
 	}
 }
 
+func TestServerControlWorldSpawnStoresAndBroadcastsRuntimeValue(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	if err := control.SetWorldSpawn(10, 70, -5); err != nil {
+		t.Fatalf("set world spawn failed: %v", err)
+	}
+	x, y, z := control.GetWorldSpawn()
+	if x != 10 || y != 70 || z != -5 {
+		t.Fatalf("world spawn = %d %d %d, want 10 70 -5", x, y, z)
+	}
+
+	packets := session.packets()
+	if len(packets) != 1 {
+		t.Fatalf("packet count = %d, want 1", len(packets))
+	}
+	spawnPacket, ok := packets[0].(*playpacket.SetDefaultSpawnPosition)
+	if !ok {
+		t.Fatalf("packet type = %T, want *play.SetDefaultSpawnPosition", packets[0])
+	}
+	if spawnPacket.X != 10 || spawnPacket.Y != 70 || spawnPacket.Z != -5 {
+		t.Fatalf("spawn packet = %d %d %d, want 10 70 -5", spawnPacket.X, spawnPacket.Y, spawnPacket.Z)
+	}
+}
+
 func TestSendPlayBootstrapSendsDifficulty(t *testing.T) {
 	session := &captureSession{}
 	cfg := DefaultPlayBootstrapConfig()

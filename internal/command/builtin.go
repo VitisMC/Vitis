@@ -65,6 +65,8 @@ type ServerControl interface {
 	GetDefaultGameMode() int32
 	// SetWorldSpawn sets the world spawn position.
 	SetWorldSpawn(x, y, z int) error
+	// GetWorldSpawn returns the current world spawn position.
+	GetWorldSpawn() (x, y, z int)
 	// SetSpawnPoint sets a player's individual spawn point.
 	SetSpawnPoint(entityID int32, x, y, z int) error
 	// SendTitle sends a title/subtitle to a player.

@@ -701,13 +701,24 @@ func (s *ServerControlAdapter) GetDefaultGameMode() int32 {
 }
 
 func (s *ServerControlAdapter) SetWorldSpawn(x, y, z int) error {
+	s.mu.Lock()
 	s.SpawnX, s.SpawnY, s.SpawnZ = x, y, z
+	s.mu.Unlock()
 	if s.PM != nil {
 		s.PM.Broadcast(&playpacket.SetDefaultSpawnPosition{
 			X: int32(x), Y: int32(y), Z: int32(z),
 		})
 	}
 	return nil
+}
+
+func (s *ServerControlAdapter) GetWorldSpawn() (int, int, int) {
+	if s == nil {
+		return 0, 65, 0
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.SpawnX, s.SpawnY, s.SpawnZ
 }
 
 func (s *ServerControlAdapter) SetSpawnPoint(entityID int32, x, y, z int) error {

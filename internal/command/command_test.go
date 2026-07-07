@@ -87,6 +87,7 @@ func (m *mockServer) SetGameRule(_, _ string) error                          { r
 func (m *mockServer) SetDefaultGameMode(_ int32) error                       { return nil }
 func (m *mockServer) GetDefaultGameMode() int32                              { return 0 }
 func (m *mockServer) SetWorldSpawn(_, _, _ int) error                        { return nil }
+func (m *mockServer) GetWorldSpawn() (int, int, int)                         { return 0, 65, 0 }
 func (m *mockServer) SetSpawnPoint(_ int32, _, _, _ int) error               { return nil }
 func (m *mockServer) SendTitle(_ int32, _, _ string, _, _, _ int) error      { return nil }
 func (m *mockServer) SendActionBar(_ int32, _ string) error                  { return nil }
