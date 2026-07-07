@@ -76,6 +76,18 @@ func (c *Chunk) SetBlock(x, y, z int, stateID int32) {
 	c.Sections[secIdx].SetBlock(x, y, z, stateID)
 }
 
+// GetBiome returns the biome ID at the given absolute block coordinates.
+func (c *Chunk) GetBiome(x, y, z int) int32 {
+	if y < OverworldMinY || y > OverworldMaxY {
+		return 0
+	}
+	secIdx := (y - OverworldMinY) / SectionHeight
+	if secIdx >= len(c.Sections) {
+		return 0
+	}
+	return c.Sections[secIdx].GetBiome((x&0xF)>>2, (y&0xF)>>2, (z&0xF)>>2)
+}
+
 func blockEntityKey(x, y, z int32) int64 {
 	return int64(x)&0xFFFFFFFF | (int64(z)&0xFFFFFFFF)<<16 | (int64(y)&0xFFFF)<<32
 }

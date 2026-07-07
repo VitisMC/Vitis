@@ -134,6 +134,22 @@ func (e *Engine) GetSkyLightSection(lightSectionIdx int) *NibbleArray {
 	return e.SkyLightSections[lightSectionIdx]
 }
 
+// BlockLightAt returns the block light level at section-local x/z and absolute y.
+func (e *Engine) BlockLightAt(x, y, z int) uint8 {
+	if e == nil {
+		return 0
+	}
+	return e.getBlockLight(x, y, z)
+}
+
+// SkyLightAt returns the sky light level at section-local x/z and absolute y.
+func (e *Engine) SkyLightAt(x, y, z int) uint8 {
+	if e == nil {
+		return 0
+	}
+	return e.getSkyLight(x, y, z)
+}
+
 func (e *Engine) propagate(queue []lightNode, access BlockAccess, isSky bool) {
 	dirs := [6][3]int{
 		{1, 0, 0}, {-1, 0, 0},

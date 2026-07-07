@@ -20,6 +20,7 @@ import (
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/world/chunk"
+	"github.com/vitismc/vitis/internal/world/chunk/section"
 	"github.com/vitismc/vitis/internal/world/persistence"
 	"github.com/vitismc/vitis/internal/world/spawning"
 	"github.com/vitismc/vitis/internal/world/streaming"
@@ -192,7 +193,10 @@ func New(config Config) (*World, error) {
 	}
 	w.mobs = entity.NewMobManager(entMgr, entMgr.AllocateID)
 	w.mobBrains = ai.NewBrainRegistry()
-	w.spawner = spawning.NewSpawner(spawning.DefaultOverworldSpawns, 20)
+	w.spawner = spawning.NewSpawnerWithConfig(spawning.Config{
+		Seed:       config.Seed,
+		SpawnTable: spawning.DefaultOverworldSpawns,
+	})
 	return w, nil
 }
 
@@ -481,6 +485,16 @@ func (w *World) TimeOfDay() int64 {
 		return 0
 	}
 	return w.timeOfDay
+}
+
+// MinY returns the minimum build height for this world.
+func (w *World) MinY() int {
+	return section.OverworldMinY
+}
+
+// MaxY returns the maximum build height for this world.
+func (w *World) MaxY() int {
+	return section.OverworldMaxY
 }
 
 // SetTimeOfDay sets the current time of day.
@@ -1490,8 +1504,15 @@ func (w *World) tickMobs() {
 	// Natural mob spawning
 	if w.spawner != nil {
 		playerPositions := w.buildSpawnPlayerList()
-		requests := w.spawner.Tick(w.mobs, playerPositions, w)
-		for _, req := range requests {
+		spawnResult := w.spawner.Tick(w.mobs, playerPositions, w)
+		for _, id := range spawnResult.DespawnIDs {
+			w.mobs.Remove(id)
+			if w.mobBrains != nil {
+				w.mobBrains.Remove(id)
+			}
+			w.broadcastRemoveEntity(id)
+		}
+		for _, req := range spawnResult.Requests {
 			mob := w.mobs.SpawnMob(req.TypeName, entity.Vec3{X: req.X, Y: req.Y, Z: req.Z})
 			if mob != nil && w.mobBrains != nil {
 				w.mobBrains.RegisterMob(mob)
@@ -1519,23 +1540,68 @@ func (w *World) tickMobs() {
 	}
 }
 
-// GetBlock returns the block state at the given coordinates (implements spawning.BlockAccess).
+// GetBlock returns the block state at the given coordinates.
 func (w *World) GetBlock(x, y, z int) int32 {
 	return w.getBlockAt(x, y, z)
 }
 
-func (w *World) buildSpawnPlayerList() []spawning.PlayerPos {
+// GetBiome returns the biome ID at the given world coordinates.
+func (w *World) GetBiome(x, y, z int) int32 {
+	cx := int32(math.Floor(float64(x) / 16))
+	cz := int32(math.Floor(float64(z) / 16))
+	c, ok := w.chunks.GetChunk(cx, cz)
+	if !ok || c == nil || c.GameData() == nil {
+		return 0
+	}
+	return c.GameData().GetBiome(x, y, z)
+}
+
+// GetBlockLight returns the block light level at the given world coordinates.
+func (w *World) GetBlockLight(x, y, z int) uint8 {
+	cx := int32(math.Floor(float64(x) / 16))
+	cz := int32(math.Floor(float64(z) / 16))
+	c, ok := w.chunks.GetChunk(cx, cz)
+	if !ok || c == nil || c.GameData() == nil || c.GameData().LightEngine == nil {
+		return 0
+	}
+	return c.GameData().LightEngine.BlockLightAt(x&0xF, y, z&0xF)
+}
+
+// GetSkyLight returns the sky light level at the given world coordinates.
+func (w *World) GetSkyLight(x, y, z int) uint8 {
+	cx := int32(math.Floor(float64(x) / 16))
+	cz := int32(math.Floor(float64(z) / 16))
+	c, ok := w.chunks.GetChunk(cx, cz)
+	if !ok || c == nil || c.GameData() == nil || c.GameData().LightEngine == nil {
+		return 0
+	}
+	return c.GameData().LightEngine.SkyLightAt(x&0xF, y, z&0xF)
+}
+
+// IsChunkLoaded reports whether a chunk is loaded and available for simulation.
+func (w *World) IsChunkLoaded(x, z int32) bool {
+	_, ok := w.chunks.GetChunk(x, z)
+	return ok
+}
+
+func (w *World) buildSpawnPlayerList() []spawning.PlayerInfo {
 	trackedPlayers := w.tracker.Players()
 	if len(trackedPlayers) == 0 {
 		return nil
 	}
-	result := make([]spawning.PlayerPos, 0, len(trackedPlayers))
+	result := make([]spawning.PlayerInfo, 0, len(trackedPlayers))
 	for _, p := range trackedPlayers {
-		if p.Removed() {
+		if p.Removed() || p.Living().IsDead() {
 			continue
 		}
 		pos := p.Position()
-		result = append(result, spawning.PlayerPos{X: pos.X, Y: pos.Y, Z: pos.Z})
+		result = append(result, spawning.PlayerInfo{
+			X:        pos.X,
+			Y:        pos.Y,
+			Z:        pos.Z,
+			GameMode: p.Living().GameMode(),
+			Dead:     p.Living().IsDead(),
+		})
 	}
 	return result
 }

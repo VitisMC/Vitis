@@ -102,6 +102,7 @@ This document outlines the current state and planned development direction for V
 - [x] Utility mobs (iron golem, snow golem)
 - [x] `/summon` command with coordinate-based spawning
 - [x] Auto-fill ProtocolID and dimensions from protocol data
+- [x] Natural mob spawning with light, biome, distance, cap, and despawn rules
 
 ### 📋 Commands
 
@@ -147,7 +148,6 @@ This document outlines the current state and planned development direction for V
 - [ ] **Loot tables** — evaluation engine exists, needs wiring to block/entity drops
 - [ ] **Metrics & profiling** — profiler and stats structs exist, need server loop integration
 - [ ] **Storage abstraction** — KV interface exists, needs persistence backend
-- [ ] **Natural mob spawning** — spawn rules (light level, biome, spawn limits)
 
 ---
 
