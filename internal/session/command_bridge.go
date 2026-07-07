@@ -201,9 +201,108 @@ func (s *ServerControlAdapter) TeleportPlayer(entityID int32, x, y, z float64) e
 	return nil
 }
 
-func (s *ServerControlAdapter) GiveItem(_ int32, _ string, _ int) error {
-	// TODO: implement when inventory system is available
+func (s *ServerControlAdapter) GiveItem(entityID int32, itemName string, count int) error {
+	if s.PM == nil {
+		return fmt.Errorf("no player manager")
+	}
+	if count <= 0 {
+		return fmt.Errorf("count must be positive")
+	}
+	if count > 6400 {
+		return fmt.Errorf("count must be <= 6400")
+	}
+
+	itemID := item.IDByName(itemName)
+	if itemID <= 0 {
+		return fmt.Errorf("unknown item: %s", itemName)
+	}
+	maxStack := item.StackSize(itemID)
+	if maxStack <= 0 {
+		return fmt.Errorf("item cannot be stacked: %s", itemName)
+	}
+
+	op := s.PM.GetByEntityID(entityID)
+	if op == nil || op.Windows == nil {
+		return fmt.Errorf("player not found")
+	}
+
+	inv := op.Windows.Inventory()
+	remaining := int32(count)
+	capacity := int32(0)
+	slots := giveInventorySlots()
+	for _, idx := range slots {
+		slot := inv.Get(idx)
+		switch {
+		case slot.Empty():
+			capacity += maxStack
+		case slot.ItemID == itemID && slot.ItemCount < maxStack:
+			capacity += maxStack - slot.ItemCount
+		}
+		if capacity >= remaining {
+			break
+		}
+	}
+	if capacity < remaining {
+		return fmt.Errorf("not enough inventory space")
+	}
+
+	var changed []int
+	for _, idx := range slots {
+		if remaining <= 0 {
+			break
+		}
+		slot := inv.Get(idx)
+		if slot.Empty() || slot.ItemID != itemID || slot.ItemCount >= maxStack {
+			continue
+		}
+		add := minInt32(remaining, maxStack-slot.ItemCount)
+		slot.ItemCount += add
+		remaining -= add
+		inv.Set(idx, slot)
+		changed = append(changed, idx)
+	}
+	for _, idx := range slots {
+		if remaining <= 0 {
+			break
+		}
+		slot := inv.Get(idx)
+		if !slot.Empty() {
+			continue
+		}
+		add := minInt32(remaining, maxStack)
+		slot = inventory.NewSlot(itemID, add)
+		remaining -= add
+		inv.Set(idx, slot)
+		changed = append(changed, idx)
+	}
+
+	for _, idx := range changed {
+		if err := op.Session.Send(&playpacket.SetPlayerInventorySlot{
+			SlotIdx:  int32(idx),
+			SlotData: inv.Get(idx),
+		}); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func giveInventorySlots() []int {
+	slots := make([]int, 0, inventory.MainInventoryEnd-inventory.MainInventoryStart+1+inventory.HotbarEnd-inventory.HotbarStart+1)
+	for idx := inventory.MainInventoryStart; idx <= inventory.MainInventoryEnd; idx++ {
+		slots = append(slots, idx)
+	}
+	for idx := inventory.HotbarStart; idx <= inventory.HotbarEnd; idx++ {
+		slots = append(slots, idx)
+	}
+	return slots
+}
+
+func minInt32(a, b int32) int32 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (s *ServerControlAdapter) KillEntity(entityID int32) error {

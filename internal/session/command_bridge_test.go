@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/network"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
@@ -83,6 +85,77 @@ func TestServerControlSetDifficultyBroadcasts(t *testing.T) {
 		if diff.DifficultyLevel != 3 || diff.Locked {
 			t.Fatalf("difficulty packet = level %d locked %v, want level 3 unlocked", diff.DifficultyLevel, diff.Locked)
 		}
+	}
+}
+
+func TestServerControlGiveItemStacksAndSyncsSlots(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	windows := inventory.NewWindowManager()
+	itemID := item.IDByName("minecraft:stone")
+	windows.Inventory().Set(inventory.MainInventoryStart, inventory.NewSlot(itemID, 63))
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		Windows:  windows,
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	if err := control.GiveItem(7, "minecraft:stone", 3); err != nil {
+		t.Fatalf("give item failed: %v", err)
+	}
+
+	first := windows.Inventory().Get(inventory.MainInventoryStart)
+	second := windows.Inventory().Get(inventory.MainInventoryStart + 1)
+	if first.ItemID != itemID || first.ItemCount != 64 {
+		t.Fatalf("first stack = id %d count %d, want stone x64", first.ItemID, first.ItemCount)
+	}
+	if second.ItemID != itemID || second.ItemCount != 2 {
+		t.Fatalf("second stack = id %d count %d, want stone x2", second.ItemID, second.ItemCount)
+	}
+
+	packets := session.packets()
+	if len(packets) != 2 {
+		t.Fatalf("packet count = %d, want 2", len(packets))
+	}
+	for index, packet := range packets {
+		slotPacket, ok := packet.(*playpacket.SetPlayerInventorySlot)
+		if !ok {
+			t.Fatalf("packet %d type = %T, want *play.SetPlayerInventorySlot", index, packet)
+		}
+		wantSlot := int32(inventory.MainInventoryStart + index)
+		if slotPacket.SlotIdx != wantSlot {
+			t.Fatalf("packet %d slot = %d, want %d", index, slotPacket.SlotIdx, wantSlot)
+		}
+	}
+}
+
+func TestServerControlGiveItemRejectsWhenInventoryIsFull(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	windows := inventory.NewWindowManager()
+	stoneID := item.IDByName("minecraft:stone")
+	for _, idx := range giveInventorySlots() {
+		windows.Inventory().Set(idx, inventory.NewSlot(stoneID, item.StackSize(stoneID)))
+	}
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		Windows:  windows,
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	if err := control.GiveItem(7, "minecraft:dirt", 1); err == nil {
+		t.Fatal("expected full inventory error")
+	}
+	if got := len(session.packets()); got != 0 {
+		t.Fatalf("packet count = %d, want 0", got)
 	}
 }
 
