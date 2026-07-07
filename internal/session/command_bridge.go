@@ -682,8 +682,22 @@ func (s *ServerControlAdapter) SetDefaultGameMode(mode int32) error {
 	if mode < 0 || mode > 3 {
 		return fmt.Errorf("invalid game mode: %d", mode)
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.DefaultGM = mode
 	return nil
+}
+
+func (s *ServerControlAdapter) GetDefaultGameMode() int32 {
+	if s == nil {
+		return 0
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.DefaultGM < 0 || s.DefaultGM > 3 {
+		return 0
+	}
+	return s.DefaultGM
 }
 
 func (s *ServerControlAdapter) SetWorldSpawn(x, y, z int) error {

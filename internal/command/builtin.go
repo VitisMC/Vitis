@@ -61,6 +61,8 @@ type ServerControl interface {
 	SetGameRule(name, value string) error
 	// SetDefaultGameMode sets the default game mode for new players.
 	SetDefaultGameMode(mode int32) error
+	// GetDefaultGameMode returns the default game mode for new players.
+	GetDefaultGameMode() int32
 	// SetWorldSpawn sets the world spawn position.
 	SetWorldSpawn(x, y, z int) error
 	// SetSpawnPoint sets a player's individual spawn point.

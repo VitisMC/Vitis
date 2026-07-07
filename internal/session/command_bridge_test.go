@@ -288,6 +288,26 @@ func TestServerControlGameRulesRejectWrongValueTypes(t *testing.T) {
 	}
 }
 
+func TestServerControlDefaultGameModeStoresRuntimeValue(t *testing.T) {
+	control := NewServerControl(nil, nil, nil).(*ServerControlAdapter)
+
+	if got := control.GetDefaultGameMode(); got != 0 {
+		t.Fatalf("default game mode = %d, want 0", got)
+	}
+	if err := control.SetDefaultGameMode(3); err != nil {
+		t.Fatalf("set default game mode failed: %v", err)
+	}
+	if got := control.GetDefaultGameMode(); got != 3 {
+		t.Fatalf("default game mode = %d, want 3", got)
+	}
+	if err := control.SetDefaultGameMode(4); err == nil {
+		t.Fatal("expected invalid game mode error")
+	}
+	if got := control.GetDefaultGameMode(); got != 3 {
+		t.Fatalf("default game mode after invalid set = %d, want 3", got)
+	}
+}
+
 func TestSendPlayBootstrapSendsDifficulty(t *testing.T) {
 	session := &captureSession{}
 	cfg := DefaultPlayBootstrapConfig()

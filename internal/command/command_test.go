@@ -85,6 +85,7 @@ func (m *mockServer) ClearInventory(_ int32, _ string, _ int) (int, error)   { r
 func (m *mockServer) GetGameRule(_ string) (string, error)                   { return "true", nil }
 func (m *mockServer) SetGameRule(_, _ string) error                          { return nil }
 func (m *mockServer) SetDefaultGameMode(_ int32) error                       { return nil }
+func (m *mockServer) GetDefaultGameMode() int32                              { return 0 }
 func (m *mockServer) SetWorldSpawn(_, _, _ int) error                        { return nil }
 func (m *mockServer) SetSpawnPoint(_ int32, _, _, _ int) error               { return nil }
 func (m *mockServer) SendTitle(_ int32, _, _ string, _, _, _ int) error      { return nil }

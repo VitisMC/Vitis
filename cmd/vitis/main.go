@@ -195,6 +195,9 @@ func run() int {
 	serverControl := session.NewServerControl(playerManager, func() {
 		shutdownSignal <- syscall.SIGTERM
 	}, opList)
+	if err := serverControl.SetDefaultGameMode(playBootstrapCfg.GameMode); err != nil {
+		logger.Warn("failed to initialize default game mode", "error", err)
+	}
 	playerLookup := session.NewPlayerLookup(playerManager, opList)
 	command.RegisterBuiltinCommands(cmdRegistry, playerLookup, serverControl)
 	command.RegisterMultiplayerCommands(cmdRegistry, nil, nil, nil)
@@ -296,6 +299,7 @@ func run() int {
 		entityID := entityIDCounter.Add(1)
 		cfg := playBootstrapCfg
 		cfg.Difficulty = serverControl.GetDifficulty()
+		cfg.GameMode = serverControl.GetDefaultGameMode()
 		cfg.PlayerUUID = uuid
 		cfg.PlayerName = username
 
