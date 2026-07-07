@@ -89,6 +89,70 @@ func TestServerControlSetDifficultyBroadcasts(t *testing.T) {
 	}
 }
 
+func TestServerControlSetGameModeSyncsPackets(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		GameMode: 0,
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	if err := control.SetGameMode(7, 1); err != nil {
+		t.Fatalf("set game mode failed: %v", err)
+	}
+	if got := pm.players[uuid].GameMode; got != 1 {
+		t.Fatalf("game mode = %d, want 1", got)
+	}
+
+	packets := session.packets()
+	if len(packets) != 2 {
+		t.Fatalf("packet count = %d, want 2", len(packets))
+	}
+	event, ok := packets[0].(*playpacket.GameEvent)
+	if !ok {
+		t.Fatalf("packet 0 type = %T, want *play.GameEvent", packets[0])
+	}
+	if event.Event != 3 || event.Value != 1 {
+		t.Fatalf("game event = event %d value %.1f, want event 3 value 1.0", event.Event, event.Value)
+	}
+	abilities, ok := packets[1].(*playpacket.PlayerAbilitiesClientbound)
+	if !ok {
+		t.Fatalf("packet 1 type = %T, want *play.PlayerAbilitiesClientbound", packets[1])
+	}
+	if abilities.Flags&playpacket.AbilityAllowFlying == 0 {
+		t.Fatalf("creative abilities flags = %08b, want allow flying", abilities.Flags)
+	}
+}
+
+func TestServerControlSetGameModeRejectsInvalidMode(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		GameMode: 0,
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	if err := control.SetGameMode(7, 4); err == nil {
+		t.Fatal("expected invalid game mode error")
+	}
+	if got := pm.players[uuid].GameMode; got != 0 {
+		t.Fatalf("game mode = %d, want unchanged 0", got)
+	}
+	if got := len(session.packets()); got != 0 {
+		t.Fatalf("packet count = %d, want 0", got)
+	}
+}
+
 func TestServerControlGiveItemStacksAndSyncsSlots(t *testing.T) {
 	pm := NewPlayerManager()
 	session := &captureSession{}

@@ -151,30 +151,37 @@ func (s *ServerControlAdapter) SetWeather(w string, duration int) {
 }
 
 func (s *ServerControlAdapter) SetGameMode(entityID int32, mode int32) error {
+	if !isValidGameMode(mode) {
+		return fmt.Errorf("invalid game mode: %d", mode)
+	}
 	if s.PM == nil {
 		return nil
 	}
-	s.PM.mu.RLock()
-	defer s.PM.mu.RUnlock()
 
-	for _, p := range s.PM.players {
-		if p.EntityID == entityID {
-			p.GameMode = mode
-			_ = p.Session.Send(&playpacket.GameEvent{
-				Event: 3,
-				Value: float32(mode),
-			})
-			if player, ok := p.Session.Player().(*entity.Player); ok && player != nil {
-				player.Living().SetGameMode(mode)
-			}
-			switch mode {
-			case 1:
-				_ = p.Session.Send(playpacket.CreativeAbilities())
-			default:
-				_ = p.Session.Send(playpacket.SurvivalAbilities())
-			}
-			return nil
+	p := s.PM.GetByEntityID(entityID)
+	if p == nil {
+		return nil
+	}
+
+	if err := p.Session.Send(&playpacket.GameEvent{
+		Event: 3,
+		Value: float32(mode),
+	}); err != nil {
+		return err
+	}
+	switch mode {
+	case 1:
+		if err := p.Session.Send(playpacket.CreativeAbilities()); err != nil {
+			return err
 		}
+	default:
+		if err := p.Session.Send(playpacket.SurvivalAbilities()); err != nil {
+			return err
+		}
+	}
+	p.GameMode = mode
+	if player, ok := p.Session.Player().(*entity.Player); ok && player != nil {
+		player.Living().SetGameMode(mode)
 	}
 	return nil
 }
