@@ -451,7 +451,10 @@ func (s *ServerControlAdapter) EnchantItem(entityID int32, enchantName string, l
 	}
 	held.SetEnchant(info.ID, int32(level))
 	op.Windows.Inventory().Set(heldIdx, held)
-	return nil
+	return op.Session.Send(&playpacket.SetPlayerInventorySlot{
+		SlotIdx:  int32(heldIdx),
+		SlotData: held,
+	})
 }
 
 func (s *ServerControlAdapter) SetBlockAt(x, y, z int, blockName string) (int32, error) {

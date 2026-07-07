@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	enchdata "github.com/vitismc/vitis/internal/data/generated/enchantment"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/network"
@@ -156,6 +157,50 @@ func TestServerControlGiveItemRejectsWhenInventoryIsFull(t *testing.T) {
 	}
 	if got := len(session.packets()); got != 0 {
 		t.Fatalf("packet count = %d, want 0", got)
+	}
+}
+
+func TestServerControlEnchantItemSyncsHeldSlot(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	windows := inventory.NewWindowManager()
+	windows.SetHeldSlot(2)
+	swordID := item.IDByName("minecraft:diamond_sword")
+	heldIdx := inventory.HotbarStart + 2
+	windows.Inventory().Set(heldIdx, inventory.NewSlot(swordID, 1))
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		Windows:  windows,
+	}
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	if err := control.EnchantItem(7, "minecraft:sharpness", 3); err != nil {
+		t.Fatalf("enchant item failed: %v", err)
+	}
+
+	sharpnessID := enchdata.EnchantmentIDByName("minecraft:sharpness")
+	held := windows.Inventory().Get(heldIdx)
+	if got := held.EnchantLevel(sharpnessID); got != 3 {
+		t.Fatalf("sharpness level = %d, want 3", got)
+	}
+
+	packets := session.packets()
+	if len(packets) != 1 {
+		t.Fatalf("packet count = %d, want 1", len(packets))
+	}
+	slotPacket, ok := packets[0].(*playpacket.SetPlayerInventorySlot)
+	if !ok {
+		t.Fatalf("packet type = %T, want *play.SetPlayerInventorySlot", packets[0])
+	}
+	if slotPacket.SlotIdx != int32(heldIdx) {
+		t.Fatalf("slot index = %d, want %d", slotPacket.SlotIdx, heldIdx)
+	}
+	if got := slotPacket.SlotData.EnchantLevel(sharpnessID); got != 3 {
+		t.Fatalf("synced sharpness level = %d, want 3", got)
 	}
 }
 
