@@ -1660,6 +1660,7 @@ func handleOpenFurnace(s Session, pm *PlayerManager, wa WorldAccessor, furnaceTy
 
 func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) error {
 	dimType := dimensionTypeID(cfg.RegistryManager, "minecraft:overworld")
+	spawnX, spawnY, spawnZ := respawnPosition(s, cfg, pm)
 
 	respawnPkt := &playpacket.Respawn{
 		DimensionType:    dimType,
@@ -1681,15 +1682,15 @@ func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) error 
 	teleportID := nextTeleportID()
 	if err := s.Send(&playpacket.SyncPlayerPosition{
 		TeleportID: teleportID,
-		X:          cfg.SpawnX,
-		Y:          cfg.SpawnY,
-		Z:          cfg.SpawnZ,
+		X:          spawnX,
+		Y:          spawnY,
+		Z:          spawnZ,
 	}); err != nil {
 		return err
 	}
 
-	chunkX := int32(cfg.SpawnX) >> 4
-	chunkZ := int32(cfg.SpawnZ) >> 4
+	chunkX := int32(spawnX) >> 4
+	chunkZ := int32(spawnZ) >> 4
 	if err := s.Send(&playpacket.SetCenterChunk{ChunkX: chunkX, ChunkZ: chunkZ}); err != nil {
 		return err
 	}
@@ -1700,17 +1701,26 @@ func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) error 
 
 	if pm != nil {
 		if op := pm.GetBySession(s); op != nil {
-			op.X, op.Y, op.Z = cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ
+			op.X, op.Y, op.Z = spawnX, spawnY, spawnZ
 		}
 	}
 
 	if p, ok := s.Player().(*entity.Player); ok && p != nil {
 		p.Living().Respawn()
-		p.SetPosition(entity.Vec3{X: cfg.SpawnX, Y: cfg.SpawnY, Z: cfg.SpawnZ})
+		p.SetPosition(entity.Vec3{X: spawnX, Y: spawnY, Z: spawnZ})
 	}
 
-	logger.Debug("respawned", "session", s.ID(), "x", cfg.SpawnX, "y", cfg.SpawnY, "z", cfg.SpawnZ)
+	logger.Debug("respawned", "session", s.ID(), "x", spawnX, "y", spawnY, "z", spawnZ)
 	return nil
+}
+
+func respawnPosition(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) (float64, float64, float64) {
+	if pm != nil {
+		if op := pm.GetBySession(s); op != nil && op.HasSpawnPoint {
+			return float64(op.SpawnX) + 0.5, float64(op.SpawnY), float64(op.SpawnZ) + 0.5
+		}
+	}
+	return cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ
 }
 
 func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {

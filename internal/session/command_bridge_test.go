@@ -341,6 +341,72 @@ func TestServerControlWorldSpawnStoresAndBroadcastsRuntimeValue(t *testing.T) {
 	}
 }
 
+func TestServerControlSetSpawnPointStoresPlayerState(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	uuid := protocol.OfflinePlayerUUID("player")
+	op := &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+	}
+	pm.players[uuid] = op
+
+	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	if err := control.SetSpawnPoint(7, -12, 70, 30); err != nil {
+		t.Fatalf("set spawn point failed: %v", err)
+	}
+	if !op.HasSpawnPoint || op.SpawnX != -12 || op.SpawnY != 70 || op.SpawnZ != 30 {
+		t.Fatalf("spawn point = has=%v %d %d %d, want true -12 70 30", op.HasSpawnPoint, op.SpawnX, op.SpawnY, op.SpawnZ)
+	}
+
+	packets := session.packets()
+	if len(packets) != 1 {
+		t.Fatalf("packet count = %d, want 1", len(packets))
+	}
+	spawnPacket, ok := packets[0].(*playpacket.SetDefaultSpawnPosition)
+	if !ok {
+		t.Fatalf("packet type = %T, want *play.SetDefaultSpawnPosition", packets[0])
+	}
+	if spawnPacket.X != -12 || spawnPacket.Y != 70 || spawnPacket.Z != 30 {
+		t.Fatalf("spawn packet = %d %d %d, want -12 70 30", spawnPacket.X, spawnPacket.Y, spawnPacket.Z)
+	}
+}
+
+func TestHandleRespawnUsesPlayerSpawnPoint(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:       session,
+		EntityID:      7,
+		UUID:          uuid,
+		Name:          "player",
+		SpawnX:        10,
+		SpawnY:        72,
+		SpawnZ:        -4,
+		HasSpawnPoint: true,
+	}
+	cfg := DefaultPlayBootstrapConfig()
+
+	if err := handleRespawn(session, cfg, pm); err != nil {
+		t.Fatalf("handle respawn failed: %v", err)
+	}
+
+	for _, packet := range session.packets() {
+		sync, ok := packet.(*playpacket.SyncPlayerPosition)
+		if !ok {
+			continue
+		}
+		if sync.X != 10.5 || sync.Y != 72 || sync.Z != -3.5 {
+			t.Fatalf("respawn position = %.1f %.1f %.1f, want 10.5 72.0 -3.5", sync.X, sync.Y, sync.Z)
+		}
+		return
+	}
+	t.Fatal("sync player position packet was not sent")
+}
+
 func TestSendPlayBootstrapSendsDifficulty(t *testing.T) {
 	session := &captureSession{}
 	cfg := DefaultPlayBootstrapConfig()

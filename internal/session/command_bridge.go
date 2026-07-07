@@ -729,10 +729,11 @@ func (s *ServerControlAdapter) SetSpawnPoint(entityID int32, x, y, z int) error 
 	if op == nil {
 		return fmt.Errorf("player not found")
 	}
-	_ = op.Session.Send(&playpacket.SetDefaultSpawnPosition{
+	op.SpawnX, op.SpawnY, op.SpawnZ = x, y, z
+	op.HasSpawnPoint = true
+	return op.Session.Send(&playpacket.SetDefaultSpawnPosition{
 		X: int32(x), Y: int32(y), Z: int32(z),
 	})
-	return nil
 }
 
 func (s *ServerControlAdapter) SendTitle(entityID int32, title, subtitle string, fadeIn, stay, fadeOut int) error {
