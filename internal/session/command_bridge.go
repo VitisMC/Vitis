@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/chat"
@@ -82,6 +83,7 @@ type MobSpawner interface {
 
 // ServerControlAdapter adapts session-layer components to the command.ServerControl interface.
 type ServerControlAdapter struct {
+	mu                     sync.RWMutex
 	PM                     *PlayerManager
 	OpList                 *operator.List
 	StopFunc               func()
@@ -92,15 +94,18 @@ type ServerControlAdapter struct {
 	MobSpawn               MobSpawner
 	GameRules              map[string]string
 	DefaultGM              int32
+	Difficulty             int
+	DifficultyLocked       bool
 	SpawnX, SpawnY, SpawnZ int
 }
 
 // NewServerControl creates a command.ServerControl backed by session-layer components.
 func NewServerControl(pm *PlayerManager, stopFunc func(), opList *operator.List) command.ServerControl {
 	return &ServerControlAdapter{
-		PM:       pm,
-		OpList:   opList,
-		StopFunc: stopFunc,
+		PM:         pm,
+		OpList:     opList,
+		StopFunc:   stopFunc,
+		Difficulty: 2,
 	}
 }
 
@@ -228,9 +233,35 @@ func (s *ServerControlAdapter) KillEntity(entityID int32) error {
 	return nil
 }
 
-func (s *ServerControlAdapter) SetDifficulty(_ int) error {
-	// TODO: broadcast difficulty change packet
+func (s *ServerControlAdapter) SetDifficulty(difficulty int) error {
+	if difficulty < 0 || difficulty > 3 {
+		return fmt.Errorf("difficulty must be between 0 and 3, got %d", difficulty)
+	}
+
+	s.mu.Lock()
+	s.Difficulty = difficulty
+	locked := s.DifficultyLocked
+	s.mu.Unlock()
+
+	if s.PM != nil {
+		s.PM.Broadcast(&playpacket.Difficulty{
+			DifficultyLevel: byte(difficulty),
+			Locked:          locked,
+		})
+	}
 	return nil
+}
+
+func (s *ServerControlAdapter) GetDifficulty() int {
+	if s == nil {
+		return 2
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.Difficulty < 0 || s.Difficulty > 3 {
+		return 2
+	}
+	return s.Difficulty
 }
 
 func (s *ServerControlAdapter) SetOp(name string, level int) error {

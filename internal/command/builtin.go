@@ -37,6 +37,8 @@ type ServerControl interface {
 	KillEntity(entityID int32) error
 	// SetDifficulty sets the server difficulty. 0=peaceful, 1=easy, 2=normal, 3=hard
 	SetDifficulty(difficulty int) error
+	// GetDifficulty returns the current server difficulty. 0=peaceful, 1=easy, 2=normal, 3=hard
+	GetDifficulty() int
 	// SetOp sets an operator level for a player.
 	SetOp(name string, level int) error
 	// RemoveOp removes operator status from a player.
@@ -628,8 +630,8 @@ func cmdDifficulty(server ServerControl) *Command {
 
 	return &Command{
 		Name:            "difficulty",
-		Description:     "Sets the game difficulty",
-		Usage:           "/difficulty <peaceful|easy|normal|hard>",
+		Description:     "Queries or sets the game difficulty",
+		Usage:           "/difficulty [peaceful|easy|normal|hard]",
 		PermissionLevel: 2,
 		Children: []*CommandNode{
 			LiteralNode("peaceful").Executable(),
@@ -639,7 +641,12 @@ func cmdDifficulty(server ServerControl) *Command {
 		},
 		Execute: func(ctx *Context) error {
 			if ctx.ArgCount() < 1 {
-				ctx.Reply("§7Usage: /difficulty <peaceful|easy|normal|hard>")
+				current := server.GetDifficulty()
+				if current < 0 || current >= len(diffNames) {
+					ctx.ReplyError("Invalid current difficulty: %d", current)
+					return nil
+				}
+				ctx.Reply("§aDifficulty is %s", diffNames[current])
 				return nil
 			}
 			diffStr := strings.ToLower(ctx.Arg(0))

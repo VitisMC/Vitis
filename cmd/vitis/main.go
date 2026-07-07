@@ -295,6 +295,7 @@ func run() int {
 
 		entityID := entityIDCounter.Add(1)
 		cfg := playBootstrapCfg
+		cfg.Difficulty = serverControl.GetDifficulty()
 		cfg.PlayerUUID = uuid
 		cfg.PlayerName = username
 

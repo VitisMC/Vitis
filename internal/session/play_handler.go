@@ -96,6 +96,8 @@ type PlayBootstrapConfig struct {
 	SpawnY             float64
 	SpawnZ             float64
 	GameMode           int32
+	Difficulty         int
+	DifficultyLocked   bool
 	RegistryManager    *registry.Manager
 	CommandRegistry    *command.Registry
 	OperatorList       *operator.List
@@ -132,6 +134,7 @@ func DefaultPlayBootstrapConfig() PlayBootstrapConfig {
 		SpawnX:             0.5,
 		SpawnY:             65.0,
 		SpawnZ:             0.5,
+		Difficulty:         2,
 	}
 }
 
@@ -1272,6 +1275,17 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		return err
 	}
 	logger.Debug("sent login_play", "session", s.ID(), "entity_id", entityID)
+
+	difficulty := cfg.Difficulty
+	if difficulty < 0 || difficulty > 3 {
+		difficulty = 2
+	}
+	if err := s.Send(&playpacket.Difficulty{
+		DifficultyLevel: byte(difficulty),
+		Locked:          cfg.DifficultyLocked,
+	}); err != nil {
+		return err
+	}
 
 	if cfg.PlayerName != "" {
 		playerInfo := &playpacket.PlayerInfoUpdate{

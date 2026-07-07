@@ -54,8 +54,9 @@ type mockServer struct {
 
 func newMockServer() *mockServer {
 	return &mockServer{
-		seed: 42,
-		ops:  make(map[string]int),
+		seed:       42,
+		difficulty: 2,
+		ops:        make(map[string]int),
 	}
 }
 
@@ -69,6 +70,7 @@ func (m *mockServer) TeleportPlayer(_ int32, _, _, _ float64) error { return nil
 func (m *mockServer) GiveItem(_ int32, _ string, _ int) error       { return nil }
 func (m *mockServer) KillEntity(_ int32) error                      { return nil }
 func (m *mockServer) SetDifficulty(d int) error                     { m.difficulty = d; return nil }
+func (m *mockServer) GetDifficulty() int                            { return m.difficulty }
 func (m *mockServer) SetOp(name string, level int) error            { m.ops[name] = level; return nil }
 func (m *mockServer) RemoveOp(name string) error                    { delete(m.ops, name); return nil }
 func (m *mockServer) KickPlayer(name string, _ string) error {
@@ -275,6 +277,20 @@ func TestBuiltinDifficulty(t *testing.T) {
 
 	if server.difficulty != 3 {
 		t.Fatalf("expected difficulty 3, got %d", server.difficulty)
+	}
+}
+
+func TestBuiltinDifficultyQuery(t *testing.T) {
+	r := NewRegistry()
+	server := newMockServer()
+	lookup := &mockLookup{players: map[string]*mockSender{}}
+	RegisterBuiltinCommands(r, lookup, server)
+
+	sender := &mockSender{name: "Player", level: 4}
+	r.Dispatch(sender, "difficulty")
+
+	if len(sender.messages) != 1 || !strings.Contains(sender.messages[0], "Normal") {
+		t.Fatalf("difficulty query output incorrect: %v", sender.messages)
 	}
 }
 
