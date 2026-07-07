@@ -1661,12 +1661,13 @@ func handleOpenFurnace(s Session, pm *PlayerManager, wa WorldAccessor, furnaceTy
 func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) error {
 	dimType := dimensionTypeID(cfg.RegistryManager, "minecraft:overworld")
 	spawnX, spawnY, spawnZ := respawnPosition(s, cfg, pm)
+	gameMode := respawnGameMode(s, cfg, pm)
 
 	respawnPkt := &playpacket.Respawn{
 		DimensionType:    dimType,
 		DimensionName:    "minecraft:overworld",
 		HashedSeed:       0,
-		GameMode:         1,
+		GameMode:         byte(gameMode),
 		PreviousGameMode: -1,
 		IsDebug:          false,
 		IsFlat:           false,
@@ -1712,6 +1713,27 @@ func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) error 
 
 	logger.Debug("respawned", "session", s.ID(), "x", spawnX, "y", spawnY, "z", spawnZ)
 	return nil
+}
+
+func respawnGameMode(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) int32 {
+	if pm != nil {
+		if op := pm.GetBySession(s); op != nil && isValidGameMode(op.GameMode) {
+			return op.GameMode
+		}
+	}
+	if p, ok := s.Player().(*entity.Player); ok && p != nil {
+		if mode := p.Living().GameMode(); isValidGameMode(mode) {
+			return mode
+		}
+	}
+	if isValidGameMode(cfg.GameMode) {
+		return cfg.GameMode
+	}
+	return 0
+}
+
+func isValidGameMode(mode int32) bool {
+	return mode >= 0 && mode <= 3
 }
 
 func respawnPosition(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) (float64, float64, float64) {

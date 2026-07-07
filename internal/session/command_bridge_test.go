@@ -407,6 +407,37 @@ func TestHandleRespawnUsesPlayerSpawnPoint(t *testing.T) {
 	t.Fatal("sync player position packet was not sent")
 }
 
+func TestHandleRespawnKeepsPlayerGameMode(t *testing.T) {
+	pm := NewPlayerManager()
+	session := &captureSession{}
+	uuid := protocol.OfflinePlayerUUID("player")
+	pm.players[uuid] = &OnlinePlayer{
+		Session:  session,
+		EntityID: 7,
+		UUID:     uuid,
+		Name:     "player",
+		GameMode: 2,
+	}
+	cfg := DefaultPlayBootstrapConfig()
+	cfg.GameMode = 0
+
+	if err := handleRespawn(session, cfg, pm); err != nil {
+		t.Fatalf("handle respawn failed: %v", err)
+	}
+
+	for _, packet := range session.packets() {
+		respawn, ok := packet.(*playpacket.Respawn)
+		if !ok {
+			continue
+		}
+		if respawn.GameMode != 2 {
+			t.Fatalf("respawn game mode = %d, want 2", respawn.GameMode)
+		}
+		return
+	}
+	t.Fatal("respawn packet was not sent")
+}
+
 func TestSendPlayBootstrapSendsDifficulty(t *testing.T) {
 	session := &captureSession{}
 	cfg := DefaultPlayBootstrapConfig()
