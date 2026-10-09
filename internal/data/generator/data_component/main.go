@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,7 +32,11 @@ type componentEntry struct {
 
 func main() {
 	version := flag.String("version", "1.21.4", "Minecraft version")
+	check := flag.Bool("check", false, "Check component resources without modifying files")
 	flag.Parse()
+	if *version != "1.21.4" {
+		panic("component generator supports protocol 769 only")
+	}
 
 	projectRoot := findProjectRoot()
 	inputFile := filepath.Join(projectRoot, ".mcdata", *version, "registries.json")
@@ -114,12 +119,18 @@ func DataComponentNameByID(id int32) string {
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(outputFile, formatted, 0644); err != nil {
+	if *check {
+		existing, err := os.ReadFile(outputFile)
+		if err != nil || !bytes.Equal(existing, formatted) {
+			panic("component registry is stale")
+		}
+	} else if err := os.WriteFile(outputFile, formatted, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "write: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Generated %s (%d data components)\n", outputFile, len(components))
+	generateRuntimeResources(projectRoot, *version, *check)
+	fmt.Printf("Validated %s (%d data components)\n", outputFile, len(components))
 }
 
 func findProjectRoot() string {
@@ -146,4 +157,87 @@ func toConstName(name string) string {
 		}
 	}
 	return strings.Join(parts, "")
+}
+
+// generateRuntimeResources derives immutable codecs and defaults from pinned data.
+func generateRuntimeResources(root, version string, check bool) {
+	data, err := os.ReadFile(filepath.Join(root, ".mcdata", version, "protocol.json"))
+	if err != nil {
+		panic(err)
+	}
+	var source struct {
+		Types map[string]any `json:"types"`
+	}
+	if err := json.Unmarshal(data, &source); err != nil {
+		panic(err)
+	}
+	slot, ok := source.Types["SlotComponent"].([]any)
+	if !ok || len(slot) != 2 {
+		panic("missing component union")
+	}
+	fields := slot[1].([]any)[1].(map[string]any)["type"].([]any)[1].(map[string]any)["fields"].(map[string]any)
+	types := make(map[string]any)
+	visited := make(map[string]bool)
+	var visit func(any)
+	visit = func(value any) {
+		switch v := value.(type) {
+		case string:
+			if visited[v] {
+				return
+			}
+			visited[v] = true
+			if definition, ok := source.Types[v]; ok && definition != "native" {
+				types[v] = definition
+				visit(definition)
+			}
+		case []any:
+			for _, entry := range v {
+				visit(entry)
+			}
+		case map[string]any:
+			for key, entry := range v {
+				switch key {
+				case "type", "fields", "otherwise", "base":
+					visit(entry)
+				default:
+					switch entry.(type) {
+					case map[string]any, []any:
+						visit(entry)
+					}
+				}
+			}
+		}
+	}
+	for _, definition := range fields {
+		visit(definition)
+	}
+	schema, err := json.Marshal(map[string]any{"components": fields, "types": types})
+	if err != nil {
+		panic(err)
+	}
+	items, err := os.ReadFile(filepath.Join(root, ".mcdata", version, "vanilla/reports/items.json"))
+	if err != nil {
+		panic(err)
+	}
+	var defaults any
+	if err := json.Unmarshal(items, &defaults); err != nil {
+		panic(err)
+	}
+	items, err = json.Marshal(defaults)
+	if err != nil {
+		panic(err)
+	}
+	for name, data := range map[string][]byte{"component_schema.json": schema, "item_defaults.json": items} {
+		path := filepath.Join(root, "internal/inventory", name)
+		if check {
+			existing, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(existing, data) {
+				panic("stale resource: " + path)
+			}
+			continue
+		}
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			panic(err)
+		}
+	}
 }

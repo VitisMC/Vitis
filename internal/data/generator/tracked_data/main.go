@@ -135,6 +135,7 @@ func findProjectRoot() string {
 	return wd
 }
 
+// scanEntityClasses retains inheritance links even for classes without own fields.
 func scanEntityClasses(dir string) (map[string]*classInfo, error) {
 	classes := make(map[string]*classInfo)
 
@@ -150,9 +151,7 @@ func scanEntityClasses(dir string) (map[string]*classInfo, error) {
 		if err != nil || ci == nil {
 			return nil
 		}
-		if len(ci.Fields) > 0 {
-			classes[ci.Name] = ci
-		}
+		classes[ci.Name] = ci
 		return nil
 	})
 

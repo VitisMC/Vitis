@@ -12,27 +12,27 @@ type TrackedDataField struct {
 }
 
 var TrackedDataFields = []TrackedDataField{
-	{"AbstractArrow", "ID_FLAGS", "BYTE", 0},
-	{"AbstractArrow", "PIERCE_LEVEL", "BYTE", 1},
-	{"AbstractArrow", "IN_GROUND", "BOOLEAN", 2},
+	{"AbstractArrow", "ID_FLAGS", "BYTE", 8},
+	{"AbstractArrow", "PIERCE_LEVEL", "BYTE", 9},
+	{"AbstractArrow", "IN_GROUND", "BOOLEAN", 10},
 	{"AbstractBoat", "DATA_ID_PADDLE_LEFT", "BOOLEAN", 11},
 	{"AbstractBoat", "DATA_ID_PADDLE_RIGHT", "BOOLEAN", 12},
 	{"AbstractBoat", "DATA_ID_BUBBLE_TIME", "INT", 13},
-	{"AbstractChestedHorse", "DATA_ID_CHEST", "BOOLEAN", 1},
-	{"AbstractFish", "FROM_BUCKET", "BOOLEAN", 0},
-	{"AbstractHorse", "DATA_ID_FLAGS", "BYTE", 0},
+	{"AbstractChestedHorse", "DATA_ID_CHEST", "BOOLEAN", 18},
+	{"AbstractFish", "FROM_BUCKET", "BOOLEAN", 16},
+	{"AbstractHorse", "DATA_ID_FLAGS", "BYTE", 17},
 	{"AbstractMinecart", "DATA_ID_DISPLAY_BLOCK", "INT", 11},
 	{"AbstractMinecart", "DATA_ID_DISPLAY_OFFSET", "INT", 12},
 	{"AbstractMinecart", "DATA_ID_CUSTOM_DISPLAY", "BOOLEAN", 13},
-	{"AbstractPiglin", "DATA_IMMUNE_TO_ZOMBIFICATION", "BOOLEAN", 0},
-	{"AbstractVillager", "DATA_UNHAPPY_COUNTER", "INT", 1},
-	{"AgeableMob", "DATA_BABY_ID", "BOOLEAN", 0},
-	{"Allay", "DATA_DANCING", "BOOLEAN", 0},
-	{"Allay", "DATA_CAN_DUPLICATE", "BOOLEAN", 1},
+	{"AbstractPiglin", "DATA_IMMUNE_TO_ZOMBIFICATION", "BOOLEAN", 16},
+	{"AbstractVillager", "DATA_UNHAPPY_COUNTER", "INT", 17},
+	{"AgeableMob", "DATA_BABY_ID", "BOOLEAN", 16},
+	{"Allay", "DATA_DANCING", "BOOLEAN", 16},
+	{"Allay", "DATA_CAN_DUPLICATE", "BOOLEAN", 17},
 	{"AreaEffectCloud", "DATA_RADIUS", "FLOAT", 8},
 	{"AreaEffectCloud", "DATA_WAITING", "BOOLEAN", 9},
 	{"AreaEffectCloud", "DATA_PARTICLE", "PARTICLE", 10},
-	{"Armadillo", "ARMADILLO_STATE", "ARMADILLO_STATE", 0},
+	{"Armadillo", "ARMADILLO_STATE", "ARMADILLO_STATE", 17},
 	{"ArmorStand", "DATA_CLIENT_FLAGS", "BYTE", 15},
 	{"ArmorStand", "DATA_HEAD_POSE", "ROTATIONS", 16},
 	{"ArmorStand", "DATA_BODY_POSE", "ROTATIONS", 17},
@@ -40,28 +40,28 @@ var TrackedDataFields = []TrackedDataField{
 	{"ArmorStand", "DATA_RIGHT_ARM_POSE", "ROTATIONS", 19},
 	{"ArmorStand", "DATA_LEFT_LEG_POSE", "ROTATIONS", 20},
 	{"ArmorStand", "DATA_RIGHT_LEG_POSE", "ROTATIONS", 21},
-	{"Arrow", "ID_EFFECT_COLOR", "INT", 3},
-	{"Axolotl", "DATA_VARIANT", "INT", 0},
-	{"Axolotl", "DATA_PLAYING_DEAD", "BOOLEAN", 1},
-	{"Axolotl", "FROM_BUCKET", "BOOLEAN", 2},
-	{"Bat", "DATA_ID_FLAGS", "BYTE", 0},
-	{"Bee", "DATA_FLAGS_ID", "BYTE", 0},
-	{"Bee", "DATA_REMAINING_ANGER_TIME", "INT", 1},
-	{"Blaze", "DATA_FLAGS_ID", "BYTE", 0},
-	{"Bogged", "DATA_SHEARED", "BOOLEAN", 0},
-	{"Camel", "DASH", "BOOLEAN", 1},
-	{"Camel", "LAST_POSE_CHANGE_TICK", "LONG", 2},
-	{"Cat", "DATA_VARIANT_ID", "CAT_VARIANT", 2},
-	{"Cat", "IS_LYING", "BOOLEAN", 3},
-	{"Cat", "RELAX_STATE_ONE", "BOOLEAN", 4},
-	{"Cat", "DATA_COLLAR_COLOR", "INT", 5},
-	{"Creaking", "CAN_MOVE", "BOOLEAN", 0},
-	{"Creaking", "IS_ACTIVE", "BOOLEAN", 1},
-	{"Creaking", "IS_TEARING_DOWN", "BOOLEAN", 2},
-	{"Creaking", "HOME_POS", "OPTIONAL_BLOCK_POS", 3},
-	{"Creeper", "DATA_SWELL_DIR", "INT", 0},
-	{"Creeper", "DATA_IS_POWERED", "BOOLEAN", 1},
-	{"Creeper", "DATA_IS_IGNITED", "BOOLEAN", 2},
+	{"Arrow", "ID_EFFECT_COLOR", "INT", 11},
+	{"Axolotl", "DATA_VARIANT", "INT", 17},
+	{"Axolotl", "DATA_PLAYING_DEAD", "BOOLEAN", 18},
+	{"Axolotl", "FROM_BUCKET", "BOOLEAN", 19},
+	{"Bat", "DATA_ID_FLAGS", "BYTE", 16},
+	{"Bee", "DATA_FLAGS_ID", "BYTE", 17},
+	{"Bee", "DATA_REMAINING_ANGER_TIME", "INT", 18},
+	{"Blaze", "DATA_FLAGS_ID", "BYTE", 16},
+	{"Bogged", "DATA_SHEARED", "BOOLEAN", 16},
+	{"Camel", "DASH", "BOOLEAN", 18},
+	{"Camel", "LAST_POSE_CHANGE_TICK", "LONG", 19},
+	{"Cat", "DATA_VARIANT_ID", "CAT_VARIANT", 19},
+	{"Cat", "IS_LYING", "BOOLEAN", 20},
+	{"Cat", "RELAX_STATE_ONE", "BOOLEAN", 21},
+	{"Cat", "DATA_COLLAR_COLOR", "INT", 22},
+	{"Creaking", "CAN_MOVE", "BOOLEAN", 16},
+	{"Creaking", "IS_ACTIVE", "BOOLEAN", 17},
+	{"Creaking", "IS_TEARING_DOWN", "BOOLEAN", 18},
+	{"Creaking", "HOME_POS", "OPTIONAL_BLOCK_POS", 19},
+	{"Creeper", "DATA_SWELL_DIR", "INT", 16},
+	{"Creeper", "DATA_IS_POWERED", "BOOLEAN", 17},
+	{"Creeper", "DATA_IS_IGNITED", "BOOLEAN", 18},
 	{"Display", "DATA_TRANSFORMATION_INTERPOLATION_START_DELTA_TICKS_ID", "INT", 8},
 	{"Display", "DATA_TRANSFORMATION_INTERPOLATION_DURATION_ID", "INT", 9},
 	{"Display", "DATA_POS_ROT_INTERPOLATION_DURATION_ID", "INT", 10},
@@ -85,15 +85,15 @@ var TrackedDataFields = []TrackedDataField{
 	{"Display", "DATA_BACKGROUND_COLOR_ID", "INT", 28},
 	{"Display", "DATA_TEXT_OPACITY_ID", "BYTE", 29},
 	{"Display", "DATA_STYLE_FLAGS_ID", "BYTE", 30},
-	{"Dolphin", "TREASURE_POS", "BLOCK_POS", 0},
-	{"Dolphin", "GOT_FISH", "BOOLEAN", 1},
-	{"Dolphin", "MOISTNESS_LEVEL", "INT", 2},
+	{"Dolphin", "TREASURE_POS", "BLOCK_POS", 17},
+	{"Dolphin", "GOT_FISH", "BOOLEAN", 18},
+	{"Dolphin", "MOISTNESS_LEVEL", "INT", 19},
 	{"EndCrystal", "DATA_BEAM_TARGET", "OPTIONAL_BLOCK_POS", 8},
 	{"EndCrystal", "DATA_SHOW_BOTTOM", "BOOLEAN", 9},
 	{"EnderDragon", "DATA_PHASE", "INT", 16},
-	{"EnderMan", "DATA_CARRY_STATE", "OPTIONAL_BLOCK_STATE", 0},
-	{"EnderMan", "DATA_CREEPY", "BOOLEAN", 1},
-	{"EnderMan", "DATA_STARED_AT", "BOOLEAN", 2},
+	{"EnderMan", "DATA_CARRY_STATE", "OPTIONAL_BLOCK_STATE", 16},
+	{"EnderMan", "DATA_CREEPY", "BOOLEAN", 17},
+	{"EnderMan", "DATA_STARED_AT", "BOOLEAN", 18},
 	{"Entity", "DATA_SHARED_FLAGS_ID", "BYTE", 0},
 	{"Entity", "DATA_AIR_SUPPLY_ID", "INT", 1},
 	{"Entity", "DATA_CUSTOM_NAME", "OPTIONAL_COMPONENT", 2},
@@ -104,34 +104,34 @@ var TrackedDataFields = []TrackedDataField{
 	{"Entity", "DATA_TICKS_FROZEN", "INT", 7},
 	{"EyeOfEnder", "DATA_ITEM_STACK", "ITEM_STACK", 8},
 	{"FallingBlockEntity", "DATA_START_POS", "BLOCK_POS", 8},
-	{"Fireball", "DATA_ITEM_STACK", "ITEM_STACK", 0},
-	{"FireworkRocketEntity", "DATA_ID_FIREWORKS_ITEM", "ITEM_STACK", 0},
-	{"FireworkRocketEntity", "DATA_ATTACHED_TO_TARGET", "OPTIONAL_UNSIGNED_INT", 1},
-	{"FireworkRocketEntity", "DATA_SHOT_AT_ANGLE", "BOOLEAN", 2},
-	{"FishingHook", "DATA_HOOKED_ENTITY", "INT", 0},
-	{"FishingHook", "DATA_BITING", "BOOLEAN", 1},
-	{"Fox", "DATA_TYPE_ID", "INT", 0},
-	{"Fox", "DATA_FLAGS_ID", "BYTE", 1},
-	{"Fox", "DATA_TRUSTED_ID_0", "OPTIONAL_UUID", 2},
-	{"Fox", "DATA_TRUSTED_ID_1", "OPTIONAL_UUID", 3},
-	{"Frog", "DATA_VARIANT_ID", "FROG_VARIANT", 0},
-	{"Frog", "DATA_TONGUE_TARGET_ID", "OPTIONAL_UNSIGNED_INT", 1},
-	{"Ghast", "DATA_IS_CHARGING", "BOOLEAN", 0},
-	{"GlowSquid", "DATA_DARK_TICKS_REMAINING", "INT", 0},
-	{"Goat", "DATA_IS_SCREAMING_GOAT", "BOOLEAN", 0},
-	{"Goat", "DATA_HAS_LEFT_HORN", "BOOLEAN", 1},
-	{"Goat", "DATA_HAS_RIGHT_HORN", "BOOLEAN", 2},
-	{"Guardian", "DATA_ID_MOVING", "BOOLEAN", 0},
-	{"Guardian", "DATA_ID_ATTACK_TARGET", "INT", 1},
-	{"Hoglin", "DATA_IMMUNE_TO_ZOMBIFICATION", "BOOLEAN", 0},
-	{"Horse", "DATA_ID_TYPE_VARIANT", "INT", 1},
+	{"Fireball", "DATA_ITEM_STACK", "ITEM_STACK", 8},
+	{"FireworkRocketEntity", "DATA_ID_FIREWORKS_ITEM", "ITEM_STACK", 8},
+	{"FireworkRocketEntity", "DATA_ATTACHED_TO_TARGET", "OPTIONAL_UNSIGNED_INT", 9},
+	{"FireworkRocketEntity", "DATA_SHOT_AT_ANGLE", "BOOLEAN", 10},
+	{"FishingHook", "DATA_HOOKED_ENTITY", "INT", 8},
+	{"FishingHook", "DATA_BITING", "BOOLEAN", 9},
+	{"Fox", "DATA_TYPE_ID", "INT", 17},
+	{"Fox", "DATA_FLAGS_ID", "BYTE", 18},
+	{"Fox", "DATA_TRUSTED_ID_0", "OPTIONAL_UUID", 19},
+	{"Fox", "DATA_TRUSTED_ID_1", "OPTIONAL_UUID", 20},
+	{"Frog", "DATA_VARIANT_ID", "FROG_VARIANT", 17},
+	{"Frog", "DATA_TONGUE_TARGET_ID", "OPTIONAL_UNSIGNED_INT", 18},
+	{"Ghast", "DATA_IS_CHARGING", "BOOLEAN", 16},
+	{"GlowSquid", "DATA_DARK_TICKS_REMAINING", "INT", 17},
+	{"Goat", "DATA_IS_SCREAMING_GOAT", "BOOLEAN", 17},
+	{"Goat", "DATA_HAS_LEFT_HORN", "BOOLEAN", 18},
+	{"Goat", "DATA_HAS_RIGHT_HORN", "BOOLEAN", 19},
+	{"Guardian", "DATA_ID_MOVING", "BOOLEAN", 16},
+	{"Guardian", "DATA_ID_ATTACK_TARGET", "INT", 17},
+	{"Hoglin", "DATA_IMMUNE_TO_ZOMBIFICATION", "BOOLEAN", 17},
+	{"Horse", "DATA_ID_TYPE_VARIANT", "INT", 18},
 	{"Interaction", "DATA_WIDTH_ID", "FLOAT", 8},
 	{"Interaction", "DATA_HEIGHT_ID", "FLOAT", 9},
 	{"Interaction", "DATA_RESPONSE_ID", "BOOLEAN", 10},
-	{"IronGolem", "DATA_FLAGS_ID", "BYTE", 0},
+	{"IronGolem", "DATA_FLAGS_ID", "BYTE", 16},
 	{"ItemEntity", "DATA_ITEM", "ITEM_STACK", 8},
-	{"ItemFrame", "DATA_ITEM", "ITEM_STACK", 0},
-	{"ItemFrame", "DATA_ROTATION", "INT", 1},
+	{"ItemFrame", "DATA_ITEM", "ITEM_STACK", 8},
+	{"ItemFrame", "DATA_ROTATION", "INT", 9},
 	{"LivingEntity", "DATA_LIVING_ENTITY_FLAGS", "BYTE", 8},
 	{"LivingEntity", "DATA_HEALTH_ID", "FLOAT", 9},
 	{"LivingEntity", "DATA_EFFECT_PARTICLES", "PARTICLES", 10},
@@ -139,100 +139,100 @@ var TrackedDataFields = []TrackedDataField{
 	{"LivingEntity", "DATA_ARROW_COUNT_ID", "INT", 12},
 	{"LivingEntity", "DATA_STINGER_COUNT_ID", "INT", 13},
 	{"LivingEntity", "SLEEPING_POS_ID", "OPTIONAL_BLOCK_POS", 14},
-	{"Llama", "DATA_STRENGTH_ID", "INT", 2},
-	{"Llama", "DATA_VARIANT_ID", "INT", 3},
+	{"Llama", "DATA_STRENGTH_ID", "INT", 19},
+	{"Llama", "DATA_VARIANT_ID", "INT", 20},
 	{"MinecartCommandBlock", "DATA_ID_COMMAND_NAME", "STRING", 14},
 	{"MinecartCommandBlock", "DATA_ID_LAST_OUTPUT", "COMPONENT", 15},
 	{"MinecartFurnace", "DATA_ID_FUEL", "BOOLEAN", 14},
 	{"Mob", "DATA_MOB_FLAGS_ID", "BYTE", 15},
-	{"MushroomCow", "DATA_TYPE", "STRING", 0},
-	{"Ocelot", "DATA_TRUSTING", "BOOLEAN", 0},
+	{"MushroomCow", "DATA_TYPE", "STRING", 17},
+	{"Ocelot", "DATA_TRUSTING", "BOOLEAN", 17},
 	{"OminousItemSpawner", "DATA_ITEM", "ITEM_STACK", 8},
-	{"Painting", "DATA_PAINTING_VARIANT_ID", "PAINTING_VARIANT", 0},
-	{"Panda", "UNHAPPY_COUNTER", "INT", 0},
-	{"Panda", "SNEEZE_COUNTER", "INT", 1},
-	{"Panda", "EAT_COUNTER", "INT", 2},
-	{"Panda", "MAIN_GENE_ID", "BYTE", 3},
-	{"Panda", "HIDDEN_GENE_ID", "BYTE", 4},
-	{"Panda", "DATA_ID_FLAGS", "BYTE", 5},
-	{"Parrot", "DATA_VARIANT_ID", "INT", 0},
-	{"Phantom", "ID_SIZE", "INT", 0},
-	{"Pig", "DATA_SADDLE_ID", "BOOLEAN", 0},
-	{"Pig", "DATA_BOOST_TIME", "INT", 1},
-	{"Piglin", "DATA_BABY_ID", "BOOLEAN", 1},
-	{"Piglin", "DATA_IS_CHARGING_CROSSBOW", "BOOLEAN", 2},
-	{"Piglin", "DATA_IS_DANCING", "BOOLEAN", 3},
-	{"Pillager", "IS_CHARGING_CROSSBOW", "BOOLEAN", 0},
+	{"Painting", "DATA_PAINTING_VARIANT_ID", "PAINTING_VARIANT", 8},
+	{"Panda", "UNHAPPY_COUNTER", "INT", 17},
+	{"Panda", "SNEEZE_COUNTER", "INT", 18},
+	{"Panda", "EAT_COUNTER", "INT", 19},
+	{"Panda", "MAIN_GENE_ID", "BYTE", 20},
+	{"Panda", "HIDDEN_GENE_ID", "BYTE", 21},
+	{"Panda", "DATA_ID_FLAGS", "BYTE", 22},
+	{"Parrot", "DATA_VARIANT_ID", "INT", 19},
+	{"Phantom", "ID_SIZE", "INT", 16},
+	{"Pig", "DATA_SADDLE_ID", "BOOLEAN", 17},
+	{"Pig", "DATA_BOOST_TIME", "INT", 18},
+	{"Piglin", "DATA_BABY_ID", "BOOLEAN", 17},
+	{"Piglin", "DATA_IS_CHARGING_CROSSBOW", "BOOLEAN", 18},
+	{"Piglin", "DATA_IS_DANCING", "BOOLEAN", 19},
+	{"Pillager", "IS_CHARGING_CROSSBOW", "BOOLEAN", 17},
 	{"Player", "DATA_PLAYER_ABSORPTION_ID", "FLOAT", 15},
 	{"Player", "DATA_SCORE_ID", "INT", 16},
 	{"Player", "DATA_PLAYER_MODE_CUSTOMISATION", "BYTE", 17},
 	{"Player", "DATA_PLAYER_MAIN_HAND", "BYTE", 18},
 	{"Player", "DATA_SHOULDER_LEFT", "COMPOUND_TAG", 19},
 	{"Player", "DATA_SHOULDER_RIGHT", "COMPOUND_TAG", 20},
-	{"PolarBear", "DATA_STANDING_ID", "BOOLEAN", 0},
+	{"PolarBear", "DATA_STANDING_ID", "BOOLEAN", 17},
 	{"PrimedTnt", "DATA_FUSE_ID", "INT", 8},
 	{"PrimedTnt", "DATA_BLOCK_STATE_ID", "BLOCK_STATE", 9},
-	{"Pufferfish", "PUFF_STATE", "INT", 1},
-	{"Rabbit", "DATA_TYPE_ID", "INT", 0},
-	{"Raider", "IS_CELEBRATING", "BOOLEAN", 0},
-	{"Salmon", "DATA_TYPE", "INT", 0},
-	{"Sheep", "DATA_WOOL_ID", "BYTE", 0},
-	{"Shulker", "DATA_ATTACH_FACE_ID", "DIRECTION", 0},
-	{"Shulker", "DATA_PEEK_ID", "BYTE", 1},
-	{"Shulker", "DATA_COLOR_ID", "BYTE", 2},
-	{"Skeleton", "DATA_STRAY_CONVERSION_ID", "BOOLEAN", 0},
+	{"Pufferfish", "PUFF_STATE", "INT", 17},
+	{"Rabbit", "DATA_TYPE_ID", "INT", 17},
+	{"Raider", "IS_CELEBRATING", "BOOLEAN", 16},
+	{"Salmon", "DATA_TYPE", "INT", 17},
+	{"Sheep", "DATA_WOOL_ID", "BYTE", 17},
+	{"Shulker", "DATA_ATTACH_FACE_ID", "DIRECTION", 16},
+	{"Shulker", "DATA_PEEK_ID", "BYTE", 17},
+	{"Shulker", "DATA_COLOR_ID", "BYTE", 18},
+	{"Skeleton", "DATA_STRAY_CONVERSION_ID", "BOOLEAN", 16},
 	{"Slime", "ID_SIZE", "INT", 16},
-	{"Sniffer", "DATA_STATE", "SNIFFER_STATE", 0},
-	{"Sniffer", "DATA_DROP_SEED_AT_TICK", "INT", 1},
-	{"SnowGolem", "DATA_PUMPKIN_ID", "BYTE", 0},
-	{"SpellcasterIllager", "DATA_SPELL_CASTING_ID", "BYTE", 0},
-	{"Spider", "DATA_FLAGS_ID", "BYTE", 0},
-	{"Strider", "DATA_BOOST_TIME", "INT", 0},
-	{"Strider", "DATA_SUFFOCATING", "BOOLEAN", 1},
-	{"Strider", "DATA_SADDLE_ID", "BOOLEAN", 2},
-	{"TamableAnimal", "DATA_FLAGS_ID", "BYTE", 0},
-	{"TamableAnimal", "DATA_OWNERUUID_ID", "OPTIONAL_UUID", 1},
-	{"ThrowableItemProjectile", "DATA_ITEM_STACK", "ITEM_STACK", 0},
-	{"ThrownTrident", "ID_LOYALTY", "BYTE", 3},
-	{"ThrownTrident", "ID_FOIL", "BOOLEAN", 4},
-	{"TropicalFish", "DATA_ID_TYPE_VARIANT", "INT", 0},
-	{"Turtle", "HOME_POS", "BLOCK_POS", 0},
-	{"Turtle", "HAS_EGG", "BOOLEAN", 1},
-	{"Turtle", "LAYING_EGG", "BOOLEAN", 2},
-	{"Turtle", "TRAVEL_POS", "BLOCK_POS", 3},
-	{"Turtle", "GOING_HOME", "BOOLEAN", 4},
-	{"Turtle", "TRAVELLING", "BOOLEAN", 5},
+	{"Sniffer", "DATA_STATE", "SNIFFER_STATE", 17},
+	{"Sniffer", "DATA_DROP_SEED_AT_TICK", "INT", 18},
+	{"SnowGolem", "DATA_PUMPKIN_ID", "BYTE", 16},
+	{"SpellcasterIllager", "DATA_SPELL_CASTING_ID", "BYTE", 17},
+	{"Spider", "DATA_FLAGS_ID", "BYTE", 16},
+	{"Strider", "DATA_BOOST_TIME", "INT", 17},
+	{"Strider", "DATA_SUFFOCATING", "BOOLEAN", 18},
+	{"Strider", "DATA_SADDLE_ID", "BOOLEAN", 19},
+	{"TamableAnimal", "DATA_FLAGS_ID", "BYTE", 17},
+	{"TamableAnimal", "DATA_OWNERUUID_ID", "OPTIONAL_UUID", 18},
+	{"ThrowableItemProjectile", "DATA_ITEM_STACK", "ITEM_STACK", 8},
+	{"ThrownTrident", "ID_LOYALTY", "BYTE", 11},
+	{"ThrownTrident", "ID_FOIL", "BOOLEAN", 12},
+	{"TropicalFish", "DATA_ID_TYPE_VARIANT", "INT", 17},
+	{"Turtle", "HOME_POS", "BLOCK_POS", 17},
+	{"Turtle", "HAS_EGG", "BOOLEAN", 18},
+	{"Turtle", "LAYING_EGG", "BOOLEAN", 19},
+	{"Turtle", "TRAVEL_POS", "BLOCK_POS", 20},
+	{"Turtle", "GOING_HOME", "BOOLEAN", 21},
+	{"Turtle", "TRAVELLING", "BOOLEAN", 22},
 	{"VehicleEntity", "DATA_ID_HURT", "INT", 8},
 	{"VehicleEntity", "DATA_ID_HURTDIR", "INT", 9},
 	{"VehicleEntity", "DATA_ID_DAMAGE", "FLOAT", 10},
-	{"Vex", "DATA_FLAGS_ID", "BYTE", 0},
-	{"Villager", "DATA_VILLAGER_DATA", "VILLAGER_DATA", 2},
-	{"Warden", "CLIENT_ANGER_LEVEL", "INT", 0},
-	{"Witch", "DATA_USING_ITEM", "BOOLEAN", 1},
-	{"WitherBoss", "DATA_TARGET_A", "INT", 0},
-	{"WitherBoss", "DATA_TARGET_B", "INT", 1},
-	{"WitherBoss", "DATA_TARGET_C", "INT", 2},
-	{"WitherBoss", "DATA_ID_INV", "INT", 3},
-	{"WitherSkull", "DATA_DANGEROUS", "BOOLEAN", 0},
-	{"Wolf", "DATA_INTERESTED_ID", "BOOLEAN", 2},
-	{"Wolf", "DATA_COLLAR_COLOR", "INT", 3},
-	{"Wolf", "DATA_REMAINING_ANGER_TIME", "INT", 4},
-	{"Wolf", "DATA_VARIANT_ID", "WOLF_VARIANT", 5},
-	{"Zoglin", "DATA_BABY_ID", "BOOLEAN", 0},
-	{"Zombie", "DATA_BABY_ID", "BOOLEAN", 0},
-	{"Zombie", "DATA_SPECIAL_TYPE_ID", "INT", 1},
-	{"Zombie", "DATA_DROWNED_CONVERSION_ID", "BOOLEAN", 2},
-	{"ZombieVillager", "DATA_CONVERTING_ID", "BOOLEAN", 3},
-	{"ZombieVillager", "DATA_VILLAGER_DATA", "VILLAGER_DATA", 4},
+	{"Vex", "DATA_FLAGS_ID", "BYTE", 16},
+	{"Villager", "DATA_VILLAGER_DATA", "VILLAGER_DATA", 18},
+	{"Warden", "CLIENT_ANGER_LEVEL", "INT", 16},
+	{"Witch", "DATA_USING_ITEM", "BOOLEAN", 17},
+	{"WitherBoss", "DATA_TARGET_A", "INT", 16},
+	{"WitherBoss", "DATA_TARGET_B", "INT", 17},
+	{"WitherBoss", "DATA_TARGET_C", "INT", 18},
+	{"WitherBoss", "DATA_ID_INV", "INT", 19},
+	{"WitherSkull", "DATA_DANGEROUS", "BOOLEAN", 8},
+	{"Wolf", "DATA_INTERESTED_ID", "BOOLEAN", 19},
+	{"Wolf", "DATA_COLLAR_COLOR", "INT", 20},
+	{"Wolf", "DATA_REMAINING_ANGER_TIME", "INT", 21},
+	{"Wolf", "DATA_VARIANT_ID", "WOLF_VARIANT", 22},
+	{"Zoglin", "DATA_BABY_ID", "BOOLEAN", 16},
+	{"Zombie", "DATA_BABY_ID", "BOOLEAN", 16},
+	{"Zombie", "DATA_SPECIAL_TYPE_ID", "INT", 17},
+	{"Zombie", "DATA_DROWNED_CONVERSION_ID", "BOOLEAN", 18},
+	{"ZombieVillager", "DATA_CONVERTING_ID", "BOOLEAN", 19},
+	{"ZombieVillager", "DATA_VILLAGER_DATA", "VILLAGER_DATA", 20},
 }
 
 // Entity metadata indices (cumulative through inheritance chain)
 
-// AbstractArrow metadata indices (extends Projectile, base offset 0)
+// AbstractArrow metadata indices (extends Projectile, base offset 8)
 const (
-	AbstractArrowIdFlags     byte = 0
-	AbstractArrowPierceLevel byte = 1
-	AbstractArrowInGround    byte = 2
+	AbstractArrowIdFlags     byte = 8
+	AbstractArrowPierceLevel byte = 9
+	AbstractArrowInGround    byte = 10
 )
 
 // AbstractBoat metadata indices (extends VehicleEntity, base offset 11)
@@ -242,19 +242,19 @@ const (
 	AbstractBoatIdBubbleTime  byte = 13
 )
 
-// AbstractChestedHorse metadata indices (extends AbstractHorse, base offset 1)
+// AbstractChestedHorse metadata indices (extends AbstractHorse, base offset 18)
 const (
-	AbstractChestedHorseIdChest byte = 1
+	AbstractChestedHorseIdChest byte = 18
 )
 
-// AbstractFish metadata indices (extends WaterAnimal, base offset 0)
+// AbstractFish metadata indices (extends WaterAnimal, base offset 16)
 const (
-	AbstractFishFromBucket byte = 0
+	AbstractFishFromBucket byte = 16
 )
 
-// AbstractHorse metadata indices (extends Animal, base offset 0)
+// AbstractHorse metadata indices (extends Animal, base offset 17)
 const (
-	AbstractHorseIdFlags byte = 0
+	AbstractHorseIdFlags byte = 17
 )
 
 // AbstractMinecart metadata indices (extends VehicleEntity, base offset 11)
@@ -264,25 +264,25 @@ const (
 	AbstractMinecartIdCustomDisplay byte = 13
 )
 
-// AbstractPiglin metadata indices (extends Monster, base offset 0)
+// AbstractPiglin metadata indices (extends Monster, base offset 16)
 const (
-	AbstractPiglinImmuneToZombification byte = 0
+	AbstractPiglinImmuneToZombification byte = 16
 )
 
-// AbstractVillager metadata indices (extends AgeableMob, base offset 1)
+// AbstractVillager metadata indices (extends AgeableMob, base offset 17)
 const (
-	AbstractVillagerUnhappyCounter byte = 1
+	AbstractVillagerUnhappyCounter byte = 17
 )
 
-// AgeableMob metadata indices (extends PathfinderMob, base offset 0)
+// AgeableMob metadata indices (extends PathfinderMob, base offset 16)
 const (
-	AgeableMobBabyId byte = 0
+	AgeableMobBabyId byte = 16
 )
 
-// Allay metadata indices (extends PathfinderMob, base offset 0)
+// Allay metadata indices (extends PathfinderMob, base offset 16)
 const (
-	AllayDancing      byte = 0
-	AllayCanDuplicate byte = 1
+	AllayDancing      byte = 16
+	AllayCanDuplicate byte = 17
 )
 
 // AreaEffectCloud metadata indices (extends Entity, base offset 8)
@@ -292,9 +292,9 @@ const (
 	AreaEffectCloudParticle byte = 10
 )
 
-// Armadillo metadata indices (extends Animal, base offset 0)
+// Armadillo metadata indices (extends Animal, base offset 17)
 const (
-	ArmadilloArmadilloState byte = 0
+	ArmadilloArmadilloState byte = 17
 )
 
 // ArmorStand metadata indices (extends LivingEntity, base offset 15)
@@ -308,66 +308,66 @@ const (
 	ArmorStandRightLegPose byte = 21
 )
 
-// Arrow metadata indices (extends AbstractArrow, base offset 3)
+// Arrow metadata indices (extends AbstractArrow, base offset 11)
 const (
-	ArrowIdEffectColor byte = 3
+	ArrowIdEffectColor byte = 11
 )
 
-// Axolotl metadata indices (extends Animal, base offset 0)
+// Axolotl metadata indices (extends Animal, base offset 17)
 const (
-	AxolotlVariant     byte = 0
-	AxolotlPlayingDead byte = 1
-	AxolotlFromBucket  byte = 2
+	AxolotlVariant     byte = 17
+	AxolotlPlayingDead byte = 18
+	AxolotlFromBucket  byte = 19
 )
 
-// Bat metadata indices (extends AmbientCreature, base offset 0)
+// Bat metadata indices (extends AmbientCreature, base offset 16)
 const (
-	BatIdFlags byte = 0
+	BatIdFlags byte = 16
 )
 
-// Bee metadata indices (extends Animal, base offset 0)
+// Bee metadata indices (extends Animal, base offset 17)
 const (
-	BeeFlagsId            byte = 0
-	BeeRemainingAngerTime byte = 1
+	BeeFlagsId            byte = 17
+	BeeRemainingAngerTime byte = 18
 )
 
-// Blaze metadata indices (extends Monster, base offset 0)
+// Blaze metadata indices (extends Monster, base offset 16)
 const (
-	BlazeFlagsId byte = 0
+	BlazeFlagsId byte = 16
 )
 
-// Bogged metadata indices (extends AbstractSkeleton, base offset 0)
+// Bogged metadata indices (extends AbstractSkeleton, base offset 16)
 const (
-	BoggedSheared byte = 0
+	BoggedSheared byte = 16
 )
 
-// Camel metadata indices (extends AbstractHorse, base offset 1)
+// Camel metadata indices (extends AbstractHorse, base offset 18)
 const (
-	CamelDash               byte = 1
-	CamelLastPoseChangeTick byte = 2
+	CamelDash               byte = 18
+	CamelLastPoseChangeTick byte = 19
 )
 
-// Cat metadata indices (extends TamableAnimal, base offset 2)
+// Cat metadata indices (extends TamableAnimal, base offset 19)
 const (
-	CatVariantId     byte = 2
-	CatIsLying       byte = 3
-	CatRelaxStateOne byte = 4
-	CatCollarColor   byte = 5
+	CatVariantId     byte = 19
+	CatIsLying       byte = 20
+	CatRelaxStateOne byte = 21
+	CatCollarColor   byte = 22
 )
 
-// Creaking metadata indices (extends Monster, base offset 0)
+// Creaking metadata indices (extends Monster, base offset 16)
 const (
-	CreakingCanMove       byte = 0
-	CreakingIsActive      byte = 1
-	CreakingIsTearingDown byte = 2
-	CreakingHomePos       byte = 3
+	CreakingCanMove       byte = 16
+	CreakingIsActive      byte = 17
+	CreakingIsTearingDown byte = 18
+	CreakingHomePos       byte = 19
 )
 
-// Creeper metadata indices (extends Monster, base offset 0)
+// Creeper metadata indices (extends Monster, base offset 16)
 const (
-	CreeperSwellDir  byte = 0
-	CreeperIsPowered byte = 1
-	CreeperIsIgnited byte = 2
+	CreeperSwellDir  byte = 16
+	CreeperIsPowered byte = 17
+	CreeperIsIgnited byte = 18
 )
 
 // Display metadata indices (extends Entity, base offset 8)
@@ -397,11 +397,11 @@ const (
 	DisplayStyleFlagsId                                 byte = 30
 )
 
-// Dolphin metadata indices (extends AgeableWaterCreature, base offset 0)
+// Dolphin metadata indices (extends AgeableWaterCreature, base offset 17)
 const (
-	DolphinTreasurePos    byte = 0
-	DolphinGotFish        byte = 1
-	DolphinMoistnessLevel byte = 2
+	DolphinTreasurePos    byte = 17
+	DolphinGotFish        byte = 18
+	DolphinMoistnessLevel byte = 19
 )
 
 // EndCrystal metadata indices (extends Entity, base offset 8)
@@ -415,11 +415,11 @@ const (
 	EnderDragonPhase byte = 16
 )
 
-// EnderMan metadata indices (extends Monster, base offset 0)
+// EnderMan metadata indices (extends Monster, base offset 16)
 const (
-	EnderManCarryState byte = 0
-	EnderManCreepy     byte = 1
-	EnderManStaredAt   byte = 2
+	EnderManCarryState byte = 16
+	EnderManCreepy     byte = 17
+	EnderManStaredAt   byte = 18
 )
 
 // Entity metadata indices
@@ -444,69 +444,69 @@ const (
 	FallingBlockEntityStartPos byte = 8
 )
 
-// Fireball metadata indices (extends AbstractHurtingProjectile, base offset 0)
+// Fireball metadata indices (extends AbstractHurtingProjectile, base offset 8)
 const (
-	FireballItemStack byte = 0
+	FireballItemStack byte = 8
 )
 
-// FireworkRocketEntity metadata indices (extends Projectile, base offset 0)
+// FireworkRocketEntity metadata indices (extends Projectile, base offset 8)
 const (
-	FireworkRocketEntityIdFireworksItem  byte = 0
-	FireworkRocketEntityAttachedToTarget byte = 1
-	FireworkRocketEntityShotAtAngle      byte = 2
+	FireworkRocketEntityIdFireworksItem  byte = 8
+	FireworkRocketEntityAttachedToTarget byte = 9
+	FireworkRocketEntityShotAtAngle      byte = 10
 )
 
-// FishingHook metadata indices (extends Projectile, base offset 0)
+// FishingHook metadata indices (extends Projectile, base offset 8)
 const (
-	FishingHookHookedEntity byte = 0
-	FishingHookBiting       byte = 1
+	FishingHookHookedEntity byte = 8
+	FishingHookBiting       byte = 9
 )
 
-// Fox metadata indices (extends Animal, base offset 0)
+// Fox metadata indices (extends Animal, base offset 17)
 const (
-	FoxTypeId     byte = 0
-	FoxFlagsId    byte = 1
-	FoxTrustedId0 byte = 2
-	FoxTrustedId1 byte = 3
+	FoxTypeId     byte = 17
+	FoxFlagsId    byte = 18
+	FoxTrustedId0 byte = 19
+	FoxTrustedId1 byte = 20
 )
 
-// Frog metadata indices (extends Animal, base offset 0)
+// Frog metadata indices (extends Animal, base offset 17)
 const (
-	FrogVariantId      byte = 0
-	FrogTongueTargetId byte = 1
+	FrogVariantId      byte = 17
+	FrogTongueTargetId byte = 18
 )
 
-// Ghast metadata indices (extends FlyingMob, base offset 0)
+// Ghast metadata indices (extends FlyingMob, base offset 16)
 const (
-	GhastIsCharging byte = 0
+	GhastIsCharging byte = 16
 )
 
-// GlowSquid metadata indices (extends Squid, base offset 0)
+// GlowSquid metadata indices (extends Squid, base offset 17)
 const (
-	GlowSquidDarkTicksRemaining byte = 0
+	GlowSquidDarkTicksRemaining byte = 17
 )
 
-// Goat metadata indices (extends Animal, base offset 0)
+// Goat metadata indices (extends Animal, base offset 17)
 const (
-	GoatIsScreamingGoat byte = 0
-	GoatHasLeftHorn     byte = 1
-	GoatHasRightHorn    byte = 2
+	GoatIsScreamingGoat byte = 17
+	GoatHasLeftHorn     byte = 18
+	GoatHasRightHorn    byte = 19
 )
 
-// Guardian metadata indices (extends Monster, base offset 0)
+// Guardian metadata indices (extends Monster, base offset 16)
 const (
-	GuardianIdMoving       byte = 0
-	GuardianIdAttackTarget byte = 1
+	GuardianIdMoving       byte = 16
+	GuardianIdAttackTarget byte = 17
 )
 
-// Hoglin metadata indices (extends Animal, base offset 0)
+// Hoglin metadata indices (extends Animal, base offset 17)
 const (
-	HoglinImmuneToZombification byte = 0
+	HoglinImmuneToZombification byte = 17
 )
 
-// Horse metadata indices (extends AbstractHorse, base offset 1)
+// Horse metadata indices (extends AbstractHorse, base offset 18)
 const (
-	HorseIdTypeVariant byte = 1
+	HorseIdTypeVariant byte = 18
 )
 
 // Interaction metadata indices (extends Entity, base offset 8)
@@ -516,9 +516,9 @@ const (
 	InteractionResponseId byte = 10
 )
 
-// IronGolem metadata indices (extends AbstractGolem, base offset 0)
+// IronGolem metadata indices (extends AbstractGolem, base offset 16)
 const (
-	IronGolemFlagsId byte = 0
+	IronGolemFlagsId byte = 16
 )
 
 // ItemEntity metadata indices (extends Entity, base offset 8)
@@ -526,10 +526,10 @@ const (
 	ItemEntityItem byte = 8
 )
 
-// ItemFrame metadata indices (extends HangingEntity, base offset 0)
+// ItemFrame metadata indices (extends HangingEntity, base offset 8)
 const (
-	ItemFrameItem     byte = 0
-	ItemFrameRotation byte = 1
+	ItemFrameItem     byte = 8
+	ItemFrameRotation byte = 9
 )
 
 // LivingEntity metadata indices (extends Entity, base offset 8)
@@ -543,10 +543,10 @@ const (
 	LivingEntitySleepingPosId     byte = 14
 )
 
-// Llama metadata indices (extends AbstractChestedHorse, base offset 2)
+// Llama metadata indices (extends AbstractChestedHorse, base offset 19)
 const (
-	LlamaStrengthId byte = 2
-	LlamaVariantId  byte = 3
+	LlamaStrengthId byte = 19
+	LlamaVariantId  byte = 20
 )
 
 // MinecartCommandBlock metadata indices (extends AbstractMinecart, base offset 14)
@@ -565,14 +565,14 @@ const (
 	MobMobFlagsId byte = 15
 )
 
-// MushroomCow metadata indices (extends Cow, base offset 0)
+// MushroomCow metadata indices (extends Cow, base offset 17)
 const (
-	MushroomCowType byte = 0
+	MushroomCowType byte = 17
 )
 
-// Ocelot metadata indices (extends Animal, base offset 0)
+// Ocelot metadata indices (extends Animal, base offset 17)
 const (
-	OcelotTrusting byte = 0
+	OcelotTrusting byte = 17
 )
 
 // OminousItemSpawner metadata indices (extends Entity, base offset 8)
@@ -580,47 +580,47 @@ const (
 	OminousItemSpawnerItem byte = 8
 )
 
-// Painting metadata indices (extends HangingEntity, base offset 0)
+// Painting metadata indices (extends HangingEntity, base offset 8)
 const (
-	PaintingPaintingVariantId byte = 0
+	PaintingPaintingVariantId byte = 8
 )
 
-// Panda metadata indices (extends Animal, base offset 0)
+// Panda metadata indices (extends Animal, base offset 17)
 const (
-	PandaUnhappyCounter byte = 0
-	PandaSneezeCounter  byte = 1
-	PandaEatCounter     byte = 2
-	PandaMainGeneId     byte = 3
-	PandaHiddenGeneId   byte = 4
-	PandaIdFlags        byte = 5
+	PandaUnhappyCounter byte = 17
+	PandaSneezeCounter  byte = 18
+	PandaEatCounter     byte = 19
+	PandaMainGeneId     byte = 20
+	PandaHiddenGeneId   byte = 21
+	PandaIdFlags        byte = 22
 )
 
-// Parrot metadata indices (extends ShoulderRidingEntity, base offset 0)
+// Parrot metadata indices (extends ShoulderRidingEntity, base offset 19)
 const (
-	ParrotVariantId byte = 0
+	ParrotVariantId byte = 19
 )
 
-// Phantom metadata indices (extends FlyingMob, base offset 0)
+// Phantom metadata indices (extends FlyingMob, base offset 16)
 const (
-	PhantomIdSize byte = 0
+	PhantomIdSize byte = 16
 )
 
-// Pig metadata indices (extends Animal, base offset 0)
+// Pig metadata indices (extends Animal, base offset 17)
 const (
-	PigSaddleId  byte = 0
-	PigBoostTime byte = 1
+	PigSaddleId  byte = 17
+	PigBoostTime byte = 18
 )
 
-// Piglin metadata indices (extends AbstractPiglin, base offset 1)
+// Piglin metadata indices (extends AbstractPiglin, base offset 17)
 const (
-	PiglinBabyId             byte = 1
-	PiglinIsChargingCrossbow byte = 2
-	PiglinIsDancing          byte = 3
+	PiglinBabyId             byte = 17
+	PiglinIsChargingCrossbow byte = 18
+	PiglinIsDancing          byte = 19
 )
 
-// Pillager metadata indices (extends AbstractIllager, base offset 0)
+// Pillager metadata indices (extends AbstractIllager, base offset 17)
 const (
-	PillagerIsChargingCrossbow byte = 0
+	PillagerIsChargingCrossbow byte = 17
 )
 
 // Player metadata indices (extends LivingEntity, base offset 15)
@@ -633,9 +633,9 @@ const (
 	PlayerShoulderRight           byte = 20
 )
 
-// PolarBear metadata indices (extends Animal, base offset 0)
+// PolarBear metadata indices (extends Animal, base offset 17)
 const (
-	PolarBearStandingId byte = 0
+	PolarBearStandingId byte = 17
 )
 
 // PrimedTnt metadata indices (extends Entity, base offset 8)
@@ -644,41 +644,41 @@ const (
 	PrimedTntBlockStateId byte = 9
 )
 
-// Pufferfish metadata indices (extends AbstractFish, base offset 1)
+// Pufferfish metadata indices (extends AbstractFish, base offset 17)
 const (
-	PufferfishPuffState byte = 1
+	PufferfishPuffState byte = 17
 )
 
-// Rabbit metadata indices (extends Animal, base offset 0)
+// Rabbit metadata indices (extends Animal, base offset 17)
 const (
-	RabbitTypeId byte = 0
+	RabbitTypeId byte = 17
 )
 
-// Raider metadata indices (extends PatrollingMonster, base offset 0)
+// Raider metadata indices (extends PatrollingMonster, base offset 16)
 const (
-	RaiderIsCelebrating byte = 0
+	RaiderIsCelebrating byte = 16
 )
 
-// Salmon metadata indices (extends AbstractSchoolingFish, base offset 0)
+// Salmon metadata indices (extends AbstractSchoolingFish, base offset 17)
 const (
-	SalmonType byte = 0
+	SalmonType byte = 17
 )
 
-// Sheep metadata indices (extends Animal, base offset 0)
+// Sheep metadata indices (extends Animal, base offset 17)
 const (
-	SheepWoolId byte = 0
+	SheepWoolId byte = 17
 )
 
-// Shulker metadata indices (extends AbstractGolem, base offset 0)
+// Shulker metadata indices (extends AbstractGolem, base offset 16)
 const (
-	ShulkerAttachFaceId byte = 0
-	ShulkerPeekId       byte = 1
-	ShulkerColorId      byte = 2
+	ShulkerAttachFaceId byte = 16
+	ShulkerPeekId       byte = 17
+	ShulkerColorId      byte = 18
 )
 
-// Skeleton metadata indices (extends AbstractSkeleton, base offset 0)
+// Skeleton metadata indices (extends AbstractSkeleton, base offset 16)
 const (
-	SkeletonStrayConversionId byte = 0
+	SkeletonStrayConversionId byte = 16
 )
 
 // Slime metadata indices (extends Mob, base offset 16)
@@ -686,64 +686,64 @@ const (
 	SlimeIdSize byte = 16
 )
 
-// Sniffer metadata indices (extends Animal, base offset 0)
+// Sniffer metadata indices (extends Animal, base offset 17)
 const (
-	SnifferState          byte = 0
-	SnifferDropSeedAtTick byte = 1
+	SnifferState          byte = 17
+	SnifferDropSeedAtTick byte = 18
 )
 
-// SnowGolem metadata indices (extends AbstractGolem, base offset 0)
+// SnowGolem metadata indices (extends AbstractGolem, base offset 16)
 const (
-	SnowGolemPumpkinId byte = 0
+	SnowGolemPumpkinId byte = 16
 )
 
-// SpellcasterIllager metadata indices (extends AbstractIllager, base offset 0)
+// SpellcasterIllager metadata indices (extends AbstractIllager, base offset 17)
 const (
-	SpellcasterIllagerSpellCastingId byte = 0
+	SpellcasterIllagerSpellCastingId byte = 17
 )
 
-// Spider metadata indices (extends Monster, base offset 0)
+// Spider metadata indices (extends Monster, base offset 16)
 const (
-	SpiderFlagsId byte = 0
+	SpiderFlagsId byte = 16
 )
 
-// Strider metadata indices (extends Animal, base offset 0)
+// Strider metadata indices (extends Animal, base offset 17)
 const (
-	StriderBoostTime   byte = 0
-	StriderSuffocating byte = 1
-	StriderSaddleId    byte = 2
+	StriderBoostTime   byte = 17
+	StriderSuffocating byte = 18
+	StriderSaddleId    byte = 19
 )
 
-// TamableAnimal metadata indices (extends Animal, base offset 0)
+// TamableAnimal metadata indices (extends Animal, base offset 17)
 const (
-	TamableAnimalFlagsId     byte = 0
-	TamableAnimalOwneruuidId byte = 1
+	TamableAnimalFlagsId     byte = 17
+	TamableAnimalOwneruuidId byte = 18
 )
 
-// ThrowableItemProjectile metadata indices (extends ThrowableProjectile, base offset 0)
+// ThrowableItemProjectile metadata indices (extends ThrowableProjectile, base offset 8)
 const (
-	ThrowableItemProjectileItemStack byte = 0
+	ThrowableItemProjectileItemStack byte = 8
 )
 
-// ThrownTrident metadata indices (extends AbstractArrow, base offset 3)
+// ThrownTrident metadata indices (extends AbstractArrow, base offset 11)
 const (
-	ThrownTridentIdLoyalty byte = 3
-	ThrownTridentIdFoil    byte = 4
+	ThrownTridentIdLoyalty byte = 11
+	ThrownTridentIdFoil    byte = 12
 )
 
-// TropicalFish metadata indices (extends AbstractSchoolingFish, base offset 0)
+// TropicalFish metadata indices (extends AbstractSchoolingFish, base offset 17)
 const (
-	TropicalFishIdTypeVariant byte = 0
+	TropicalFishIdTypeVariant byte = 17
 )
 
-// Turtle metadata indices (extends Animal, base offset 0)
+// Turtle metadata indices (extends Animal, base offset 17)
 const (
-	TurtleHomePos    byte = 0
-	TurtleHasEgg     byte = 1
-	TurtleLayingEgg  byte = 2
-	TurtleTravelPos  byte = 3
-	TurtleGoingHome  byte = 4
-	TurtleTravelling byte = 5
+	TurtleHomePos    byte = 17
+	TurtleHasEgg     byte = 18
+	TurtleLayingEgg  byte = 19
+	TurtleTravelPos  byte = 20
+	TurtleGoingHome  byte = 21
+	TurtleTravelling byte = 22
 )
 
 // VehicleEntity metadata indices (extends Entity, base offset 8)
@@ -753,61 +753,61 @@ const (
 	VehicleEntityIdDamage  byte = 10
 )
 
-// Vex metadata indices (extends Monster, base offset 0)
+// Vex metadata indices (extends Monster, base offset 16)
 const (
-	VexFlagsId byte = 0
+	VexFlagsId byte = 16
 )
 
-// Villager metadata indices (extends AbstractVillager, base offset 2)
+// Villager metadata indices (extends AbstractVillager, base offset 18)
 const (
-	VillagerVillagerData byte = 2
+	VillagerVillagerData byte = 18
 )
 
-// Warden metadata indices (extends Monster, base offset 0)
+// Warden metadata indices (extends Monster, base offset 16)
 const (
-	WardenClientAngerLevel byte = 0
+	WardenClientAngerLevel byte = 16
 )
 
-// Witch metadata indices (extends Raider, base offset 1)
+// Witch metadata indices (extends Raider, base offset 17)
 const (
-	WitchUsingItem byte = 1
+	WitchUsingItem byte = 17
 )
 
-// WitherBoss metadata indices (extends Monster, base offset 0)
+// WitherBoss metadata indices (extends Monster, base offset 16)
 const (
-	WitherBossTargetA byte = 0
-	WitherBossTargetB byte = 1
-	WitherBossTargetC byte = 2
-	WitherBossIdInv   byte = 3
+	WitherBossTargetA byte = 16
+	WitherBossTargetB byte = 17
+	WitherBossTargetC byte = 18
+	WitherBossIdInv   byte = 19
 )
 
-// WitherSkull metadata indices (extends AbstractHurtingProjectile, base offset 0)
+// WitherSkull metadata indices (extends AbstractHurtingProjectile, base offset 8)
 const (
-	WitherSkullDangerous byte = 0
+	WitherSkullDangerous byte = 8
 )
 
-// Wolf metadata indices (extends TamableAnimal, base offset 2)
+// Wolf metadata indices (extends TamableAnimal, base offset 19)
 const (
-	WolfInterestedId       byte = 2
-	WolfCollarColor        byte = 3
-	WolfRemainingAngerTime byte = 4
-	WolfVariantId          byte = 5
+	WolfInterestedId       byte = 19
+	WolfCollarColor        byte = 20
+	WolfRemainingAngerTime byte = 21
+	WolfVariantId          byte = 22
 )
 
-// Zoglin metadata indices (extends Monster, base offset 0)
+// Zoglin metadata indices (extends Monster, base offset 16)
 const (
-	ZoglinBabyId byte = 0
+	ZoglinBabyId byte = 16
 )
 
-// Zombie metadata indices (extends Monster, base offset 0)
+// Zombie metadata indices (extends Monster, base offset 16)
 const (
-	ZombieBabyId              byte = 0
-	ZombieSpecialTypeId       byte = 1
-	ZombieDrownedConversionId byte = 2
+	ZombieBabyId              byte = 16
+	ZombieSpecialTypeId       byte = 17
+	ZombieDrownedConversionId byte = 18
 )
 
-// ZombieVillager metadata indices (extends Zombie, base offset 3)
+// ZombieVillager metadata indices (extends Zombie, base offset 19)
 const (
-	ZombieVillagerConvertingId byte = 3
-	ZombieVillagerVillagerData byte = 4
+	ZombieVillagerConvertingId byte = 19
+	ZombieVillagerVillagerData byte = 20
 )
