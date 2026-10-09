@@ -11,6 +11,19 @@ func NewList(elementType byte) *List {
 	return &List{elementType: elementType}
 }
 
+// Clone returns a deep copy of the list.
+func (l *List) Clone() *List {
+	if l == nil {
+		return nil
+	}
+	clone := NewList(l.elementType)
+	clone.elements = make([]interface{}, 0, len(l.elements))
+	for _, element := range l.elements {
+		clone.elements = append(clone.elements, cloneValue(element))
+	}
+	return clone
+}
+
 // Add appends an element to the list.
 func (l *List) Add(v interface{}) *List {
 	l.elements = append(l.elements, v)

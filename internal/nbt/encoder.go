@@ -23,6 +23,15 @@ func (e *Encoder) Bytes() []byte {
 	return e.buf
 }
 
+// WriteRootTag writes one unnamed network tag of the specified type.
+func (e *Encoder) WriteRootTag(tagID byte, value any) error {
+	e.writeByte(tagID)
+	if tagID == TagEnd {
+		return nil
+	}
+	return e.writePayload(tagID, value)
+}
+
 // WriteRootCompound writes a root compound tag with no name (network NBT format).
 func (e *Encoder) WriteRootCompound(c *Compound) error {
 	e.writeByte(TagCompound)

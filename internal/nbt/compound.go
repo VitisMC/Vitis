@@ -11,81 +11,142 @@ type entry struct {
 	value interface{}
 }
 
+// Keys returns the names of all tags in insertion order.
+func (c *Compound) Keys() []string {
+	if c == nil {
+		return nil
+	}
+	keys := make([]string, len(c.entries))
+	for i, e := range c.entries {
+		keys[i] = e.name
+	}
+	return keys
+}
+
+// PutTag inserts a typed tag and owns a deep copy of its value.
+func (c *Compound) PutTag(name string, tagID byte, value any) *Compound {
+	return c.put(name, tagID, cloneValue(value))
+}
+
 // NewCompound creates an empty compound tag.
 func NewCompound() *Compound {
 	return &Compound{}
 }
 
+// Clone returns a deep copy of the compound.
+func (c *Compound) Clone() *Compound {
+	if c == nil {
+		return nil
+	}
+	clone := NewCompound()
+	clone.entries = make([]entry, 0, len(c.entries))
+	for _, e := range c.entries {
+		clone.entries = append(clone.entries, entry{name: e.name, tagID: e.tagID, value: cloneValue(e.value)})
+	}
+	return clone
+}
+
+func cloneValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case *Compound:
+		return typed.Clone()
+	case *List:
+		return typed.Clone()
+	case []byte:
+		return append([]byte(nil), typed...)
+	case []int32:
+		return append([]int32(nil), typed...)
+	case []int64:
+		return append([]int64(nil), typed...)
+	default:
+		return typed
+	}
+}
+
+func (c *Compound) put(name string, tagID byte, value interface{}) *Compound {
+	for i := range c.entries {
+		if c.entries[i].name == name {
+			c.entries[i] = entry{name: name, tagID: tagID, value: value}
+			return c
+		}
+	}
+	c.entries = append(c.entries, entry{name: name, tagID: tagID, value: value})
+	return c
+}
+
+// Delete removes a named tag while preserving the order of all other tags.
+func (c *Compound) Delete(name string) {
+	if c == nil {
+		return
+	}
+	for i := range c.entries {
+		if c.entries[i].name == name {
+			copy(c.entries[i:], c.entries[i+1:])
+			c.entries[len(c.entries)-1] = entry{}
+			c.entries = c.entries[:len(c.entries)-1]
+			return
+		}
+	}
+}
+
 // PutByte adds a byte tag.
 func (c *Compound) PutByte(name string, v int8) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagByte, value: v})
-	return c
+	return c.put(name, TagByte, v)
 }
 
 // PutShort adds a short tag.
 func (c *Compound) PutShort(name string, v int16) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagShort, value: v})
-	return c
+	return c.put(name, TagShort, v)
 }
 
 // PutInt adds an int tag.
 func (c *Compound) PutInt(name string, v int32) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagInt, value: v})
-	return c
+	return c.put(name, TagInt, v)
 }
 
 // PutLong adds a long tag.
 func (c *Compound) PutLong(name string, v int64) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagLong, value: v})
-	return c
+	return c.put(name, TagLong, v)
 }
 
 // PutFloat adds a float tag.
 func (c *Compound) PutFloat(name string, v float32) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagFloat, value: v})
-	return c
+	return c.put(name, TagFloat, v)
 }
 
 // PutDouble adds a double tag.
 func (c *Compound) PutDouble(name string, v float64) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagDouble, value: v})
-	return c
+	return c.put(name, TagDouble, v)
 }
 
 // PutString adds a string tag.
 func (c *Compound) PutString(name string, v string) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagString, value: v})
-	return c
+	return c.put(name, TagString, v)
 }
 
 // PutByteArray adds a byte array tag.
 func (c *Compound) PutByteArray(name string, v []byte) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagByteArray, value: v})
-	return c
+	return c.put(name, TagByteArray, v)
 }
 
 // PutIntArray adds an int array tag.
 func (c *Compound) PutIntArray(name string, v []int32) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagIntArray, value: v})
-	return c
+	return c.put(name, TagIntArray, v)
 }
 
 // PutLongArray adds a long array tag.
 func (c *Compound) PutLongArray(name string, v []int64) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagLongArray, value: v})
-	return c
+	return c.put(name, TagLongArray, v)
 }
 
 // PutCompound adds a nested compound tag.
 func (c *Compound) PutCompound(name string, v *Compound) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagCompound, value: v})
-	return c
+	return c.put(name, TagCompound, v)
 }
 
 // PutList adds a list tag.
 func (c *Compound) PutList(name string, v *List) *Compound {
-	c.entries = append(c.entries, entry{name: name, tagID: TagList, value: v})
-	return c
+	return c.put(name, TagList, v)
 }
 
 // PutBool adds a boolean as a byte tag (0x00 or 0x01).
@@ -181,6 +242,16 @@ func (c *Compound) GetBool(name string) (bool, bool) {
 	return v != 0, true
 }
 
+// GetShort returns a short tag by name.
+func (c *Compound) GetShort(name string) (int16, bool) {
+	value, tag, ok := c.Get(name)
+	if !ok || tag != TagShort {
+		return 0, false
+	}
+	result, ok := value.(int16)
+	return result, ok
+}
+
 // GetList returns a list tag by name.
 func (c *Compound) GetList(name string) (*List, bool) {
 	v, tid, ok := c.Get(name)
@@ -212,4 +283,33 @@ func (c *Compound) GetAllStrings() map[string]string {
 		}
 	}
 	return result
+}
+
+// GetAllInts returns a copy of all int-typed entries by name.
+func (c *Compound) GetAllInts() map[string]int32 {
+	result := make(map[string]int32)
+	if c == nil {
+		return result
+	}
+	if c == nil {
+		return result
+	}
+	for _, e := range c.entries {
+		if e.tagID == TagInt {
+			if value, ok := e.value.(int32); ok {
+				result[e.name] = value
+			}
+		}
+	}
+	return result
+}
+
+// GetByteArray returns a byte array tag without exposing its backing storage.
+func (c *Compound) GetByteArray(name string) ([]byte, bool) {
+	value, tag, ok := c.Get(name)
+	if !ok || tag != TagByteArray {
+		return nil, false
+	}
+	data, ok := value.([]byte)
+	return append([]byte(nil), data...), ok
 }
