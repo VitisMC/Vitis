@@ -131,3 +131,23 @@ func TestFortuneOreDrops(t *testing.T) {
 		t.Error("Fortune 3 should increase average drops")
 	}
 }
+
+func TestUnsupportedLootConditionFailsClosed(t *testing.T) {
+	ctx := NewContext(rand.New(rand.NewSource(1)))
+	if evaluateCondition(&Condition{Condition: "minecraft:unsupported_condition"}, ctx) {
+		t.Fatal("unsupported loot condition was accepted")
+	}
+}
+
+func TestRandomChanceConditionUsesConfiguredChance(t *testing.T) {
+	ctx := NewContext(rand.New(rand.NewSource(1)))
+	if evaluateCondition(&Condition{Condition: string(ConditionRandomChance), Chance: 0}, ctx) {
+		t.Fatal("zero random chance was accepted")
+	}
+	if !evaluateCondition(&Condition{Condition: string(ConditionRandomChance), Chance: 1}, ctx) {
+		t.Fatal("certain random chance was rejected")
+	}
+	if evaluateCondition(&Condition{Condition: string(ConditionRandomChance), Chance: 2}, ctx) {
+		t.Fatal("invalid random chance was accepted")
+	}
+}
