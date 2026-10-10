@@ -4,13 +4,14 @@ import "github.com/vitismc/vitis/internal/block"
 
 // Context carries information about a block interaction.
 type Context struct {
-	X, Y, Z          int
-	StateID          int32
-	Face             int32
-	PlayerGM         int32
-	FurnaceType      int
-	ToolName         string
-	ToolEnchantments map[int32]int32
+	X, Y, Z                   int
+	StateID                   int32
+	Face                      int32
+	PlayerGM                  int32
+	FurnaceType               int
+	ToolName                  string
+	ToolEnchantments          map[int32]int32
+	SourceX, SourceY, SourceZ int
 }
 
 // HasSilkTouch returns true if the tool has the silk touch enchantment.

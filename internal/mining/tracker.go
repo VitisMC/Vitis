@@ -1,15 +1,45 @@
 package mining
 
-import "sync"
+import (
+	"math"
+	"sync"
+	"time"
+)
+
+const finishProgressThreshold = 0.7
 
 // DigState tracks the progress of a player's block-breaking action.
 type DigState struct {
-	X, Y, Z       int
-	StateID        int32
-	TotalTicks     int
-	ElapsedTicks   int
-	LastStage      int8
-	CanHarvest     bool
+	X, Y, Z         int
+	StateID         int32
+	TotalTicks      int
+	ElapsedTicks    int
+	LastStage       int8
+	CanHarvest      bool
+	StartedAt       time.Time
+	ProgressPerTick float64
+}
+
+// Matches reports whether a finish packet targets the active block revision.
+func (d *DigState) Matches(x, y, z int, stateID int32) bool {
+	return d != nil && d.X == x && d.Y == y && d.Z == z && d.StateID == stateID
+}
+
+// Ready reports whether a valid finish packet reached the accepted break progress.
+func (d *DigState) Ready(now time.Time) bool {
+	if d == nil || d.TotalTicks <= 0 {
+		return false
+	}
+	progressPerTick := d.ProgressPerTick
+	if progressPerTick <= 0 {
+		progressPerTick = 1 / float64(d.TotalTicks)
+	}
+	elapsed := now.Sub(d.StartedAt)
+	if elapsed < 0 {
+		return false
+	}
+	elapsedTicks := math.Floor(float64(elapsed)/float64(50*time.Millisecond)) + 1
+	return progressPerTick*elapsedTicks >= finishProgressThreshold
 }
 
 // Stage returns the current destroy stage (0-9) based on elapsed progress.
@@ -44,15 +74,22 @@ func NewTracker() *Tracker {
 }
 
 // Start begins tracking a dig action for a player.
-func (t *Tracker) Start(entityID int32, x, y, z int, stateID int32, totalTicks int, canHarvest bool) {
+func (t *Tracker) Start(entityID int32, x, y, z int, stateID int32, totalTicks int, progressPerTick float64, canHarvest bool) {
+	t.StartAt(entityID, x, y, z, stateID, totalTicks, progressPerTick, canHarvest, time.Now())
+}
+
+// StartAt begins tracking a dig action using its network receive timestamp.
+func (t *Tracker) StartAt(entityID int32, x, y, z int, stateID int32, totalTicks int, progressPerTick float64, canHarvest bool, startedAt time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.sessions[entityID] = &DigState{
 		X: x, Y: y, Z: z,
-		StateID:    stateID,
-		TotalTicks: totalTicks,
-		CanHarvest: canHarvest,
-		LastStage:  -1,
+		StateID:         stateID,
+		TotalTicks:      totalTicks,
+		ProgressPerTick: progressPerTick,
+		CanHarvest:      canHarvest,
+		LastStage:       -1,
+		StartedAt:       startedAt,
 	}
 }
 

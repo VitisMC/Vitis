@@ -47,9 +47,12 @@ func NameFromState(stateID int32) string {
 	return genblock.Blocks[bid].Name
 }
 
-// IsAir returns true if the state ID corresponds to air (state 0).
+// airStateIDs resolves the three registered air variants once for hot block checks.
+var airStateIDs = [...]int32{genblock.AirStateID, DefaultStateID("minecraft:cave_air"), DefaultStateID("minecraft:void_air")}
+
+// IsAir reports whether a valid state is normal, cave, or void air.
 func IsAir(stateID int32) bool {
-	return stateID == genblock.AirStateID
+	return stateID >= 0 && (stateID == airStateIDs[0] || stateID == airStateIDs[1] || stateID == airStateIDs[2])
 }
 
 // IsSolid returns true if the block at the given state ID has a full bounding box.

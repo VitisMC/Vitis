@@ -79,7 +79,7 @@ func (b *SilkTouchOnlyBehavior) OnBreak(ctx *Context) []Drop {
 // GravelBehavior drops gravel normally, but has a chance to drop flint.
 // Fortune increases flint chance: 10% base, 14% fortune 1, 25% fortune 2, 100% fortune 3.
 type GravelBehavior struct {
-	DefaultBehavior
+	FallingBlockBehavior
 }
 
 func (b *GravelBehavior) OnBreak(ctx *Context) []Drop {

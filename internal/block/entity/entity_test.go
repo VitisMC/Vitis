@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	genbe "github.com/vitismc/vitis/internal/data/generated/block_entity"
+	"github.com/vitismc/vitis/internal/nbt"
 )
 
 func TestHasBlockEntity(t *testing.T) {
@@ -69,6 +70,30 @@ func TestBaseBlockEntity(t *testing.T) {
 	}
 	if nbt["x"] != int32(10) {
 		t.Errorf("WriteNBT()[x] = %v, want 10", nbt["x"])
+	}
+}
+
+func TestRawBlockEntityPreservesUnknownNBT(t *testing.T) {
+	raw := nbt.NewCompound().
+		PutString("id", "minecraft:chest").
+		PutInt("x", 1).
+		PutInt("y", 64).
+		PutInt("z", 2).
+		PutString("Custom", "preserve")
+	blockEntity := NewRawBlockEntity(raw)
+	if blockEntity == nil {
+		t.Fatal("NewRawBlockEntity returned nil")
+	}
+	blockEntity.SetPosition(3, 65, 4)
+	persistent := blockEntity.PersistentNBT()
+	if value, _ := persistent.GetString("Custom"); value != "preserve" {
+		t.Fatalf("custom tag = %q", value)
+	}
+	if x, _ := persistent.GetInt("x"); x != 3 {
+		t.Fatalf("x = %d, want 3", x)
+	}
+	if len(blockEntity.ChunkDataNBT()) == 0 {
+		t.Fatal("network NBT is empty")
 	}
 }
 
