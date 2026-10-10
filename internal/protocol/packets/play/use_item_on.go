@@ -71,6 +71,11 @@ func (p *UseItemOn) Encode(buf *protocol.Buffer) error {
 	} else {
 		buf.WriteByte(0)
 	}
+	if p.WorldBorderHit {
+		buf.WriteByte(1)
+	} else {
+		buf.WriteByte(0)
+	}
 	buf.WriteVarInt(p.Sequence)
 	return nil
 }

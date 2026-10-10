@@ -5,6 +5,8 @@ import (
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
+const maxTabCompleteTextLength = 32500
+
 type ServerboundTabComplete struct {
 	TransactionID int32
 	Text          string
@@ -21,7 +23,7 @@ func (p *ServerboundTabComplete) Decode(buf *protocol.Buffer) error {
 	if p.TransactionID, err = buf.ReadVarInt(); err != nil {
 		return err
 	}
-	p.Text, err = buf.ReadString()
+	p.Text, err = buf.ReadStringLimit(maxTabCompleteTextLength)
 	return err
 }
 

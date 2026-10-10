@@ -1,6 +1,7 @@
 package play
 
 import (
+	"fmt"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
@@ -24,10 +25,11 @@ func (p *SetContainerContent) Encode(buf *protocol.Buffer) error {
 	buf.WriteVarInt(p.StateID)
 	buf.WriteVarInt(int32(len(p.Slots)))
 	for _, s := range p.Slots {
-		inventory.EncodeSlot(buf, s)
+		if err := inventory.EncodeItemStack(buf, s); err != nil {
+			return err
+		}
 	}
-	inventory.EncodeSlot(buf, p.Carried)
-	return nil
+	return inventory.EncodeItemStack(buf, p.Carried)
 }
 
 // SetContainerSlot updates a single slot in a container window.
@@ -47,8 +49,7 @@ func (p *SetContainerSlot) Encode(buf *protocol.Buffer) error {
 	buf.WriteVarInt(p.WindowID)
 	buf.WriteVarInt(p.StateID)
 	buf.WriteInt16(p.SlotIdx)
-	inventory.EncodeSlot(buf, p.SlotData)
-	return nil
+	return inventory.EncodeItemStack(buf, p.SlotData)
 }
 
 // ClientboundCloseContainer tells the client to close a container window.
@@ -73,7 +74,7 @@ func (p *ClientboundCloseContainer) Encode(buf *protocol.Buffer) error {
 // 2: Progress arrow - current cooking progress
 // 3: Maximum progress (always 200 for vanilla furnaces)
 type SetContainerProperty struct {
-	WindowID int8
+	WindowID int32
 	Property int16
 	Value    int16
 }
@@ -82,9 +83,24 @@ func NewSetContainerProperty() protocol.Packet { return &SetContainerProperty{} 
 func (p *SetContainerProperty) ID() int32 {
 	return int32(packetid.ClientboundCraftProgressBar)
 }
-func (p *SetContainerProperty) Decode(_ *protocol.Buffer) error { return nil }
+func (p *SetContainerProperty) Decode(buf *protocol.Buffer) error {
+	var err error
+	p.WindowID, err = buf.ReadVarInt()
+	if err != nil {
+		return err
+	}
+	if p.WindowID < 0 {
+		return fmt.Errorf("invalid container ID")
+	}
+	p.Property, err = buf.ReadInt16()
+	if err != nil {
+		return err
+	}
+	p.Value, err = buf.ReadInt16()
+	return err
+}
 func (p *SetContainerProperty) Encode(buf *protocol.Buffer) error {
-	buf.WriteByte(byte(p.WindowID))
+	buf.WriteVarInt(int32(p.WindowID))
 	buf.WriteInt16(p.Property)
 	buf.WriteInt16(p.Value)
 	return nil

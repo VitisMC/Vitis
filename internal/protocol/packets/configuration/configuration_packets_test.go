@@ -9,7 +9,7 @@ import (
 func TestClientInformationRoundtrip(t *testing.T) {
 	original := &ClientInformation{
 		Locale:              "en_US",
-		ViewDistance:         12,
+		ViewDistance:        12,
 		ChatMode:            0,
 		ChatColors:          true,
 		DisplayedSkinParts:  0x7F,
@@ -41,6 +41,25 @@ func TestClientInformationRoundtrip(t *testing.T) {
 	}
 	if decoded.DisplayedSkinParts != original.DisplayedSkinParts {
 		t.Errorf("SkinParts: got %d, want %d", decoded.DisplayedSkinParts, original.DisplayedSkinParts)
+	}
+}
+
+func TestClientInformationRejectsInvalidBounds(t *testing.T) {
+	tests := []ClientInformation{
+		{Locale: "en_us", ViewDistance: 1, ChatMode: 0, MainHand: 0, ParticleStatus: 0},
+		{Locale: "en_us", ViewDistance: 8, ChatMode: 3, MainHand: 0, ParticleStatus: 0},
+		{Locale: "en_us", ViewDistance: 8, ChatMode: 0, MainHand: 2, ParticleStatus: 0},
+		{Locale: "en_us", ViewDistance: 8, ChatMode: 0, MainHand: 0, ParticleStatus: 3},
+	}
+
+	for _, input := range tests {
+		buf := protocol.NewBuffer(64)
+		if err := input.Encode(buf); err != nil {
+			t.Fatalf("encode: %v", err)
+		}
+		if err := (&ClientInformation{}).Decode(protocol.WrapBuffer(buf.Bytes())); err == nil {
+			t.Fatalf("invalid client information accepted: %+v", input)
+		}
 	}
 }
 

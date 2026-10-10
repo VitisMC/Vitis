@@ -1,9 +1,13 @@
 package play
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
+
+const maxChatKeyMaterialLength = 4096
 
 // ChatSessionUpdate is sent by the client to update its chat session public key information.
 type ChatSessionUpdate struct {
@@ -31,12 +35,18 @@ func (p *ChatSessionUpdate) Decode(buf *protocol.Buffer) error {
 	if err != nil {
 		return err
 	}
+	if keyLen < 0 || keyLen > maxChatKeyMaterialLength {
+		return fmt.Errorf("chat public key length out of range: %d", keyLen)
+	}
 	if p.PublicKey, err = buf.ReadBytes(int(keyLen)); err != nil {
 		return err
 	}
 	sigLen, err := buf.ReadVarInt()
 	if err != nil {
 		return err
+	}
+	if sigLen < 0 || sigLen > maxChatKeyMaterialLength {
+		return fmt.Errorf("chat key signature length out of range: %d", sigLen)
 	}
 	p.KeySignature, err = buf.ReadBytes(int(sigLen))
 	return err

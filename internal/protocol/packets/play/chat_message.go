@@ -5,6 +5,8 @@ import (
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
+const maxChatMessageLength = 256
+
 // ServerboundChatMessage is sent by the client when typing in chat.
 type ServerboundChatMessage struct {
 	Message   string
@@ -22,7 +24,7 @@ func (p *ServerboundChatMessage) ID() int32 { return int32(packetid.ServerboundC
 
 func (p *ServerboundChatMessage) Decode(buf *protocol.Buffer) error {
 	var err error
-	if p.Message, err = buf.ReadString(); err != nil {
+	if p.Message, err = buf.ReadStringLimit(maxChatMessageLength); err != nil {
 		return err
 	}
 	if p.Timestamp, err = buf.ReadInt64(); err != nil {
@@ -31,11 +33,10 @@ func (p *ServerboundChatMessage) Decode(buf *protocol.Buffer) error {
 	if p.Salt, err = buf.ReadInt64(); err != nil {
 		return err
 	}
-	b, err := buf.ReadByte()
+	p.HasSig, err = buf.ReadBool()
 	if err != nil {
 		return err
 	}
-	p.HasSig = b != 0
 	if p.HasSig {
 		p.Signature, err = buf.ReadBytes(256)
 		if err != nil {

@@ -7,6 +7,8 @@ import (
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
+const maxPlayerNameLength = 16
+
 // LoginStart is sent by the client to initiate login.
 type LoginStart struct {
 	Name       string
@@ -25,7 +27,7 @@ func (p *LoginStart) ID() int32 {
 
 // Decode reads LoginStart fields from buffer.
 func (p *LoginStart) Decode(buf *protocol.Buffer) error {
-	name, err := buf.ReadString()
+	name, err := buf.ReadStringLimit(maxPlayerNameLength)
 	if err != nil {
 		return fmt.Errorf("decode username: %w", err)
 	}

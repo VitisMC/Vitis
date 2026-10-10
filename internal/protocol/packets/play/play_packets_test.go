@@ -1,6 +1,7 @@
 package play
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/vitismc/vitis/internal/protocol"
@@ -12,8 +13,8 @@ func TestLoginPlayRoundtrip(t *testing.T) {
 		IsHardcore:          false,
 		DimensionNames:      []string{"minecraft:overworld", "minecraft:the_nether"},
 		MaxPlayers:          20,
-		ViewDistance:         10,
-		SimulationDistance:   10,
+		ViewDistance:        10,
+		SimulationDistance:  10,
 		ReducedDebugInfo:    false,
 		EnableRespawnScreen: true,
 		DoLimitedCrafting:   false,
@@ -152,6 +153,35 @@ func TestSetCenterChunkRoundtrip(t *testing.T) {
 	}
 	if decoded.ChunkZ != original.ChunkZ {
 		t.Errorf("ChunkZ: got %d, want %d", decoded.ChunkZ, original.ChunkZ)
+	}
+}
+
+func TestUnloadChunkUsesPackedChunkPositionWireFormat(t *testing.T) {
+	packet := &UnloadChunk{ChunkX: 0x01020304, ChunkZ: 0x11121314}
+	buf := protocol.NewBuffer(8)
+	if err := packet.Encode(buf); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	want := []byte{0x11, 0x12, 0x13, 0x14, 0x01, 0x02, 0x03, 0x04}
+	if !bytes.Equal(buf.Bytes(), want) {
+		t.Fatalf("wire bytes = % X, want % X", buf.Bytes(), want)
+	}
+}
+
+func TestUnloadChunkRoundtripPreservesSignedCoordinates(t *testing.T) {
+	original := &UnloadChunk{ChunkX: -123456, ChunkZ: 654321}
+	buf := protocol.NewBuffer(8)
+	if err := original.Encode(buf); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	decoded := &UnloadChunk{}
+	if err := decoded.Decode(protocol.WrapBuffer(buf.Bytes())); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if decoded.ChunkX != original.ChunkX || decoded.ChunkZ != original.ChunkZ {
+		t.Fatalf("decoded chunk = (%d,%d), want (%d,%d)", decoded.ChunkX, decoded.ChunkZ, original.ChunkX, original.ChunkZ)
 	}
 }
 

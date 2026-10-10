@@ -9,9 +9,10 @@ import (
 
 // SetPlayerRotation is sent by the client when the player rotates without moving.
 type SetPlayerRotation struct {
-	Yaw      float32
-	Pitch    float32
-	OnGround bool
+	Yaw                 float32
+	Pitch               float32
+	OnGround            bool
+	HorizontalCollision bool
 }
 
 // NewSetPlayerRotation constructs an empty SetPlayerRotation packet.
@@ -34,13 +35,17 @@ func (p *SetPlayerRotation) Decode(buf *protocol.Buffer) error {
 	if err != nil {
 		return fmt.Errorf("decode set_player_rotation pitch: %w", err)
 	}
-	onGround, err := buf.ReadBool()
+	flags, err := buf.ReadByte()
 	if err != nil {
-		return fmt.Errorf("decode set_player_rotation on_ground: %w", err)
+		return fmt.Errorf("decode set_player_rotation flags: %w", err)
+	}
+	if flags&^byte(0x03) != 0 {
+		return fmt.Errorf("decode set_player_rotation flags: invalid flags 0x%02X", flags)
 	}
 	p.Yaw = yaw
 	p.Pitch = pitch
-	p.OnGround = onGround
+	p.OnGround = flags&0x01 != 0
+	p.HorizontalCollision = flags&0x02 != 0
 	return nil
 }
 
@@ -48,6 +53,6 @@ func (p *SetPlayerRotation) Decode(buf *protocol.Buffer) error {
 func (p *SetPlayerRotation) Encode(buf *protocol.Buffer) error {
 	buf.WriteFloat32(p.Yaw)
 	buf.WriteFloat32(p.Pitch)
-	buf.WriteBool(p.OnGround)
+	buf.WriteByte(movementFlags(p.OnGround, p.HorizontalCollision))
 	return nil
 }

@@ -25,9 +25,11 @@ func TestStatusFlowHandshakeToStatusAndPing(t *testing.T) {
 	if decodedHandshake.ID() != 0x00 {
 		t.Fatalf("unexpected handshake packet id %d", decodedHandshake.ID())
 	}
-	if session.State() != protocol.StateStatus {
-		t.Fatalf("expected status state after handshake, got %s", session.State())
+	if session.State() != protocol.StateHandshake {
+		t.Fatalf("decoder changed protocol state before handler authorization: %s", session.State())
 	}
+	session.SetProtocolVersion(769)
+	session.SetState(protocol.StateStatus)
 
 	statusRequestFrame := encodeRawFrame(t, 0x00, nil)
 	decodedStatusRequest, err := decoder.Decode(session, statusRequestFrame)
@@ -79,9 +81,11 @@ func TestLoginFlowHandshakeToConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode handshake failed: %v", err)
 	}
-	if session.State() != protocol.StateLogin {
-		t.Fatalf("expected login state after handshake, got %s", session.State())
+	if session.State() != protocol.StateHandshake {
+		t.Fatalf("decoder changed protocol state before handler authorization: %s", session.State())
 	}
+	session.SetProtocolVersion(769)
+	session.SetState(protocol.StateLogin)
 
 	loginStartFrame := encodeLoginStartFrame(t, "Steve", protocol.UUID{0x1234, 0x5678})
 	decodedLoginStart, err := decoder.Decode(session, loginStartFrame)
@@ -113,8 +117,8 @@ func TestLoginFlowHandshakeToConfiguration(t *testing.T) {
 	if decodedAck.ID() != 0x03 {
 		t.Fatalf("unexpected login acknowledged packet id 0x%02X", decodedAck.ID())
 	}
-	if session.State() != protocol.StateConfiguration {
-		t.Fatalf("expected configuration state after login acknowledged, got %s", session.State())
+	if session.State() != protocol.StateLogin {
+		t.Fatalf("decoder changed protocol state before handler authorization: %s", session.State())
 	}
 }
 

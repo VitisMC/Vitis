@@ -9,6 +9,7 @@ import (
 type CraftRecipeResponse struct {
 	WindowID int32
 	RecipeID int32
+	Display  RecipeDisplay
 }
 
 func NewCraftRecipeResponse() protocol.Packet { return &CraftRecipeResponse{} }
@@ -19,17 +20,15 @@ func (p *CraftRecipeResponse) ID() int32 {
 
 func (p *CraftRecipeResponse) Decode(buf *protocol.Buffer) error {
 	var err error
-	b, err := buf.ReadByte()
+	p.WindowID, err = buf.ReadVarInt()
 	if err != nil {
 		return err
 	}
-	p.WindowID = int32(b)
-	p.RecipeID, err = buf.ReadVarInt()
+	p.Display, err = decodeRecipeDisplay(buf)
 	return err
 }
 
 func (p *CraftRecipeResponse) Encode(buf *protocol.Buffer) error {
-	buf.WriteByte(byte(p.WindowID))
-	buf.WriteVarInt(p.RecipeID)
-	return nil
+	buf.WriteVarInt(p.WindowID)
+	return p.Display.Encode(buf)
 }

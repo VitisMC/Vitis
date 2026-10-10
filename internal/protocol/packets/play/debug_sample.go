@@ -1,6 +1,8 @@
 package play
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
@@ -19,7 +21,13 @@ func (p *DebugSampleSubscription) ID() int32 {
 func (p *DebugSampleSubscription) Decode(buf *protocol.Buffer) error {
 	var err error
 	p.SampleType, err = buf.ReadVarInt()
-	return err
+	if err != nil {
+		return err
+	}
+	if p.SampleType < 0 || p.SampleType > 2 {
+		return fmt.Errorf("debug sample type out of range: %d", p.SampleType)
+	}
+	return nil
 }
 
 func (p *DebugSampleSubscription) Encode(buf *protocol.Buffer) error {

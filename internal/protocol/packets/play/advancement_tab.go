@@ -1,6 +1,8 @@
 package play
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
@@ -22,8 +24,11 @@ func (p *AdvancementTab) Decode(buf *protocol.Buffer) error {
 	if p.Action, err = buf.ReadVarInt(); err != nil {
 		return err
 	}
+	if p.Action < 0 || p.Action > 1 {
+		return fmt.Errorf("advancement tab action out of range: %d", p.Action)
+	}
 	if p.Action == 0 {
-		p.TabID, err = buf.ReadString()
+		p.TabID, err = buf.ReadStringLimit(32767)
 	}
 	return err
 }

@@ -27,8 +27,7 @@ func (p *SetCreativeSlot) Decode(buf *protocol.Buffer) error {
 
 func (p *SetCreativeSlot) Encode(buf *protocol.Buffer) error {
 	buf.WriteInt16(p.SlotIndex)
-	inventory.EncodeSlot(buf, p.Item)
-	return nil
+	return inventory.EncodeItemStack(buf, p.Item)
 }
 
 // UseItem is sent by the client when using an item (eating, drinking, etc).

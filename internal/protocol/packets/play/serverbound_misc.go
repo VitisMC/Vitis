@@ -1,6 +1,8 @@
 package play
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
@@ -24,8 +26,8 @@ func (p *ArmAnimation) Encode(buf *protocol.Buffer) error {
 
 // EntityAction is sent for sneak, sprint, jump with horse, etc.
 type EntityAction struct {
-	EntityID int32
-	ActionID int32
+	EntityID  int32
+	ActionID  int32
 	JumpBoost int32
 }
 
@@ -87,12 +89,12 @@ func (p *ClientCommand) Encode(buf *protocol.Buffer) error {
 
 // ServerboundSettings is sent by the client with its settings during play.
 type ServerboundSettings struct {
-	Locale       string
+	Locale        string
 	ViewDistance  int8
-	ChatMode     int32
-	ChatColors   bool
-	SkinParts    byte
-	MainHand     int32
+	ChatMode      int32
+	ChatColors    bool
+	SkinParts     byte
+	MainHand      int32
 	TextFiltering bool
 	AllowListing  bool
 }
@@ -101,7 +103,7 @@ func NewServerboundSettings() protocol.Packet { return &ServerboundSettings{} }
 func (p *ServerboundSettings) ID() int32      { return int32(packetid.ServerboundSettings) }
 func (p *ServerboundSettings) Decode(buf *protocol.Buffer) error {
 	var err error
-	if p.Locale, err = buf.ReadString(); err != nil {
+	if p.Locale, err = buf.ReadStringLimit(16); err != nil {
 		return err
 	}
 	b, err := buf.ReadByte()
@@ -112,11 +114,10 @@ func (p *ServerboundSettings) Decode(buf *protocol.Buffer) error {
 	if p.ChatMode, err = buf.ReadVarInt(); err != nil {
 		return err
 	}
-	cb, err := buf.ReadByte()
+	p.ChatColors, err = buf.ReadBool()
 	if err != nil {
 		return err
 	}
-	p.ChatColors = cb != 0
 	sb, err := buf.ReadByte()
 	if err != nil {
 		return err
@@ -125,16 +126,23 @@ func (p *ServerboundSettings) Decode(buf *protocol.Buffer) error {
 	if p.MainHand, err = buf.ReadVarInt(); err != nil {
 		return err
 	}
-	tf, err := buf.ReadByte()
+	p.TextFiltering, err = buf.ReadBool()
 	if err != nil {
 		return err
 	}
-	p.TextFiltering = tf != 0
-	al, err := buf.ReadByte()
+	p.AllowListing, err = buf.ReadBool()
 	if err != nil {
 		return err
 	}
-	p.AllowListing = al != 0
+	if p.ViewDistance < 2 || p.ViewDistance > 32 {
+		return fmt.Errorf("settings view distance out of range: %d", p.ViewDistance)
+	}
+	if p.ChatMode < 0 || p.ChatMode > 2 {
+		return fmt.Errorf("settings chat mode out of range: %d", p.ChatMode)
+	}
+	if p.MainHand < 0 || p.MainHand > 1 {
+		return fmt.Errorf("settings main hand out of range: %d", p.MainHand)
+	}
 	return nil
 }
 func (p *ServerboundSettings) Encode(buf *protocol.Buffer) error {

@@ -3,6 +3,7 @@ package protocol
 import (
 	"errors"
 	"math"
+	"unicode/utf8"
 )
 
 var (
@@ -171,6 +172,14 @@ func (b *Buffer) WriteBytes(src []byte) {
 
 // ReadString reads a VarInt-prefixed UTF-8 string.
 func (b *Buffer) ReadString() (string, error) {
+	return b.ReadStringLimit(math.MaxInt32 / utf8.UTFMax)
+}
+
+// ReadStringLimit reads a VarInt-prefixed UTF-8 string with a character limit.
+func (b *Buffer) ReadStringLimit(maxChars int) (string, error) {
+	if maxChars < 0 || maxChars > math.MaxInt32/utf8.UTFMax {
+		return "", ErrInvalidLength
+	}
 	length, err := b.ReadVarInt()
 	if err != nil {
 		return "", err
@@ -178,10 +187,16 @@ func (b *Buffer) ReadString() (string, error) {
 	if length < 0 {
 		return "", ErrInvalidLength
 	}
+	if int64(length) > int64(maxChars)*utf8.UTFMax {
+		return "", ErrInvalidLength
+	}
 
 	raw, err := b.ReadBytes(int(length))
 	if err != nil {
 		return "", err
+	}
+	if !utf8.Valid(raw) || utf8.RuneCount(raw) > maxChars {
+		return "", ErrInvalidLength
 	}
 	return string(raw), nil
 }
@@ -347,13 +362,20 @@ func (b *Buffer) WriteFloat64(value float64) {
 	b.w += 8
 }
 
-// ReadBool reads a single byte as a boolean value.
+// ReadBool reads a protocol boolean encoded as exactly 0x00 or 0x01.
 func (b *Buffer) ReadBool() (bool, error) {
 	raw, err := b.ReadBytes(1)
 	if err != nil {
 		return false, err
 	}
-	return raw[0] != 0, nil
+	switch raw[0] {
+	case 0:
+		return false, nil
+	case 1:
+		return true, nil
+	default:
+		return false, ErrInvalidLength
+	}
 }
 
 // WriteBool writes a boolean as a single byte (0x01=true, 0x00=false).

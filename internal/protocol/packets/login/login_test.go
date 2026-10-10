@@ -30,6 +30,17 @@ func TestLoginStartEncodeDecode(t *testing.T) {
 	}
 }
 
+func TestLoginStartRejectsOversizedName(t *testing.T) {
+	buf := protocol.NewBuffer(64)
+	if err := buf.WriteString("abcdefghijklmnopq"); err != nil {
+		t.Fatalf("write username: %v", err)
+	}
+	buf.WriteUUID(protocol.UUID{})
+	if err := (&LoginStart{}).Decode(protocol.WrapBuffer(buf.Bytes())); err == nil {
+		t.Fatal("oversized username was accepted")
+	}
+}
+
 func TestLoginSuccessEncodeDecodeNoProperties(t *testing.T) {
 	source := &LoginSuccess{
 		UUID:       protocol.UUID{0xAAAABBBBCCCCDDDD, 0x1111222233334444},
