@@ -11,6 +11,20 @@ func TestRecipeCount(t *testing.T) {
 	t.Logf("loaded %d recipes", RecipeCount())
 }
 
+func TestMatchShapelessRecipeIgnoresSlotOrder(t *testing.T) {
+	result, count := Match([]int32{1024, 0, 1008, 0}, 2)
+	if result != 1028 || count != 1 {
+		t.Fatalf("Match() = (%d, %d), want (1028, 1)", result, count)
+	}
+}
+
+func TestMatchShapelessRecipeRejectsExtraItems(t *testing.T) {
+	result, count := Match([]int32{1024, 1008, 1008, 0}, 2)
+	if result == 1028 || count != 0 {
+		t.Fatalf("Match() = (%d, %d), want no shapeless match", result, count)
+	}
+}
+
 func TestMatchEmpty(t *testing.T) {
 	grid := []int32{0, 0, 0, 0}
 	id, count := Match(grid, 2)

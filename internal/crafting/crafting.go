@@ -1,17 +1,15 @@
 package crafting
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"runtime"
+	genrecipes "github.com/vitismc/vitis/internal/data/generated/recipes"
 )
 
 // Recipe represents a shaped crafting recipe.
 type Recipe struct {
-	Pattern [][]int32
-	Result  int32
-	Count   int32
+	Pattern     [][]int32
+	Ingredients []int32
+	Result      int32
+	Count       int32
 }
 
 // Rows returns the number of rows in the pattern.
@@ -28,66 +26,20 @@ func (r *Recipe) Cols() int {
 	return max
 }
 
-var allRecipes []Recipe
+var allRecipes = buildRecipes()
 
-func init() {
-	_, thisFile, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(thisFile)))
-	recipePath := filepath.Join(projectRoot, ".mcdata", "1.21.4", "recipes.json")
-	data, err := os.ReadFile(recipePath)
-	if err != nil {
-		return
+// buildRecipes converts immutable generated recipe data into the package model.
+func buildRecipes() []Recipe {
+	recipes := make([]Recipe, 0, len(genrecipes.CraftingRecipes))
+	for _, generated := range genrecipes.CraftingRecipes {
+		recipes = append(recipes, Recipe{
+			Pattern:     generated.Pattern,
+			Ingredients: generated.Ingredients,
+			Result:      generated.Result,
+			Count:       generated.Count,
+		})
 	}
-
-	var raw map[string][]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return
-	}
-
-	for _, entries := range raw {
-		for _, entry := range entries {
-			var r recipeJSON
-			if err := json.Unmarshal(entry, &r); err != nil {
-				continue
-			}
-			if r.InShape == nil || r.Result.ID == 0 {
-				continue
-			}
-			pattern := make([][]int32, len(r.InShape))
-			for i, row := range r.InShape {
-				pattern[i] = make([]int32, len(row))
-				for j, val := range row {
-					if val == nil {
-						pattern[i][j] = 0
-					} else {
-						var id float64
-						if err := json.Unmarshal(*val, &id); err == nil {
-							pattern[i][j] = int32(id)
-						}
-					}
-				}
-			}
-			count := r.Result.Count
-			if count <= 0 {
-				count = 1
-			}
-			allRecipes = append(allRecipes, Recipe{
-				Pattern: pattern,
-				Result:  int32(r.Result.ID),
-				Count:   int32(count),
-			})
-		}
-	}
-}
-
-type recipeJSON struct {
-	InShape [][](*json.RawMessage) `json:"inShape"`
-	Result  resultJSON             `json:"result"`
-}
-
-type resultJSON struct {
-	ID    int     `json:"id"`
-	Count int32   `json:"count"`
+	return recipes
 }
 
 // Match checks a crafting grid (2x2 or 3x3) against all recipes.
@@ -112,6 +64,9 @@ func Match(grid []int32, gridWidth int) (int32, int32) {
 
 	for i := range allRecipes {
 		r := &allRecipes[i]
+		if len(r.Ingredients) > 0 && matchShapeless(grid, r.Ingredients) {
+			return r.Result, r.Count
+		}
 		if r.Rows() == usedH && r.Cols() == usedW {
 			if matchAt(grid, gridWidth, minR, minC, r) {
 				return r.Result, r.Count
@@ -122,6 +77,32 @@ func Match(grid []int32, gridWidth int) (int32, int32) {
 		}
 	}
 	return 0, 0
+}
+
+// matchShapeless reports whether the non-empty grid items equal the recipe multiset.
+func matchShapeless(grid []int32, ingredients []int32) bool {
+	if len(ingredients) == 0 {
+		return false
+	}
+	remaining := make(map[int32]int, len(ingredients))
+	for _, ingredient := range ingredients {
+		if ingredient <= 0 {
+			return false
+		}
+		remaining[ingredient]++
+	}
+	nonEmpty := 0
+	for _, itemID := range grid {
+		if itemID == 0 {
+			continue
+		}
+		nonEmpty++
+		if remaining[itemID] == 0 {
+			return false
+		}
+		remaining[itemID]--
+	}
+	return nonEmpty == len(ingredients)
 }
 
 func trimBounds(grid []int32, w, h int) (minR, maxR, minC, maxC int) {
