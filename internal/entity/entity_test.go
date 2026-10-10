@@ -145,6 +145,24 @@ func TestManagerAllocateID(t *testing.T) {
 	}
 }
 
+func TestManagerRejectsDuplicateEntityID(t *testing.T) {
+	manager := NewManager()
+	first := NewEntity(7, protocol.UUID{1}, EntityTypeMob, Vec3{}, Vec2{})
+	second := NewEntity(7, protocol.UUID{2}, EntityTypeMob, Vec3{X: 32}, Vec2{})
+	if !manager.Add(first) {
+		t.Fatal("first entity was rejected")
+	}
+	if manager.Add(second) {
+		t.Fatal("duplicate entity id was accepted")
+	}
+	if got := manager.Get(7); got != first {
+		t.Fatal("duplicate entity replaced the original")
+	}
+	if manager.Count() != 1 {
+		t.Fatalf("entity count = %d, want 1", manager.Count())
+	}
+}
+
 func TestManagerAddGetRemove(t *testing.T) {
 	mgr := NewManager()
 	e := NewEntity(mgr.AllocateID(), protocol.UUID{}, EntityTypeMob, Vec3{8, 64, 8}, Vec2{})
@@ -492,6 +510,33 @@ func TestTrackerFullCycle(t *testing.T) {
 	}
 	if !foundDespawn {
 		t.Fatal("expected RemoveEntities packet after mob moved far away")
+	}
+}
+
+func TestTrackerWaitsUntilEntityChunkIsVisible(t *testing.T) {
+	mgr := NewManager()
+	tracker := NewTracker()
+	sender := &mockSender{}
+	player := NewPlayer(mgr.AllocateID(), protocol.UUID{1}, "player", Vec3{X: 8, Y: 64, Z: 8}, Vec2{}, sender, 4)
+	mgr.Add(player.Entity)
+	tracker.AddPlayer(player)
+	mob := NewMobEntityByName(mgr.AllocateID(), protocol.UUID{2}, "zombie", Vec3{X: 20, Y: 64, Z: 8})
+	mgr.Add(mob.Entity)
+
+	visible := false
+	tracker.TickWithChunkFilter(mgr, func(_ int32, chunkX, chunkZ int32) bool {
+		return visible && chunkX == 1 && chunkZ == 0
+	})
+	if len(sender.packets) != 0 {
+		t.Fatalf("sent %d entity packets before its chunk", len(sender.packets))
+	}
+
+	visible = true
+	tracker.TickWithChunkFilter(mgr, func(_ int32, chunkX, chunkZ int32) bool {
+		return chunkX == 1 && chunkZ == 0
+	})
+	if len(sender.packets) == 0 || sender.packets[0].ID() != playpacket.NewSpawnEntity().ID() {
+		t.Fatal("entity was not spawned after its chunk became visible")
 	}
 }
 

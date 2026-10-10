@@ -2,6 +2,7 @@ package entity
 
 import (
 	"math"
+	"math/rand"
 
 	genentity "github.com/vitismc/vitis/internal/data/generated/entity"
 	"github.com/vitismc/vitis/internal/entity/physics"
@@ -21,6 +22,8 @@ const (
 type XPOrb struct {
 	*Entity
 	xpValue      int32
+	count        int32
+	health       int32
 	age          int32
 	targetPlayer int32
 }
@@ -30,20 +33,47 @@ func NewXPOrb(id int32, uuid protocol.UUID, pos Vec3, xpValue int32) *XPOrb {
 	e := NewEntity(id, uuid, EntityTypeXPOrb, pos, Vec2{})
 	e.SetProtocolInfo(genentity.EntityExperienceOrb, xpValue)
 	e.vel = Vec3{
-		X: (math.Float64frombits(uint64(id*1103515245+12345)&0x7FFFFFFFFFFFFFFF)/math.MaxFloat64*0.2 - 0.1),
+		X: rand.Float64()*0.2 - 0.1,
 		Y: 0.2,
-		Z: (math.Float64frombits(uint64(id*1103515245+54321)&0x7FFFFFFFFFFFFFFF)/math.MaxFloat64*0.2 - 0.1),
+		Z: rand.Float64()*0.2 - 0.1,
 	}
 	e.dirty |= DirtyVelocity
 	return &XPOrb{
 		Entity:       e,
 		xpValue:      xpValue,
+		count:        1,
+		health:       5,
 		targetPlayer: -1,
 	}
 }
 
 // XPValue returns the experience points this orb awards.
 func (x *XPOrb) XPValue() int32 { return x.xpValue }
+
+// Count returns the number of equal-value awards represented by this orb.
+func (x *XPOrb) Count() int32 { return x.count }
+
+// AddAwards merges equal-value awards and refreshes their lifetime.
+func (x *XPOrb) AddAwards(count int32) bool {
+	if x == nil || x.removed || count <= 0 || int64(x.count)+int64(count) > math.MaxInt32 {
+		return false
+	}
+	x.count += count
+	x.age = 0
+	return true
+}
+
+// TakeOne consumes one award and removes an exhausted orb.
+func (x *XPOrb) TakeOne() int32 {
+	if x == nil || x.removed || x.count <= 0 {
+		return 0
+	}
+	x.count--
+	if x.count == 0 {
+		x.Remove()
+	}
+	return x.xpValue
+}
 
 // Age returns the orb's age in ticks.
 func (x *XPOrb) Age() int32 { return x.age }
@@ -67,10 +97,13 @@ func (x *XPOrb) SpawnData() int32 {
 // TryMerge attempts to merge another orb into this one.
 // Returns true if successful and other should be removed.
 func (x *XPOrb) TryMerge(other *XPOrb) bool {
-	if x == nil || other == nil || x.removed || other.removed {
+	if x == nil || other == nil || x == other || x.removed || other.removed {
 		return false
 	}
-	x.xpValue += other.xpValue
+	if x.xpValue <= 0 || x.xpValue != other.xpValue || x.count <= 0 || other.count <= 0 || int64(x.count)+int64(other.count) > math.MaxInt32 {
+		return false
+	}
+	x.count += other.count
 	x.age = min32(x.age, other.age)
 	return true
 }
@@ -216,33 +249,41 @@ func (m *XPOrbManager) TickAll(world physics.BlockAccess, findPlayer func(pos Ve
 	var removed []int32
 
 	for _, orb := range m.orbs {
-		orb.Tick(world, findPlayer)
+		if IsTickingAt(world, orb.Position()) {
+			orb.Tick(world, findPlayer)
+		}
 	}
 
 	for id, orb := range m.orbs {
 		if orb.removed {
-			removed = append(removed, id)
+			continue
+		}
+		if !IsTickingAt(world, orb.Position()) {
 			continue
 		}
 
 		if orb.age%20 == 0 {
+			query := physics.XPOrbDimensions().MakeBoundingBox(orb.pos.X, orb.pos.Y, orb.pos.Z).Grow(xpOrbMergeRadius)
 			for othID, other := range m.orbs {
-				if othID == id || other.removed {
+				if othID == id || other.removed || !IsTickingAt(world, other.Position()) {
 					continue
 				}
-				if !orb.IsInPickupRange(other.pos) {
+				box := physics.XPOrbDimensions().MakeBoundingBox(other.pos.X, other.pos.Y, other.pos.Z)
+				if !query.Intersects(box) || orb.ID()%40 != other.ID()%40 {
 					continue
 				}
 				if orb.TryMerge(other) {
 					other.removed = true
-					removed = append(removed, othID)
 				}
 			}
 		}
 	}
 
-	for _, id := range removed {
-		delete(m.orbs, id)
+	for id, orb := range m.orbs {
+		if orb.removed {
+			removed = append(removed, id)
+			delete(m.orbs, id)
+		}
 	}
 
 	return removed

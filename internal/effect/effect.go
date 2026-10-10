@@ -54,6 +54,7 @@ type Diff struct {
 type Manager struct {
 	mu      sync.RWMutex
 	effects map[int32]*Instance
+	accept  func(Instance) bool
 }
 
 // NewManager creates an empty effect manager.
@@ -63,9 +64,19 @@ func NewManager() *Manager {
 	}
 }
 
+// NewManagerWithFilter creates a manager with an immutable species acceptance policy.
+func NewManagerWithFilter(accept func(Instance) bool) *Manager {
+	m := NewManager()
+	m.accept = accept
+	return m
+}
+
 // Add applies a new effect or replaces an existing one if stronger/longer.
 // Returns true if the effect was added or replaced.
 func (m *Manager) Add(inst Instance) bool {
+	if m.accept != nil && !m.accept(inst) {
+		return false
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

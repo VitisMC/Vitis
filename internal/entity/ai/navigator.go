@@ -57,6 +57,7 @@ func (n *Navigator) FollowPath(mob *entity.MobEntity, world physics.BlockAccess)
 	if speed <= 0 {
 		speed = 0.15
 	}
+	speed = movementSpeed(mob, speed)
 
 	if horizDistSq < speed*speed+0.1 && math.Abs(dy) < 1.5 {
 		n.path.Advance()

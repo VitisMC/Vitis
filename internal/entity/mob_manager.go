@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"github.com/vitismc/vitis/internal/entity/physics"
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/protocol"
 )
@@ -15,6 +16,16 @@ type MobManager struct {
 	entityManager *Manager
 	nextEntityID  func() int32
 	removeScratch []int32
+	deathLoot     func(*MobEntity) []MobDeathDrop
+	onSpawn       func(*MobEntity)
+}
+
+// SetSpawnHandler installs tick-owned initialization for spawned and restored mobs.
+func (mm *MobManager) SetSpawnHandler(handler func(*MobEntity)) { mm.onSpawn = handler }
+
+// SetDeathLootHandler installs the world's resource-backed death evaluator.
+func (mm *MobManager) SetDeathLootHandler(handler func(*MobEntity) []MobDeathDrop) {
+	mm.deathLoot = handler
 }
 
 // NewMobManager creates a new mob manager.
@@ -38,6 +49,9 @@ func (mm *MobManager) SpawnMob(typeName string, pos Vec3) *MobEntity {
 	mob := NewMobEntity(eid, uuid, def, pos, Vec2{})
 	mm.mobs[eid] = mob
 	mm.entityManager.Add(mob.Entity)
+	if mm.onSpawn != nil {
+		mm.onSpawn(mob)
+	}
 	return mob
 }
 
@@ -48,6 +62,9 @@ func (mm *MobManager) Add(mob *MobEntity) {
 	}
 	mm.mobs[mob.ID()] = mob
 	mm.entityManager.Add(mob.Entity)
+	if mm.onSpawn != nil {
+		mm.onSpawn(mob)
+	}
 }
 
 // Remove marks a mob for removal.
@@ -56,6 +73,9 @@ func (mm *MobManager) Remove(id int32) {
 		mob.Entity.Remove()
 	}
 }
+
+// Evict releases a saved mob without generating death drops.
+func (mm *MobManager) Evict(id int32) { delete(mm.mobs, id) }
 
 // Get returns a mob by entity ID, or nil.
 func (mm *MobManager) Get(id int32) *MobEntity {
@@ -88,20 +108,34 @@ func (mm *MobManager) Mobs() map[int32]*MobEntity {
 func (mm *MobManager) Tick(world physics.BlockAccess) []MobDeathDrop {
 	mm.removeScratch = mm.removeScratch[:0]
 	var drops []MobDeathDrop
+	var split []*MobEntity
 
 	for id, mob := range mm.mobs {
-		mob.TickMob(world)
+		if !mob.Removed() && IsTickingAt(world, mob.Position()) {
+			mob.TickMob(world)
+			if mob.IsDead() && !mob.DeathHandled() {
+				mob.MarkDeathHandled()
+				if mm.deathLoot != nil {
+					drops = append(drops, mm.deathLoot(mob)...)
+				} else {
+					drops = append(drops, mm.generateDeathDrops(mob)...)
+				}
+			}
+			if mob.Removed() && mob.IsDead() && mob.DeathHandled() && mob.DeathTime() >= 20 && mob.TypeName() == "slime" && mob.SlimeSize() > 1 {
+				split = append(split, mob)
+			}
+		}
 
 		if mob.Entity.Removed() {
 			mm.removeScratch = append(mm.removeScratch, id)
-			if mob.IsDead() {
-				drops = append(drops, mm.generateDeathDrops(mob)...)
-			}
 		}
 	}
 
 	for _, id := range mm.removeScratch {
 		delete(mm.mobs, id)
+	}
+	for _, parent := range split {
+		mm.splitSlime(parent)
 	}
 
 	return drops
@@ -113,6 +147,7 @@ type MobDeathDrop struct {
 	ItemID  int32
 	Count   int32
 	XP      int32
+	Stack   inventory.ItemStack
 }
 
 func (mm *MobManager) generateDeathDrops(mob *MobEntity) []MobDeathDrop {
@@ -120,6 +155,9 @@ func (mm *MobManager) generateDeathDrops(mob *MobEntity) []MobDeathDrop {
 	var drops []MobDeathDrop
 
 	for _, loot := range mob.typeDef.Drops {
+		if mob.TypeName() == "slime" && mob.SlimeSize() > 1 {
+			break
+		}
 		if loot.Chance < 1.0 && rand.Float64() > loot.Chance {
 			continue
 		}

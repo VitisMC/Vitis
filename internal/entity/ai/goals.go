@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 
+	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/entity"
 )
 
@@ -102,6 +103,7 @@ func (g *WanderGoal) Tick(ctx *Context) {
 	if speed <= 0 {
 		speed = 0.15
 	}
+	speed = movementSpeed(ctx.Mob, speed)
 	nx := dx / dist * speed
 	nz := dz / dist * speed
 
@@ -125,16 +127,17 @@ func (g *WanderGoal) Stop(ctx *Context) {
 
 // MeleeAttackGoal makes a hostile mob move toward and attack its target.
 type MeleeAttackGoal struct {
-	Speed      float64
-	AttackDist float64
-	Cooldown   int
-	cooldown   int
-	nav        *Navigator
-	replanTick int
+	Speed         float64
+	AttackDist    float64
+	Cooldown      int
+	RequiresNoBow bool
+	cooldown      int
+	nav           *Navigator
+	replanTick    int
 }
 
 func (g *MeleeAttackGoal) CanStart(ctx *Context) bool {
-	return ctx.Mob.Target() >= 0
+	return ctx.Mob.Target() >= 0 && (!g.RequiresNoBow || !ctx.Mob.UsesBow())
 }
 
 func (g *MeleeAttackGoal) Start(ctx *Context) {
@@ -191,6 +194,7 @@ func (g *MeleeAttackGoal) Tick(ctx *Context) {
 			if speed <= 0 {
 				speed = 0.2
 			}
+			speed = movementSpeed(ctx.Mob, speed)
 			vel := ctx.Mob.Entity.Velocity()
 			vel.X = dx / dist * speed
 			vel.Z = dz / dist * speed
@@ -201,10 +205,13 @@ func (g *MeleeAttackGoal) Tick(ctx *Context) {
 	if g.cooldown > 0 {
 		g.cooldown--
 	}
+	if actions, ok := ctx.Blocks.(MobActions); ok && g.ShouldAttack(ctx) {
+		actions.AttackMobTarget(ctx.Mob, ctx.Mob.Target(), false)
+	}
 }
 
 func (g *MeleeAttackGoal) CanContinue(ctx *Context) bool {
-	return ctx.Mob.Target() >= 0
+	return g.CanStart(ctx)
 }
 
 func (g *MeleeAttackGoal) Stop(ctx *Context) {
@@ -227,7 +234,7 @@ func (g *MeleeAttackGoal) ShouldAttack(ctx *Context) bool {
 			if atkDist <= 0 {
 				atkDist = 2.0
 			}
-			if dist <= atkDist {
+			if dist <= atkDist && p.GameMode != 1 && p.GameMode != 3 && ctx.CanSee(p.Pos) {
 				cd := g.Cooldown
 				if cd <= 0 {
 					cd = 20
@@ -244,9 +251,10 @@ func (g *MeleeAttackGoal) ShouldAttack(ctx *Context) bool {
 
 // NearestAttackableTargetGoal scans for the nearest valid target and sets it.
 type NearestAttackableTargetGoal struct {
-	MaxDist  float64
-	Interval int
-	timer    int
+	MaxDist     float64
+	MaxVertical float64
+	Interval    int
+	timer       int
 }
 
 func (g *NearestAttackableTargetGoal) CanStart(ctx *Context) bool {
@@ -258,12 +266,12 @@ func (g *NearestAttackableTargetGoal) CanStart(ctx *Context) bool {
 	if g.timer <= 0 {
 		g.timer = 10
 	}
-	p := ctx.NearestPlayer(g.MaxDist)
+	p := ctx.nearestPlayer(g.MaxDist, g.MaxVertical)
 	return p != nil
 }
 
 func (g *NearestAttackableTargetGoal) Start(ctx *Context) {
-	p := ctx.NearestPlayer(g.MaxDist)
+	p := ctx.nearestPlayer(g.MaxDist, g.MaxVertical)
 	if p != nil {
 		ctx.Mob.SetTarget(p.EntityID)
 	}
@@ -277,7 +285,7 @@ func (g *NearestAttackableTargetGoal) Tick(ctx *Context) {
 	found := false
 	for _, p := range ctx.Players {
 		if p.EntityID == targetID {
-			if ctx.Mob.DistanceToSq(p.Pos) <= g.MaxDist*g.MaxDist {
+			if p.GameMode != 1 && p.GameMode != 3 && (g.MaxVertical <= 0 || math.Abs(p.Pos.Y-ctx.Mob.Position().Y) <= g.MaxVertical) && ctx.Mob.DistanceToSq(p.Pos) <= g.MaxDist*g.MaxDist && ctx.CanSee(p.Pos) {
 				found = true
 			}
 			break
@@ -334,6 +342,7 @@ func (g *FleeGoal) Tick(ctx *Context) {
 	if speed <= 0 {
 		speed = 0.25
 	}
+	speed = movementSpeed(ctx.Mob, speed)
 	nx := dx / dist * speed
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
@@ -388,6 +397,7 @@ func (g *PanicGoal) Tick(ctx *Context) {
 	if speed <= 0 {
 		speed = 0.3
 	}
+	speed = movementSpeed(ctx.Mob, speed)
 	nx := dx / dist * speed
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
@@ -406,11 +416,16 @@ func (g *PanicGoal) Stop(ctx *Context) {}
 
 // --- SwimGoal ---
 
-// SwimGoal makes a mob bob up when in water (stub — checks Y < 63 as placeholder).
+// SwimGoal makes a mob bob up while intersecting water or lava.
 type SwimGoal struct{}
 
 func (g *SwimGoal) CanStart(ctx *Context) bool {
-	return ctx.Mob.Position().Y < 62
+	if ctx.Blocks == nil {
+		return false
+	}
+	pos := ctx.Mob.Position()
+	name := block.NameFromState(ctx.Blocks.GetBlockStateAt(int(math.Floor(pos.X)), int(math.Floor(pos.Y)), int(math.Floor(pos.Z))))
+	return name == "minecraft:water" || name == "minecraft:lava"
 }
 
 func (g *SwimGoal) Start(ctx *Context) {}
@@ -422,7 +437,7 @@ func (g *SwimGoal) Tick(ctx *Context) {
 }
 
 func (g *SwimGoal) CanContinue(ctx *Context) bool {
-	return ctx.Mob.Position().Y < 62
+	return g.CanStart(ctx)
 }
 
 func (g *SwimGoal) Stop(ctx *Context) {}

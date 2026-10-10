@@ -1,5 +1,7 @@
 package entity
 
+import "sync/atomic"
+
 const defaultEntityMapCapacity = 256
 
 // Manager is a per-world entity manager owned by the world tick goroutine.
@@ -7,32 +9,51 @@ const defaultEntityMapCapacity = 256
 type Manager struct {
 	entities      map[int32]*Entity
 	chunkEntities map[int64][]int32
-	nextID        int32
+	nextID        atomic.Int32
+	idSequence    *atomic.Int32
 	removeScratch []int32
 }
 
 // NewManager creates a new entity manager.
 func NewManager() *Manager {
-	return &Manager{
+	return NewManagerWithIDSequence(nil)
+}
+
+// NewManagerWithIDSequence shares protocol IDs across worlds without global package state.
+func NewManagerWithIDSequence(sequence *atomic.Int32) *Manager {
+	m := &Manager{
 		entities:      make(map[int32]*Entity, defaultEntityMapCapacity),
 		chunkEntities: make(map[int64][]int32, defaultEntityMapCapacity),
 	}
+	if sequence == nil {
+		sequence = &m.nextID
+	}
+	m.idSequence = sequence
+	return m
 }
 
 // AllocateID returns the next entity ID.
 func (m *Manager) AllocateID() int32 {
-	m.nextID++
-	return m.nextID
+	return m.idSequence.Add(1)
 }
 
 // Add inserts an entity into the manager and the spatial index.
-func (m *Manager) Add(e *Entity) {
+func (m *Manager) Add(e *Entity) bool {
 	if e == nil {
-		return
+		return false
+	}
+	if _, exists := m.entities[e.id]; exists {
+		return false
 	}
 	m.entities[e.id] = e
+	for current := m.idSequence.Load(); e.id > current; current = m.idSequence.Load() {
+		if m.idSequence.CompareAndSwap(current, e.id) {
+			break
+		}
+	}
 	key := ChunkKey(e.chunkX, e.chunkZ)
 	m.chunkEntities[key] = append(m.chunkEntities[key], e.id)
+	return true
 }
 
 // Remove marks an entity for deferred removal.
@@ -43,6 +64,9 @@ func (m *Manager) Remove(id int32) {
 	}
 	e.Remove()
 }
+
+// Evict releases a durably saved entity without invoking death or loot logic.
+func (m *Manager) Evict(id int32) { m.removeImmediate(id) }
 
 // Get returns an entity by ID.
 func (m *Manager) Get(id int32) *Entity {

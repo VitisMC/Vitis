@@ -16,7 +16,6 @@ const (
 	itemDespawnTicks  = 6000
 	itemMergeRadius   = 0.5
 	itemPickupDelay   = 10
-	itemMaxStackSize  = 64
 	itemDefaultHealth = 5
 )
 
@@ -45,7 +44,7 @@ func NewItemEntity(id int32, uuid protocol.UUID, pos Vec3, stack inventory.Slot)
 	e.dirty |= DirtyVelocity
 	return &ItemEntity{
 		Entity:      e,
-		stack:       stack,
+		stack:       stack.Clone(),
 		pickupDelay: itemPickupDelay,
 		health:      itemDefaultHealth,
 	}
@@ -61,17 +60,20 @@ func NewItemEntityWithVelocity(id int32, uuid protocol.UUID, pos Vec3, stack inv
 	e.dirty |= DirtyVelocity
 	return &ItemEntity{
 		Entity:      e,
-		stack:       stack,
+		stack:       stack.Clone(),
 		pickupDelay: pickupDelay,
 		health:      itemDefaultHealth,
 	}
 }
 
-// Stack returns the item stack this entity represents.
-func (i *ItemEntity) Stack() inventory.Slot { return i.stack }
+// Stack returns an independent copy of the full item stack.
+func (i *ItemEntity) Stack() inventory.Slot { return i.stack.Clone() }
 
-// SetStack replaces the item stack.
-func (i *ItemEntity) SetStack(s inventory.Slot) { i.stack = s }
+// SetStack owns a full-stack copy and marks it for synchronization.
+func (i *ItemEntity) SetStack(s inventory.Slot) {
+	i.stack = s.Clone()
+	i.dirty |= DirtyItemStack
+}
 
 // Age returns the entity's age in ticks.
 func (i *ItemEntity) Age() int32 { return i.age }
@@ -106,21 +108,24 @@ func (i *ItemEntity) CanPickup() bool {
 	return i.pickupDelay <= 0 && !i.removed && !i.stack.Empty()
 }
 
-// TryMerge attempts to merge another item entity's stack into this one.
-// Returns true if the merge was successful and other should be removed.
+// TryMerge consumes another item's complete stack within effective and entity limits.
+// It returns true when the emptied source should be removed by the caller.
 func (i *ItemEntity) TryMerge(other *ItemEntity) bool {
-	if i == nil || other == nil || i.removed || other.removed {
+	if i == nil || other == nil || i == other || i.removed || other.removed || i.stack.Empty() || other.stack.Empty() {
 		return false
 	}
-	if i.stack.ItemID != other.stack.ItemID {
+	if !i.stack.StackableWith(other.stack) {
 		return false
 	}
-	total := i.stack.ItemCount + other.stack.ItemCount
-	if total > itemMaxStackSize {
+	total := int64(i.stack.ItemCount) + int64(other.stack.ItemCount)
+	if total > int64(min(64, i.stack.MaxStackSize(), other.stack.MaxStackSize())) {
 		return false
 	}
-	i.stack.ItemCount = total
+	i.stack.ItemCount = int32(total)
+	other.stack.ItemCount = 0
+	i.dirty |= DirtyItemStack
 	i.age = min32(i.age, other.age)
+	i.pickupDelay = max(i.pickupDelay, other.pickupDelay)
 	return true
 }
 
@@ -252,7 +257,9 @@ func (m *ItemEntityManager) TickAll(world physics.BlockAccess) []int32 {
 	var removed []int32
 
 	for _, item := range m.items {
-		item.Tick(world)
+		if IsTickingAt(world, item.Position()) {
+			item.Tick(world)
+		}
 	}
 
 	for id, item := range m.items {
@@ -260,10 +267,13 @@ func (m *ItemEntityManager) TickAll(world physics.BlockAccess) []int32 {
 			removed = append(removed, id)
 			continue
 		}
+		if !IsTickingAt(world, item.Position()) {
+			continue
+		}
 
 		if item.age%25 == 0 && !item.stack.Empty() {
 			for othID, other := range m.items {
-				if othID == id || other.removed || other.stack.Empty() {
+				if othID == id || other.removed || other.stack.Empty() || !IsTickingAt(world, other.Position()) {
 					continue
 				}
 				if !item.IsInRange(other.pos, itemMergeRadius) {

@@ -1,8 +1,9 @@
 package entity
 
 import (
-	"math"
+	"github.com/vitismc/vitis/internal/nbt"
 	"github.com/vitismc/vitis/internal/protocol"
+	"math"
 )
 
 // EntityType identifies the kind of entity.
@@ -17,6 +18,8 @@ const (
 	DirtyPosition uint8 = 1 << iota
 	DirtyRotation
 	DirtyVelocity
+	DirtyLivingState
+	DirtyItemStack
 )
 
 // Vec3 represents a 3D position or velocity with float64 components.
@@ -56,6 +59,7 @@ type Entity struct {
 
 	clientSimulated bool
 	removed         bool
+	persistent      *nbt.Compound
 }
 
 // NewEntity creates a base entity with the given parameters.
@@ -77,6 +81,15 @@ func NewEntity(id int32, uuid protocol.UUID, entityType EntityType, pos Vec3, ro
 
 // ID returns the entity's protocol-level identifier.
 func (e *Entity) ID() int32 { return e.id }
+
+// BindRuntimeID assigns a fresh protocol ID to an unpublished persistent entity.
+func (e *Entity) BindRuntimeID(id int32) bool {
+	if e == nil || e.id != 0 || id <= 0 {
+		return false
+	}
+	e.id = id
+	return true
+}
 
 // UUID returns the entity's unique identifier.
 func (e *Entity) UUID() protocol.UUID { return e.uuid }
@@ -186,4 +199,9 @@ func BlockToChunk(v float64) int32 {
 // ChunkKey packs chunk X/Z into a single int64 key.
 func ChunkKey(x, z int32) int64 {
 	return int64(x)<<32 | int64(uint32(z))
+}
+
+// ChunkCoordsFromKey unpacks coordinates produced by ChunkKey.
+func ChunkCoordsFromKey(key int64) (x, z int32) {
+	return int32(key >> 32), int32(key)
 }

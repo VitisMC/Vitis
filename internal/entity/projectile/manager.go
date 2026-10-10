@@ -1,5 +1,7 @@
 package projectile
 
+import "github.com/vitismc/vitis/internal/entity"
+
 // Manager manages all projectile entities in a world.
 type Manager struct {
 	arrows   map[int32]*Arrow
@@ -152,6 +154,9 @@ func (m *Manager) TickAll(world BlockAccessProvider, finder EntityFinder) TickRe
 	var result TickResult
 
 	for id, arrow := range m.arrows {
+		if !arrow.Removed() && !entity.IsTickingAt(world, arrow.Position()) {
+			continue
+		}
 		arrow.Tick(world, finder)
 
 		if arrow.Entity.Removed() {
@@ -168,6 +173,9 @@ func (m *Manager) TickAll(world BlockAccessProvider, finder EntityFinder) TickRe
 	}
 
 	for id, t := range m.thrown {
+		if !t.Removed() && !entity.IsTickingAt(world, t.Position()) {
+			continue
+		}
 		t.Tick(world, finder)
 
 		if t.Entity.Removed() {
@@ -187,6 +195,9 @@ func (m *Manager) TickAll(world BlockAccessProvider, finder EntityFinder) TickRe
 	}
 
 	for id, tr := range m.tridents {
+		if !tr.Removed() && !entity.IsTickingAt(world, tr.Position()) {
+			continue
+		}
 		tr.Tick(world, finder)
 
 		if tr.Entity.Removed() {
@@ -202,13 +213,19 @@ func (m *Manager) TickAll(world BlockAccessProvider, finder EntityFinder) TickRe
 		}
 	}
 
-	for _, id := range result.RemovedIDs {
+	return result
+}
+
+// FinalizeRemovals releases projectile state after hit effects have been applied.
+func (m *Manager) FinalizeRemovals(ids []int32) {
+	if m == nil {
+		return
+	}
+	for _, id := range ids {
 		delete(m.arrows, id)
 		delete(m.thrown, id)
 		delete(m.tridents, id)
 	}
-
-	return result
 }
 
 // BlockAccessProvider is the interface for accessing block states (same as physics.BlockAccess).

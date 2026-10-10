@@ -14,18 +14,20 @@ type BlockAccess interface {
 // CollectBlockCollisions gathers all block AABBs that intersect the given AABB.
 // The blockAABBs are in world coordinates (offset by block position).
 func CollectBlockCollisions(world BlockAccess, box AABB) []AABB {
-	minBX := int(math.Floor(box.MinX))
-	minBY := int(math.Floor(box.MinY))
-	minBZ := int(math.Floor(box.MinZ))
-	maxBX := int(math.Floor(box.MaxX))
-	maxBY := int(math.Floor(box.MaxY))
-	maxBZ := int(math.Floor(box.MaxZ))
+	minBX, minBY, minBZ, maxBX, maxBY, maxBZ := BlockCollisionBounds(box)
 
 	var result []AABB
 	for bx := minBX; bx <= maxBX; bx++ {
 		for by := minBY; by <= maxBY; by++ {
 			for bz := minBZ; bz <= maxBZ; bz++ {
 				stateID := world.GetBlockStateAt(bx, by, bz)
+				if stateID < 0 {
+					unknown := AABB{MinX: float64(bx), MinY: float64(by), MinZ: float64(bz), MaxX: float64(bx + 1), MaxY: float64(by + 1), MaxZ: float64(bz + 1)}
+					if box.Intersects(unknown) {
+						result = append(result, unknown)
+					}
+					continue
+				}
 				shapes := gencollision.ShapesForStateID(stateID)
 				for _, s := range shapes {
 					worldBox := AABB{
@@ -36,7 +38,9 @@ func CollectBlockCollisions(world BlockAccess, box AABB) []AABB {
 						MaxY: float64(by) + s.MaxY,
 						MaxZ: float64(bz) + s.MaxZ,
 					}
-					result = append(result, worldBox)
+					if box.Intersects(worldBox) {
+						result = append(result, worldBox)
+					}
 				}
 			}
 		}
@@ -44,13 +48,20 @@ func CollectBlockCollisions(world BlockAccess, box AABB) []AABB {
 	return result
 }
 
+// BlockCollisionBounds includes neighboring blocks whose generated shapes extend
+// beyond their cells: 0.25 horizontally/downward and 0.5 upward in 1.21.4.
+func BlockCollisionBounds(box AABB) (minX, minY, minZ, maxX, maxY, maxZ int) {
+	return int(math.Floor(box.MinX - 0.25)), int(math.Floor(box.MinY - 0.5)), int(math.Floor(box.MinZ - 0.25)),
+		int(math.Floor(box.MaxX + 0.25)), int(math.Floor(box.MaxY + 0.25)), int(math.Floor(box.MaxZ + 0.25))
+}
+
 // MoveResult holds the outcome of a collision-checked movement.
 type MoveResult struct {
 	Dx, Dy, Dz float64
-	OnGround    bool
-	CollidedX   bool
-	CollidedY   bool
-	CollidedZ   bool
+	OnGround   bool
+	CollidedX  bool
+	CollidedY  bool
+	CollidedZ  bool
 }
 
 // MoveWithCollision resolves entity movement against world block collisions.
@@ -109,10 +120,10 @@ func MoveWithStepUp(world BlockAccess, entityBox AABB, dx, dy, dz, stepHeight fl
 	horizResult := MoveWithCollision(world, steppedBox, dx, 0, dz)
 	steppedBox = steppedBox.Offset(horizResult.Dx, 0, horizResult.Dz)
 
-	downResult := MoveWithCollision(world, steppedBox, 0, -stepHeight, 0)
+	downResult := MoveWithCollision(world, steppedBox, 0, dy-stepResult.Dy, 0)
 
 	totalDx := horizResult.Dx
-	totalDy := stepResult.Dy + downResult.Dy + dy
+	totalDy := stepResult.Dy + downResult.Dy
 	totalDz := horizResult.Dz
 
 	horizDistSq := totalDx*totalDx + totalDz*totalDz

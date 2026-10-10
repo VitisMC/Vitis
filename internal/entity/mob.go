@@ -4,8 +4,11 @@ import (
 	"math"
 
 	genattr "github.com/vitismc/vitis/internal/data/generated/attribute"
+	effectdata "github.com/vitismc/vitis/internal/data/generated/effect"
 	genent "github.com/vitismc/vitis/internal/data/generated/entity"
+	"github.com/vitismc/vitis/internal/effect"
 	"github.com/vitismc/vitis/internal/entity/physics"
+	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/protocol"
 )
 
@@ -41,6 +44,7 @@ type MobTypeDef struct {
 	Width        float64
 	Height       float64
 	XPReward     int32
+	FireImmune   bool
 	Drops        []LootDrop
 }
 
@@ -48,11 +52,40 @@ type MobTypeDef struct {
 type MobEntity struct {
 	*LivingEntity
 
-	typeDef  *MobTypeDef
-	noAI     bool
-	target   int32
-	ageTicks int64
+	typeDef             *MobTypeDef
+	noAI                bool
+	target              int32
+	ageTicks            int64
+	persistenceRequired bool
+	canPickUpLoot       bool
+	noActionTime        int32
+	swellDirection      int32
+	slimeSize           int
+	effectDiff          effect.Diff
+	equipment           [7]inventory.ItemStack
+	equipmentDropChance [7]float32
+	equipmentDirty      uint8
+	equipmentBroken     uint8
+	equipmentModifiers  map[equipmentModifierKey]Modifier
 }
+
+// PersistenceRequired reports whether distance-based despawn is disabled.
+func (m *MobEntity) PersistenceRequired() bool { return m.persistenceRequired }
+
+// SetPersistenceRequired controls persistence for named, equipped and owned mobs.
+func (m *MobEntity) SetPersistenceRequired(required bool) { m.persistenceRequired = required }
+
+// CanPickUpLoot reports whether the mob may equip dropped items.
+func (m *MobEntity) CanPickUpLoot() bool { return m.canPickUpLoot }
+
+// SetCanPickUpLoot controls item pickup without changing despawn persistence.
+func (m *MobEntity) SetCanPickUpLoot(enabled bool) { m.canPickUpLoot = enabled }
+
+// NoActionTime returns the mob's idle lifetime used by natural despawn rules.
+func (m *MobEntity) NoActionTime() int32 { return m.noActionTime }
+
+// SetNoActionTime updates the idle lifetime on the owning world tick.
+func (m *MobEntity) SetNoActionTime(ticks int32) { m.noActionTime = max(0, ticks) }
 
 // NewMobEntity creates a mob entity from a type definition.
 func NewMobEntity(id int32, uuid protocol.UUID, def *MobTypeDef, pos Vec3, rot Vec2) *MobEntity {
@@ -60,12 +93,20 @@ func NewMobEntity(id int32, uuid protocol.UUID, def *MobTypeDef, pos Vec3, rot V
 	base.SetProtocolInfo(def.ProtocolID, 0)
 	le := NewLivingEntity(base, def.MaxHealth)
 	le.attributes = mobAttributes(def)
+	le.fireImmune = def.FireImmune
+	le.effects = effect.NewManagerWithFilter(mobEffectPolicy(def.Name))
 
-	return &MobEntity{
-		LivingEntity: le,
-		typeDef:      def,
-		target:       -1,
+	mob := &MobEntity{
+		LivingEntity:   le,
+		typeDef:        def,
+		target:         -1,
+		swellDirection: -1,
 	}
+	if def.Name == "slime" {
+		mob.SetSlimeSize(1, true)
+	}
+	mob.initializeEquipment()
+	return mob
 }
 
 // NewMobEntityByName creates a mob entity by looking up the entity name.
@@ -78,7 +119,7 @@ func NewMobEntityByName(id int32, uuid protocol.UUID, name string, pos Vec3) *Mo
 	return NewMobEntity(id, uuid, def, pos, Vec2{})
 }
 
-// TypeDef returns the mob's static type definition.
+// TypeDef returns the mob's instance properties used by physics and behavior.
 func (m *MobEntity) TypeDef() *MobTypeDef { return m.typeDef }
 
 // TypeName returns the mob's registered name.
@@ -94,7 +135,43 @@ func (m *MobEntity) Category() MobCategory { return m.typeDef.Category }
 func (m *MobEntity) NoAI() bool { return m.noAI }
 
 // SetNoAI enables or disables AI.
-func (m *MobEntity) SetNoAI(v bool) { m.noAI = v }
+func (m *MobEntity) SetNoAI(v bool) { m.noAI = v; m.Entity.dirty |= DirtyLivingState }
+
+// SwellDirection returns the creeper's client-visible fuse direction.
+func (m *MobEntity) SwellDirection() int32 { return m.swellDirection }
+
+// SetSwellDirection marks a creeper's fuse direction for observer synchronization.
+func (m *MobEntity) SetSwellDirection(direction int32) {
+	if direction != m.swellDirection {
+		m.swellDirection = direction
+		m.Entity.dirty |= DirtyLivingState
+	}
+}
+
+// LootTraits captures supported saved species properties without exposing mutable NBT.
+func (m *MobEntity) LootTraits() (baby bool, color string, sheared bool, size int) {
+	color, size = "white", 4
+	if m.TypeName() == "slime" {
+		size = m.SlimeSize()
+	}
+	if m.persistent == nil {
+		return
+	}
+	if age, ok := m.persistent.GetInt("Age"); ok {
+		baby = age < 0
+	}
+	if savedBaby, ok := m.persistent.GetBool("IsBaby"); ok {
+		baby = savedBaby
+	}
+	if wool, ok := m.persistent.GetByte("Color"); ok && wool >= 0 && wool < 16 {
+		color = [...]string{"white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black"}[wool]
+	}
+	sheared, _ = m.persistent.GetBool("Sheared")
+	if savedSize, ok := m.persistent.GetInt("Size"); ok && m.TypeName() != "slime" && savedSize >= 0 && savedSize <= 126 {
+		size = int(savedSize) + 1
+	}
+	return
+}
 
 // Target returns the entity ID of the current attack target, or -1.
 func (m *MobEntity) Target() int32 { return m.target }
@@ -105,8 +182,35 @@ func (m *MobEntity) SetTarget(id int32) { m.target = id }
 // AgeTicks returns how many ticks this mob has existed.
 func (m *MobEntity) AgeTicks() int64 { return m.ageTicks }
 
-// XPReward returns the XP dropped on death.
-func (m *MobEntity) XPReward() int32 { return m.typeDef.XPReward }
+// XPReward returns the base death experience, including supported baby-species rules.
+func (m *MobEntity) XPReward() int32 {
+	baby, _, _, _ := m.LootTraits()
+	if baby {
+		switch m.TypeName() {
+		case "zombie", "husk", "drowned":
+			return m.typeDef.XPReward * 5 / 2
+		default:
+			return 0
+		}
+	}
+	return m.typeDef.XPReward
+}
+
+// mobEffectPolicy captures immutable effect immunities for supported species.
+func mobEffectPolicy(name string) func(effect.Instance) bool {
+	return func(instance effect.Instance) bool {
+		switch name {
+		case "zombie", "husk", "drowned", "skeleton", "stray", "wither_skeleton", "phantom":
+			if instance.ID == effectdata.EffectPoison || instance.ID == effectdata.EffectRegeneration {
+				return false
+			}
+		}
+		if name == "wither_skeleton" && instance.ID == effectdata.EffectWither {
+			return false
+		}
+		return (name != "spider" && name != "cave_spider") || instance.ID != effectdata.EffectPoison
+	}
+}
 
 // Living returns the underlying LivingEntity.
 func (m *MobEntity) Living() *LivingEntity { return m.LivingEntity }
@@ -114,6 +218,8 @@ func (m *MobEntity) Living() *LivingEntity { return m.LivingEntity }
 // TickMob advances mob state for one tick, applying gravity and collision.
 func (m *MobEntity) TickMob(world physics.BlockAccess) {
 	m.LivingEntity.TickLiving()
+	m.effectDiff = m.LivingEntity.TickEffects()
+	m.effectDiff.Actions = nil
 	m.ageTicks++
 
 	if m.IsDead() && m.DeathTime() >= 20 {
@@ -123,6 +229,11 @@ func (m *MobEntity) TickMob(world physics.BlockAccess) {
 
 	if world == nil {
 		return
+	}
+	if !m.IsDead() {
+		for _, source := range m.TickEnvironment(world.GetBlockStateAt) {
+			m.ApplyDamage(source, m.ArmorDefense(), m.ArmorToughness(), m.ArmorEnchProtection())
+		}
 	}
 
 	gravity := 0.08
@@ -176,6 +287,13 @@ func (m *MobEntity) TickMob(world physics.BlockAccess) {
 	}
 }
 
+// ConsumeEffectDiff returns and clears effect updates produced by the last mob tick.
+func (m *MobEntity) ConsumeEffectDiff() effect.Diff {
+	diff := m.effectDiff
+	m.effectDiff = effect.Diff{}
+	return diff
+}
+
 // DistanceTo returns the distance to another position.
 func (m *MobEntity) DistanceTo(target Vec3) float64 {
 	pos := m.Position()
@@ -201,6 +319,12 @@ func mobAttributes(def *MobTypeDef) *AttributeContainer {
 	ac.attrs[genattr.AttrAttackDamage] = &Attribute{Base: float64(def.AttackDmg)}
 	ac.attrs[genattr.AttrFollowRange] = &Attribute{Base: def.FollowRange}
 	ac.attrs[genattr.AttrKnockbackResistance] = &Attribute{Base: def.KnockbackRes}
+	ac.attrs[genattr.AttrArmor] = &Attribute{}
+	ac.attrs[genattr.AttrArmorToughness] = &Attribute{}
+	ac.attrs[genattr.AttrAttackKnockback] = &Attribute{}
+	if def.Name == "zombie" || def.Name == "husk" || def.Name == "drowned" {
+		ac.attrs[genattr.AttrArmor].Base = 2
+	}
 	ac.attrs[genattr.AttrGravity] = &Attribute{Base: 0.08}
 	ac.attrs[genattr.AttrStepHeight] = &Attribute{Base: 0.6}
 	return ac
@@ -298,11 +422,11 @@ func registerCoreMobs() {
 				{ItemName: "minecraft:spider_eye", MinCount: 0, MaxCount: 1, Chance: 0.33},
 			}},
 		{Name: "witch", Category: MobCategoryHostile, MaxHealth: 26, AttackDmg: 0, MoveSpeed: 0.25, FollowRange: 16, XPReward: 5},
-		{Name: "slime", Category: MobCategoryHostile, MaxHealth: 16, AttackDmg: 4, MoveSpeed: 0.2, FollowRange: 16, XPReward: 4,
+		{Name: "slime", Category: MobCategoryHostile, MaxHealth: 1, AttackDmg: 1, MoveSpeed: 0.3, FollowRange: 16, XPReward: 1,
 			Drops: []LootDrop{{ItemName: "minecraft:slime_ball", MinCount: 0, MaxCount: 2, Chance: 1.0}}},
-		{Name: "blaze", Category: MobCategoryHostile, MaxHealth: 20, AttackDmg: 6, MoveSpeed: 0.23, FollowRange: 48, XPReward: 10,
+		{Name: "blaze", Category: MobCategoryHostile, MaxHealth: 20, AttackDmg: 6, MoveSpeed: 0.23, FollowRange: 48, XPReward: 10, FireImmune: true,
 			Drops: []LootDrop{{ItemName: "minecraft:blaze_rod", MinCount: 0, MaxCount: 1, Chance: 1.0}}},
-		{Name: "wither_skeleton", Category: MobCategoryHostile, MaxHealth: 20, AttackDmg: 8, MoveSpeed: 0.25, FollowRange: 16, XPReward: 5,
+		{Name: "wither_skeleton", Category: MobCategoryHostile, MaxHealth: 20, AttackDmg: 4, MoveSpeed: 0.25, FollowRange: 16, XPReward: 5, FireImmune: true,
 			Drops: []LootDrop{
 				{ItemName: "minecraft:bone", MinCount: 0, MaxCount: 2, Chance: 1.0},
 				{ItemName: "minecraft:coal", MinCount: 0, MaxCount: 1, Chance: 1.0},
