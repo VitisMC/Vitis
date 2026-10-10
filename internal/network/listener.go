@@ -34,6 +34,9 @@ type ListenerConfig struct {
 	AcceptBackoffMin    time.Duration
 	AcceptBackoffMax    time.Duration
 	MaxConnections      int
+	AdmissionRate       float64
+	AdmissionBurst      int
+	MaxTrackedIPs       int
 	WorkerPoolSize      int
 	WorkerQueueCapacity int
 	BufferClassSizes    []int
@@ -53,6 +56,7 @@ type Listener struct {
 	bufferPool *BufferPool
 
 	maxConnections atomic.Int64
+	admission      *ipAdmissionLimiter
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -90,6 +94,7 @@ func NewListener(cfg ListenerConfig) (*Listener, error) {
 		ctx:        ctx,
 		cancel:     cancel,
 		done:       make(chan struct{}),
+		admission:  newIPAdmissionLimiter(cfg.AdmissionRate, cfg.AdmissionBurst, cfg.MaxTrackedIPs, time.Now),
 	}
 	l.maxConnections.Store(int64(cfg.MaxConnections))
 	l.state.Store(listenerStateInit)
@@ -243,10 +248,13 @@ func (l *Listener) admitConnection(raw net.Conn) bool {
 	if l.ctx.Err() != nil {
 		return false
 	}
+	if !l.admission.Allow(raw.RemoteAddr()) {
+		l.reportError(fmt.Errorf("connection admission rate exceeded: remote=%s", raw.RemoteAddr()))
+		return false
+	}
 
-	maxConnections := l.MaxConnections()
-	if maxConnections > 0 && l.ActiveConnections() >= maxConnections {
-		l.reportError(fmt.Errorf("max connections reached: %d", maxConnections))
+	if !l.reserveConnection() {
+		l.reportError(fmt.Errorf("max connections reached: %d", l.MaxConnections()))
 		return false
 	}
 
@@ -279,7 +287,6 @@ func (l *Listener) admitConnection(raw net.Conn) bool {
 	pipeline := l.newPipeline(connCfg.MaxFrameSize)
 	conn := NewConn(raw, pipeline, l.workerPool, l.bufferPool, connCfg)
 	l.connections.Store(conn, struct{}{})
-	l.activeConns.Add(1)
 
 	if l.cfg.OnConnection != nil {
 		if err := l.cfg.OnConnection(conn); err != nil {
@@ -291,6 +298,20 @@ func (l *Listener) admitConnection(raw net.Conn) bool {
 
 	conn.Start()
 	return true
+}
+
+// reserveConnection atomically reserves one slot in the connection admission limit.
+func (l *Listener) reserveConnection() bool {
+	for {
+		active := l.activeConns.Load()
+		maxConnections := l.maxConnections.Load()
+		if maxConnections > 0 && active >= maxConnections {
+			return false
+		}
+		if l.activeConns.CompareAndSwap(active, active+1) {
+			return true
+		}
+	}
 }
 
 func (l *Listener) closeAllConnections(force bool) error {
@@ -367,6 +388,15 @@ func normalizeListenerConfig(cfg ListenerConfig) ListenerConfig {
 	}
 	if cfg.WorkerQueueCapacity <= 0 {
 		cfg.WorkerQueueCapacity = cfg.WorkerPoolSize * 1024
+	}
+	if cfg.AdmissionRate <= 0 {
+		cfg.AdmissionRate = defaultAdmissionRate
+	}
+	if cfg.AdmissionBurst <= 0 {
+		cfg.AdmissionBurst = defaultAdmissionBurst
+	}
+	if cfg.MaxTrackedIPs <= 0 {
+		cfg.MaxTrackedIPs = defaultMaxTrackedIPs
 	}
 	return cfg
 }

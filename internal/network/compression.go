@@ -3,6 +3,7 @@ package network
 import (
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -15,11 +16,39 @@ var (
 
 const maxDecompressedSize = 8 << 20
 
-var zlibWriterPool = sync.Pool{
-	New: func() any {
-		w, _ := zlib.NewWriterLevel(io.Discard, zlib.DefaultCompression)
-		return w
-	},
+const maxRetainedCompressionBuffer = 1 << 20
+
+type compressionWorkspace struct {
+	buffer bytes.Buffer
+	writer *zlib.Writer
+}
+
+var zlibWriterCache = make(chan *compressionWorkspace, 32)
+
+// acquireCompressionWorkspace returns an isolated reusable compressor and output buffer.
+func acquireCompressionWorkspace() (*compressionWorkspace, error) {
+	select {
+	case workspace := <-zlibWriterCache:
+		return workspace, nil
+	default:
+		writer, err := zlib.NewWriterLevel(io.Discard, zlib.BestSpeed)
+		if err != nil {
+			return nil, err
+		}
+		return &compressionWorkspace{writer: writer}, nil
+	}
+}
+
+// releaseCompressionWorkspace retains bounded buffers for a later frame.
+func releaseCompressionWorkspace(workspace *compressionWorkspace) {
+	if workspace.buffer.Cap() > maxRetainedCompressionBuffer {
+		return
+	}
+	workspace.buffer.Reset()
+	select {
+	case zlibWriterCache <- workspace:
+	default:
+	}
 }
 
 var zlibReaderPool = sync.Pool{}
@@ -45,23 +74,20 @@ func CompressFrame(packetBytes []byte, threshold int) ([]byte, error) {
 		return out, nil
 	}
 
-	var compressed bytes.Buffer
-	compressed.Grow(len(packetBytes))
-
-	w := zlibWriterPool.Get().(*zlib.Writer)
-	w.Reset(&compressed)
-	if _, err := w.Write(packetBytes); err != nil {
-		w.Close()
-		zlibWriterPool.Put(w)
+	workspace, err := acquireCompressionWorkspace()
+	if err != nil {
+		return nil, fmt.Errorf("create compressor: %w", err)
+	}
+	workspace.buffer.Reset()
+	workspace.buffer.Grow(len(packetBytes))
+	workspace.writer.Reset(&workspace.buffer)
+	if _, err := workspace.writer.Write(packetBytes); err != nil {
 		return nil, fmt.Errorf("compress frame: %w", err)
 	}
-	if err := w.Close(); err != nil {
-		zlibWriterPool.Put(w)
+	if err := workspace.writer.Close(); err != nil {
 		return nil, fmt.Errorf("compress frame close: %w", err)
 	}
-	zlibWriterPool.Put(w)
-
-	compressedData := compressed.Bytes()
+	compressedData := workspace.buffer.Bytes()
 	uncompressedLen := int32(len(packetBytes))
 	dataLenSize := varIntSize(uncompressedLen)
 	totalPayload := dataLenSize + len(compressedData)
@@ -71,12 +97,18 @@ func CompressFrame(packetBytes []byte, threshold int) ([]byte, error) {
 	offset := writeVarInt(out, int32(totalPayload))
 	offset += writeVarInt(out[offset:], uncompressedLen)
 	copy(out[offset:], compressedData)
+	releaseCompressionWorkspace(workspace)
 	return out, nil
 }
 
-// DecompressFrame reads the data_length VarInt from frame and decompresses if needed.
-// Returns the raw packet bytes (VarInt packet_id + data).
+// DecompressFrame reads one compressed protocol frame without enforcing a negotiated threshold.
 func DecompressFrame(frame []byte) ([]byte, error) {
+	return DecompressFrameWithThreshold(frame, -1)
+}
+
+// DecompressFrameWithThreshold reads one compressed protocol frame and validates
+// the representation against the negotiated compression threshold.
+func DecompressFrameWithThreshold(frame []byte, threshold int) ([]byte, error) {
 	dataLength, consumed, ok, err := decodeVarInt(frame)
 	if err != nil {
 		return nil, fmt.Errorf("decompress frame: read data_length: %w", err)
@@ -88,6 +120,9 @@ func DecompressFrame(frame []byte) ([]byte, error) {
 	remaining := frame[consumed:]
 
 	if dataLength == 0 {
+		if threshold >= 0 && len(remaining) >= threshold {
+			return nil, fmt.Errorf("decompress frame: uncompressed payload %d is not below threshold %d", len(remaining), threshold)
+		}
 		out := make([]byte, len(remaining))
 		copy(out, remaining)
 		return out, nil
@@ -95,6 +130,9 @@ func DecompressFrame(frame []byte) ([]byte, error) {
 
 	if dataLength < 0 || int(dataLength) > maxDecompressedSize {
 		return nil, fmt.Errorf("decompress frame: invalid data_length %d", dataLength)
+	}
+	if threshold >= 0 && int(dataLength) < threshold {
+		return nil, fmt.Errorf("decompress frame: compressed payload %d is below threshold %d", dataLength, threshold)
 	}
 
 	var r io.ReadCloser
@@ -117,11 +155,26 @@ func DecompressFrame(frame []byte) ([]byte, error) {
 
 	decompressed := make([]byte, dataLength)
 	n, readErr := io.ReadFull(r, decompressed)
-	r.Close()
+	if readErr == nil {
+		var trailing [1]byte
+		trailingN, trailingErr := r.Read(trailing[:])
+		switch {
+		case trailingN != 0:
+			readErr = fmt.Errorf("%w: output exceeds declared length %d", ErrDecompressLength, dataLength)
+		case trailingErr != nil && !errors.Is(trailingErr, io.EOF):
+			readErr = trailingErr
+		case trailingErr == nil:
+			readErr = fmt.Errorf("%w: stream did not terminate", ErrDecompressFailed)
+		}
+	}
+	closeErr := r.Close()
 	zlibReaderPool.Put(r)
 
 	if readErr != nil {
 		return nil, fmt.Errorf("decompress frame: %w: %w", ErrDecompressFailed, readErr)
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("decompress frame: %w: %w", ErrDecompressFailed, closeErr)
 	}
 	if int32(n) != dataLength {
 		return nil, fmt.Errorf("decompress frame: %w: got %d expected %d", ErrDecompressLength, n, dataLength)
