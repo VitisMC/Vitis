@@ -1,5 +1,7 @@
 package chunk
 
+import "github.com/vitismc/vitis/internal/world/chunk/section"
+
 const (
 	defaultGeneratedSectionCount = 1
 	defaultGeneratedBlockValue   = uint16(1)
@@ -21,7 +23,7 @@ func NewStubGenerator() *StubGenerator {
 	return &StubGenerator{}
 }
 
-// Generate returns a deterministic generated chunk with simplified section data.
+// Generate returns a deterministic generated palette-based chunk.
 func (g *StubGenerator) Generate(x, z int32) (*Chunk, error) {
 	sectionCount := defaultGeneratedSectionCount
 	if g != nil && g.SectionCount > 0 {
@@ -33,20 +35,15 @@ func (g *StubGenerator) Generate(x, z int32) (*Chunk, error) {
 		blockValue = g.BlockValue
 	}
 
-	sections := make([]Section, sectionCount)
-	for i := 0; i < sectionCount; i++ {
-		blocks := make([]uint16, defaultSectionSize)
-		for index := range blocks {
-			blocks[index] = blockValue
-		}
-		sections[i] = Section{
-			Y:      int32(i),
-			Blocks: blocks,
+	data := section.NewChunk(x, z, sectionCount, 0)
+	for _, chunkSection := range data.Sections {
+		for index := 0; index < section.BlocksPerSection; index++ {
+			chunkSection.Blocks.Set(index, int32(blockValue))
 		}
 	}
 
 	generated := New(x, z)
-	generated.SetSections(sections)
+	generated.SetData(data)
 	generated.SetState(StateLoaded)
 	return generated, nil
 }

@@ -7,29 +7,58 @@ import (
 	"os"
 	"time"
 
+	gamerules "github.com/vitismc/vitis/internal/data/generated/game_rules"
 	"github.com/vitismc/vitis/internal/nbt"
+	"github.com/vitismc/vitis/internal/protocol"
+	"github.com/vitismc/vitis/internal/storage"
 )
+
+const maxPersistentNBTSize = 16 << 20
+
+// readGzipNBT reads one bounded gzip-compressed NBT document and verifies the
+// complete stream before returning it to an NBT decoder.
+func readGzipNBT(source io.Reader) ([]byte, error) {
+	gz, err := gzip.NewReader(source)
+	if err != nil {
+		return nil, err
+	}
+	data, readErr := io.ReadAll(io.LimitReader(gz, maxPersistentNBTSize+1))
+	closeErr := gz.Close()
+	if readErr != nil {
+		return nil, readErr
+	}
+	if len(data) > maxPersistentNBTSize {
+		return nil, fmt.Errorf("decompressed NBT exceeds %d byte limit", maxPersistentNBTSize)
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return data, nil
+}
 
 // Level holds the parsed level.dat data for a Minecraft world.
 type Level struct {
-	LevelName  string
-	SpawnX     int32
-	SpawnY     int32
-	SpawnZ     int32
-	SpawnAngle float32
-	GameType   int32
-	Hardcore   bool
-	Difficulty int8
-	DayTime    int64
-	Time       int64
-	LastPlayed int64
-	Version    int32
+	DataVersion int32
+	LevelName   string
+	SpawnX      int32
+	SpawnY      int32
+	SpawnZ      int32
+	SpawnAngle  float32
+	GameType    int32
+	Hardcore    bool
+	Difficulty  int8
+	DayTime     int64
+	Time        int64
+	LastPlayed  int64
+	Version     int32
 
 	AllowCommands bool
 	Initialized   bool
 
 	Seed             int64
 	GenerateFeatures bool
+
+	GameRules map[string]string
 
 	ServerBrands []string
 
@@ -45,13 +74,7 @@ func Open(worldDir string) (*Level, error) {
 	}
 	defer f.Close()
 
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return nil, fmt.Errorf("level: gzip reader: %w", err)
-	}
-	defer gz.Close()
-
-	data, err := io.ReadAll(gz)
+	data, err := readGzipNBT(f)
 	if err != nil {
 		return nil, fmt.Errorf("level: read data: %w", err)
 	}
@@ -69,10 +92,28 @@ func Open(worldDir string) (*Level, error) {
 
 	l := &Level{raw: root}
 	l.parseData(dataComp)
+	for name, value := range l.GameRules {
+		if gamerules.GameRuleByName(name) != nil {
+			if err := gamerules.Validate(name, value); err != nil {
+				return nil, fmt.Errorf("level game rule %s: %w", name, err)
+			}
+		}
+	}
 	return l, nil
 }
 
 func (l *Level) parseData(data *nbt.Compound) {
+	l.GameRules = gamerules.Defaults()
+	if rules, ok := data.GetCompound("GameRules"); ok {
+		for _, name := range rules.Keys() {
+			if value, ok := rules.GetString(name); ok {
+				l.GameRules[name] = value
+			}
+		}
+	}
+	if v, ok := data.GetInt("DataVersion"); ok {
+		l.DataVersion = v
+	}
 	if v, ok := data.GetString("LevelName"); ok {
 		l.LevelName = v
 	}
@@ -115,11 +156,37 @@ func (l *Level) parseData(data *nbt.Compound) {
 	if v, ok := data.GetInt("version"); ok {
 		l.Version = v
 	}
+	if worldGen, ok := data.GetCompound("WorldGenSettings"); ok {
+		if v, exists := worldGen.GetLong("seed"); exists {
+			l.Seed = v
+		}
+		if v, exists := worldGen.GetBool("generate_features"); exists {
+			l.GenerateFeatures = v
+		}
+	}
+}
+
+// BonusChestEnabled reads the optional spawn chest flag from preserved world metadata.
+func (l *Level) BonusChestEnabled() bool {
+	if l == nil || l.raw == nil {
+		return false
+	}
+	data, ok := l.raw.GetCompound("Data")
+	if !ok {
+		return false
+	}
+	settings, ok := data.GetCompound("WorldGenSettings")
+	if !ok {
+		return false
+	}
+	enabled, _ := settings.GetBool("bonus_chest")
+	return enabled
 }
 
 // New creates a new Level with sensible defaults for world creation.
 func New(levelName string, spawnX, spawnY, spawnZ int32) *Level {
 	return &Level{
+		DataVersion:   protocol.CurrentDataVersion,
 		LevelName:     levelName,
 		SpawnX:        spawnX,
 		SpawnY:        spawnY,
@@ -131,60 +198,58 @@ func New(levelName string, spawnX, spawnY, spawnZ int32) *Level {
 		Version:       19133,
 		LastPlayed:    time.Now().UnixMilli(),
 		ServerBrands:  []string{"Vitis"},
+		GameRules:     gamerules.Defaults(),
 	}
 }
 
 // Save writes the level.dat file to the given world directory.
 func (l *Level) Save(worldDir string) error {
+	if l == nil {
+		return fmt.Errorf("level: nil level")
+	}
+	if l.DataVersion != protocol.CurrentDataVersion {
+		return fmt.Errorf("level: unsupported DataVersion %d", l.DataVersion)
+	}
 	if err := os.MkdirAll(worldDir, 0755); err != nil {
 		return fmt.Errorf("level: mkdir %s: %w", worldDir, err)
 	}
 
+	root := l.raw.Clone()
+	if root == nil {
+		root = nbt.NewCompound()
+	}
 	data := l.buildDataCompound()
-	root := nbt.NewCompound()
 	root.PutCompound("Data", data)
 
-	enc := nbt.NewEncoder(4096)
-	if err := enc.WriteNamedRootCompound("", root); err != nil {
-		return fmt.Errorf("level: encode nbt: %w", err)
-	}
-
 	path := worldDir + "/level.dat"
-	tmpPath := path + ".tmp"
-
-	f, err := os.Create(tmpPath)
+	payload, err := encodeGzipNBT(root, 4096)
 	if err != nil {
-		return fmt.Errorf("level: create tmp: %w", err)
+		return fmt.Errorf("level: %w", err)
 	}
-
-	gz := gzip.NewWriter(f)
-	if _, err := gz.Write(enc.Bytes()); err != nil {
-		f.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("level: gzip write: %w", err)
+	if err := backupCurrentFile(path, path+"_old"); err != nil {
+		return fmt.Errorf("level: %w", err)
 	}
-	if err := gz.Close(); err != nil {
-		f.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("level: gzip close: %w", err)
+	if err := storage.WriteFileAtomic(path, payload, 0644); err != nil {
+		return fmt.Errorf("level: save: %w", err)
 	}
-	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("level: close tmp: %w", err)
-	}
-
-	oldPath := path + "_old"
-	os.Rename(path, oldPath)
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Rename(oldPath, path)
-		return fmt.Errorf("level: rename: %w", err)
-	}
-
+	l.raw = root.Clone()
 	return nil
 }
 
 func (l *Level) buildDataCompound() *nbt.Compound {
-	data := nbt.NewCompound()
+	var data *nbt.Compound
+	if l.raw != nil {
+		data, _ = l.raw.GetCompound("Data")
+		data = data.Clone()
+	}
+	if data == nil {
+		data = nbt.NewCompound()
+	}
+	rules := nbt.NewCompound()
+	for name, value := range l.GameRules {
+		rules.PutString(name, value)
+	}
+	data.PutCompound("GameRules", rules)
 	data.PutString("LevelName", l.LevelName)
 	data.PutInt("SpawnX", l.SpawnX)
 	data.PutInt("SpawnY", l.SpawnY)
@@ -200,30 +265,42 @@ func (l *Level) buildDataCompound() *nbt.Compound {
 	data.PutBool("initialized", l.Initialized)
 	data.PutInt("version", l.Version)
 
-	data.PutInt("DataVersion", 4189)
+	data.PutInt("DataVersion", protocol.CurrentDataVersion)
 
-	version := nbt.NewCompound()
-	version.PutInt("Id", 4189)
-	version.PutString("Name", "1.21.4")
+	version, _ := data.GetCompound("Version")
+	version = version.Clone()
+	if version == nil {
+		version = nbt.NewCompound()
+	}
+	version.PutInt("Id", protocol.CurrentDataVersion)
+	version.PutString("Name", protocol.CurrentMinecraftVersion)
 	version.PutString("Series", "main")
 	version.PutByte("Snapshot", 0)
 	data.PutCompound("Version", version)
 
-	brands := nbt.NewList(nbt.TagString)
-	for _, b := range l.ServerBrands {
-		brands.Add(b)
+	if l.ServerBrands != nil {
+		brands := nbt.NewList(nbt.TagString)
+		for _, b := range l.ServerBrands {
+			brands.Add(b)
+		}
+		data.PutList("ServerBrands", brands)
 	}
-	data.PutList("ServerBrands", brands)
 
-	dataPacks := nbt.NewCompound()
-	enabled := nbt.NewList(nbt.TagString)
-	enabled.Add("vanilla")
-	dataPacks.PutList("Enabled", enabled)
-	dataPacks.PutList("Disabled", nbt.NewList(nbt.TagString))
-	data.PutCompound("DataPacks", dataPacks)
+	if _, exists := data.GetCompound("DataPacks"); !exists {
+		dataPacks := nbt.NewCompound()
+		dataPacks.PutList("Enabled", nbt.NewList(nbt.TagString).Add("vanilla"))
+		dataPacks.PutList("Disabled", nbt.NewList(nbt.TagString))
+		data.PutCompound("DataPacks", dataPacks)
+	}
 
-	worldGen := nbt.NewCompound()
-	worldGen.PutBool("bonus_chest", false)
+	worldGen, _ := data.GetCompound("WorldGenSettings")
+	worldGen = worldGen.Clone()
+	if worldGen == nil {
+		worldGen = nbt.NewCompound()
+	}
+	if _, exists := worldGen.GetBool("bonus_chest"); !exists {
+		worldGen.PutBool("bonus_chest", false)
+	}
 	worldGen.PutBool("generate_features", l.GenerateFeatures)
 	worldGen.PutLong("seed", l.Seed)
 	data.PutCompound("WorldGenSettings", worldGen)

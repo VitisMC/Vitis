@@ -67,3 +67,45 @@ func TestChunkStoreClose(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 }
+
+func TestChunkStoreSeparatesChunkEntityAndPOIRegions(t *testing.T) {
+	worldDir := filepath.Join(t.TempDir(), "world")
+	store := NewChunkStore(worldDir)
+	defer store.Close()
+
+	if err := store.WriteChunkNBT(-1, 33, []byte("chunk")); err != nil {
+		t.Fatalf("write chunk: %v", err)
+	}
+	if err := store.WriteEntityNBT(-1, 33, []byte("entities")); err != nil {
+		t.Fatalf("write entities: %v", err)
+	}
+	if err := store.WritePOINBT(-1, 33, []byte("poi")); err != nil {
+		t.Fatalf("write poi: %v", err)
+	}
+
+	readCases := []struct {
+		name string
+		read func(int, int) ([]byte, error)
+		want string
+	}{
+		{name: "chunk", read: store.ReadChunkNBT, want: "chunk"},
+		{name: "entities", read: store.ReadEntityNBT, want: "entities"},
+		{name: "poi", read: store.ReadPOINBT, want: "poi"},
+	}
+	for _, testCase := range readCases {
+		got, err := testCase.read(-1, 33)
+		if err != nil {
+			t.Fatalf("read %s: %v", testCase.name, err)
+		}
+		if string(got) != testCase.want {
+			t.Fatalf("read %s = %q, want %q", testCase.name, got, testCase.want)
+		}
+	}
+
+	for _, directory := range []string{"region", "entities", "poi"} {
+		matches, err := filepath.Glob(filepath.Join(worldDir, directory, "*.mca"))
+		if err != nil || len(matches) != 1 {
+			t.Fatalf("%s region files = %v, err=%v", directory, matches, err)
+		}
+	}
+}

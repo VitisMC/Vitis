@@ -34,7 +34,18 @@ func encodePaletteContainer(dst []byte, pc *PaletteContainer, isBlock bool) []by
 		for _, v := range palette {
 			dst = appendVarInt(dst, v)
 		}
+
 		raw := pc.RawData()
+		if effectiveBPE != bpe {
+			// Re-pack data at the effective bits-per-entry width.
+			// This happens when NBT data was stored with bpe < MinBitsBlock.
+			repacked := NewBitStorage(effectiveBPE, pc.length, nil)
+			for i := 0; i < pc.length; i++ {
+				repacked.Set(i, pc.data.Get(i))
+			}
+			raw = repacked.Raw()
+		}
+
 		dst = appendVarInt(dst, int32(len(raw)))
 		for _, v := range raw {
 			dst = appendInt64BE(dst, int64(v))

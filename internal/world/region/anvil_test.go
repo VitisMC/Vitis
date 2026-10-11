@@ -1,8 +1,11 @@
 package region
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -24,6 +27,50 @@ func TestCreateAndClose(t *testing.T) {
 	}
 	if info.Size() != headerSize {
 		t.Fatalf("expected file size %d, got %d", headerSize, info.Size())
+	}
+}
+
+func TestConcurrentChunkReadsRemainIsolated(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "r.0.0.mca")
+	r, err := Create(path)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	defer r.Close()
+
+	const chunks = 16
+	want := make([][]byte, chunks)
+	for index := range want {
+		want[index] = bytes.Repeat([]byte{byte(index + 1)}, 64*1024)
+		if err := r.WriteChunkNBT(index, 0, want[index]); err != nil {
+			t.Fatalf("WriteChunkNBT(%d,0): %v", index, err)
+		}
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, chunks)
+	for index := range want {
+		index := index
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for attempt := 0; attempt < 50; attempt++ {
+				got, readErr := r.ReadChunkNBT(index, 0)
+				if readErr != nil {
+					errs <- readErr
+					return
+				}
+				if !bytes.Equal(got, want[index]) {
+					errs <- errors.New("chunk data crossed concurrent reads")
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
 	}
 }
 
@@ -63,6 +110,22 @@ func TestWriteAndReadChunk(t *testing.T) {
 	}
 	if string(got) != string(testData) {
 		t.Fatalf("data mismatch: got %q, want %q", got, testData)
+	}
+}
+
+func TestWriteChunkNBTRejectsOversizedSnapshot(t *testing.T) {
+	r, err := Create(filepath.Join(t.TempDir(), "r.0.0.mca"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	defer r.Close()
+
+	err = r.WriteChunkNBT(0, 0, make([]byte, maxChunkNBTSize+1))
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("WriteChunkNBT error = %v, want ErrTooLarge", err)
+	}
+	if r.HasChunk(0, 0) {
+		t.Fatal("oversized snapshot created a chunk entry")
 	}
 }
 
@@ -158,8 +221,8 @@ func TestOverwriteChunk(t *testing.T) {
 
 func TestChunkToRegion(t *testing.T) {
 	tests := []struct {
-		cx, cz   int
-		rx, rz   int
+		cx, cz int
+		rx, rz int
 	}{
 		{0, 0, 0, 0},
 		{31, 31, 0, 0},
