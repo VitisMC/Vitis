@@ -17,11 +17,13 @@ var MobCap = map[entity.MobCategory]int{
 
 // SpawnEntry defines a mob type eligible for spawning.
 type SpawnEntry struct {
-	TypeName string
-	Weight   int
-	MinGroup int
-	MaxGroup int
-	Category entity.MobCategory
+	TypeName  string
+	Weight    int
+	MinGroup  int
+	MaxGroup  int
+	Category  entity.MobCategory
+	Group     Category
+	slimeSize int
 }
 
 // DefaultOverworldSpawns provides the default overworld spawn table.
@@ -58,7 +60,13 @@ type Spawner struct {
 	spawnTable   []SpawnEntry
 	spawnCounter int
 	interval     int // ticks between spawn attempts
+	runtime      *Runtime
+	ticks        uint64
+	rng          *rand.Rand
 }
+
+// SetRuntime enables resource-backed placement, caps and despawn rules.
+func (s *Spawner) SetRuntime(runtime *Runtime) { s.runtime = runtime }
 
 // NewSpawner creates a mob spawner with the given spawn table.
 func NewSpawner(table []SpawnEntry, interval int) *Spawner {
@@ -68,11 +76,15 @@ func NewSpawner(table []SpawnEntry, interval int) *Spawner {
 	return &Spawner{
 		spawnTable: table,
 		interval:   interval,
+		rng:        rand.New(rand.NewSource(rand.Int63())),
 	}
 }
 
 // Tick runs the spawn cycle. Returns spawn requests for the world to execute.
 func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerPos, blocks BlockAccess) []SpawnRequest {
+	if s.runtime != nil {
+		return s.tickResources(mobs, players, blocks)
+	}
 	s.spawnCounter++
 	if s.spawnCounter < s.interval {
 		return nil
@@ -87,7 +99,7 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerPos, blocks Bloc
 
 	// Process despawns first
 	for _, mob := range mobs.Mobs() {
-		if mob.IsDead() || mob.Entity.Removed() {
+		if mob.IsDead() || mob.Entity.Removed() || !entity.IsTickingAt(blocks, mob.Position()) {
 			continue
 		}
 		dist := nearestPlayerDist(mob.Position(), players)
@@ -117,7 +129,7 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerPos, blocks Bloc
 
 		// Attempt spawn in a 15x15 chunk area around the player (24-128 block radius)
 		for attempts := 0; attempts < 3; attempts++ {
-			entry := weightedRandom(entries)
+			entry := weightedRandom(entries, s.rng)
 			if entry == nil {
 				continue
 			}
@@ -127,6 +139,10 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerPos, blocks Bloc
 			dist := 24.0 + rand.Float64()*104.0
 			spawnX := player.X + math.Cos(angle)*dist
 			spawnZ := player.Z + math.Sin(angle)*dist
+
+			if !entity.IsTickingAt(blocks, entity.Vec3{X: spawnX, Z: spawnZ}) {
+				continue
+			}
 
 			// Find ground level (simplified: scan down from y=256)
 			spawnY := findSpawnY(blocks, int(math.Floor(spawnX)), int(math.Floor(spawnZ)), cat)
@@ -151,6 +167,9 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerPos, blocks Bloc
 				oz := float64(rand.Intn(5) - 2)
 				sx := spawnX + ox
 				sz := spawnZ + oz
+				if !entity.IsTickingAt(blocks, entity.Vec3{X: sx + 0.5, Z: sz + 0.5}) {
+					continue
+				}
 				sy := findSpawnY(blocks, int(math.Floor(sx)), int(math.Floor(sz)), cat)
 				if sy < -64 {
 					continue
@@ -177,8 +196,9 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerPos, blocks Bloc
 
 // SpawnRequest describes a mob spawn the world should execute.
 type SpawnRequest struct {
-	TypeName string
-	X, Y, Z  float64
+	TypeName  string
+	X, Y, Z   float64
+	SlimeSize int
 }
 
 func (s *Spawner) entriesForCategory(cat entity.MobCategory) []SpawnEntry {
@@ -191,7 +211,8 @@ func (s *Spawner) entriesForCategory(cat entity.MobCategory) []SpawnEntry {
 	return result
 }
 
-func weightedRandom(entries []SpawnEntry) *SpawnEntry {
+// weightedRandom chooses one positive-weight entry using tick-owned randomness.
+func weightedRandom(entries []SpawnEntry, rng *rand.Rand) *SpawnEntry {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -202,7 +223,7 @@ func weightedRandom(entries []SpawnEntry) *SpawnEntry {
 	if total <= 0 {
 		return &entries[0]
 	}
-	r := rand.Intn(total)
+	r := rng.Intn(total)
 	for i := range entries {
 		r -= entries[i].Weight
 		if r < 0 {
