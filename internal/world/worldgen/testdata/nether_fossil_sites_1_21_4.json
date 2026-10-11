@@ -1,0 +1,6432 @@
+[
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      13
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 12,
+    "tail": 5700976833288827063
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      1
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 7,
+    "tail": 668424937071768037
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      4
+    ],
+    "rotation": "NONE",
+    "template": 6,
+    "tail": -2680663443691639204
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      8
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 1,
+    "tail": -7713215339908698230
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      14
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 10,
+    "tail": 4017513313540207983
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      2
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 5,
+    "tail": -1015038578381883748
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 4,
+    "tail": -4364126959145290989
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      10
+    ],
+    "rotation": "NONE",
+    "template": 13,
+    "tail": 9050065214052234305
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      4
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 4,
+    "tail": -2698502102425470125
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      11
+    ],
+    "rotation": "NONE",
+    "template": 12,
+    "tail": 7366601694303615224
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      0
+    ],
+    "rotation": "NONE",
+    "template": 5,
+    "tail": 650586278337937117
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 14,
+    "tail": -4381965622174089206
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 0,
+    "point": [
+      11,
+      50,
+      12
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": 5683138178849963439
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -2,
+      50,
+      -25
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -945964405165107998
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -9,
+      50,
+      -27
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 14,
+    "tail": -3832878434053403642
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -9,
+      50,
+      -21
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 3,
+    "tail": -2736624782266692797
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -2,
+      50,
+      -17
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 5,
+    "tail": -8634459242690121427
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -1,
+      50,
+      -18
+    ],
+    "rotation": "NONE",
+    "template": 8,
+    "tail": 591015174806232905
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -5,
+      50,
+      -32
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": -7939680058433475455
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -15,
+      50,
+      -30
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 11,
+    "tail": 7402760289555779301
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -6,
+      50,
+      -31
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 8,
+    "tail": 1007946708646727324
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -4,
+      50,
+      -26
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 5,
+    "tail": 6120085264022071375
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -5,
+      50,
+      -18
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 1,
+    "tail": 484306540364983637
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -7,
+      50,
+      -32
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": 8658410299686690353
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "point": [
+      -14,
+      50,
+      -25
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -4841890737884497408
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 0,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      59,
+      50,
+      95
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": 8840666283432866077
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      57,
+      50,
+      85
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": -4864625027557715754
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      54,
+      50,
+      89
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 9,
+    "tail": 5531451273455115075
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      49,
+      50,
+      81
+    ],
+    "rotation": "NONE",
+    "template": 13,
+    "tail": 9124285617202435317
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      50,
+      50,
+      93
+    ],
+    "rotation": "NONE",
+    "template": 1,
+    "tail": -3902386591366554095
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      60,
+      50,
+      81
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 11,
+    "tail": -5154835969123569757
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      50,
+      50,
+      88
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 7,
+    "tail": -5787534677792549688
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      51,
+      50,
+      84
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 9,
+    "tail": -6475224431935587262
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      55,
+      50,
+      91
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 14,
+    "tail": 3173109707306975015
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      61,
+      50,
+      86
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": -3797311899638146389
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      53,
+      50,
+      87
+    ],
+    "rotation": "NONE",
+    "template": 5,
+    "tail": 3222036397036551423
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      52,
+      50,
+      85
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 13,
+    "tail": -1332156897821794645
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      55,
+      50,
+      83
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 6,
+    "tail": 8936510168656713027
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      55,
+      50,
+      92
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": -2088271623603209144
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 0,
+    "point": [
+      55,
+      50,
+      82
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 13,
+    "tail": 9033769061443457747
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -268,
+      50,
+      342
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 7,
+    "tail": -1463879161761884481
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -266,
+      50,
+      344
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 1,
+    "tail": 1692060475201556489
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -261,
+      50,
+      336
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 4,
+    "tail": -2575120159635163988
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -267,
+      50,
+      344
+    ],
+    "rotation": "NONE",
+    "template": 7,
+    "tail": 378854659187256299
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -260,
+      50,
+      342
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -8734303154788241201
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -262,
+      50,
+      337
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 8,
+    "tail": 7245385501482255337
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -265,
+      50,
+      350
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 1,
+    "tail": -8251532676499265654
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -264,
+      50,
+      345
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 4,
+    "tail": 2496208457103078996
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -272,
+      50,
+      346
+    ],
+    "rotation": "NONE",
+    "template": 7,
+    "tail": -2590814131410593890
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -268,
+      50,
+      349
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 14,
+    "tail": -6892208877301990162
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -262,
+      50,
+      347
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 7,
+    "tail": -8899255169305164934
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -261,
+      50,
+      337
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 8,
+    "tail": 1756850104054639646
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -259,
+      50,
+      348
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 12,
+    "tail": -8967043068638330919
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "point": [
+      -269,
+      50,
+      340
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": 7726714231487317239
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 0,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": -7261648964369397258
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 7515937759503895804
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 76665748188021738
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": -3592491610238171408
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": -3491534302889781745
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": -7160691657021007595
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 3846780401077702659
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 177623051241444105
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": -3390576999836359378
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 3947737704131125026
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 4048695015774481985
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 379537657348288839
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 1,
+    "tail": 7717852365610740539
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 5722687691243041374
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -9123911605492491478
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -2632295814798008523
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 5316847331614266612
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 2943309659459918086
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 8032011622090555202
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -5733224820882516367
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -7548919529193528314
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 6626782322964861077
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -6744209073102226335
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 3680324899872658918
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": 7837444870465716559
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 1,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 7924447243692764671
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 1246014422208660194
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 8508615522783467316
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 1694541035264883348
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 718913367224900616
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 5360472172380697648
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": -6888567152197090396
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": -1670712303160411391
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": -3957375358100642906
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": -3054778733839195631
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 2261064139712208529
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": -7054801810436198851
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": 6678303523910629743
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": -3702691789076919191
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 1,
+    "tail": -5563786781270780620
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -3578159620929281731
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 9103536319144710352
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -552722203934582353
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 4487776732758306605
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 6229616694967343511
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -2839846081107077845
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 8769672945913195417
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 5836366741412906450
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 715965614670167044
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -5364513842987337034
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 5397316161302023212
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -7849348491309719449
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -774792660715567261
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": -2743181474945290352
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 1,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": -7261648964369397258
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 7515937759503895804
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 76665748188021738
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": -3592491610238171408
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": -3491534302889781745
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": -7160691657021007595
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 3846780401077702659
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 177623051241444105
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": -3390576999836359378
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 3947737704131125026
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 4048695015774481985
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 379537657348288839
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 2,
+    "tail": 7717852365610740539
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 5722687691243041374
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -9123911605492491478
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -2632295814798008523
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 5316847331614266612
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 2943309659459918086
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 8032011622090555202
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -5733224820882516367
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -7548919529193528314
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 6626782322964861077
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -6744209073102226335
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 3680324899872658918
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": 7837444870465716559
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 2,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 7924447243692764671
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 1246014422208660194
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 8508615522783467316
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 1694541035264883348
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 718913367224900616
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 5360472172380697648
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": -6888567152197090396
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": -1670712303160411391
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": -3957375358100642906
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": -3054778733839195631
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 2261064139712208529
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": -7054801810436198851
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": 6678303523910629743
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": -3702691789076919191
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 2,
+    "tail": -5563786781270780620
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -3578159620929281731
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 9103536319144710352
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -552722203934582353
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 4487776732758306605
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 6229616694967343511
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -2839846081107077845
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 8769672945913195417
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 5836366741412906450
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 715965614670167044
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -5364513842987337034
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 5397316161302023212
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -7849348491309719449
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -774792660715567261
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": -2743181474945290352
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 2,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      13
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 12,
+    "tail": 5700976833288827063
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      1
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 7,
+    "tail": 668424937071768037
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      4
+    ],
+    "rotation": "NONE",
+    "template": 6,
+    "tail": -2680663443691639204
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      8
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 1,
+    "tail": -7713215339908698230
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      14
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 10,
+    "tail": 4017513313540207983
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      2
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 5,
+    "tail": -1015038578381883748
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 4,
+    "tail": -4364126959145290989
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      10
+    ],
+    "rotation": "NONE",
+    "template": 13,
+    "tail": 9050065214052234305
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      4
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 4,
+    "tail": -2698502102425470125
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      11
+    ],
+    "rotation": "NONE",
+    "template": 12,
+    "tail": 7366601694303615224
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      0
+    ],
+    "rotation": "NONE",
+    "template": 5,
+    "tail": 650586278337937117
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 14,
+    "tail": -4381965622174089206
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 3,
+    "point": [
+      11,
+      50,
+      12
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": 5683138178849963439
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -2,
+      50,
+      -25
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -945964405165107998
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -9,
+      50,
+      -27
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 14,
+    "tail": -3832878434053403642
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -9,
+      50,
+      -21
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 3,
+    "tail": -2736624782266692797
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -2,
+      50,
+      -17
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 5,
+    "tail": -8634459242690121427
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -1,
+      50,
+      -18
+    ],
+    "rotation": "NONE",
+    "template": 8,
+    "tail": 591015174806232905
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -5,
+      50,
+      -32
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": -7939680058433475455
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -15,
+      50,
+      -30
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 11,
+    "tail": 7402760289555779301
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -6,
+      50,
+      -31
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 8,
+    "tail": 1007946708646727324
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -4,
+      50,
+      -26
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 5,
+    "tail": 6120085264022071375
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -5,
+      50,
+      -18
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 1,
+    "tail": 484306540364983637
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -7,
+      50,
+      -32
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": 8658410299686690353
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "point": [
+      -14,
+      50,
+      -25
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -4841890737884497408
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 3,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      59,
+      50,
+      95
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": 8840666283432866077
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      57,
+      50,
+      85
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": -4864625027557715754
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      54,
+      50,
+      89
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 9,
+    "tail": 5531451273455115075
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      49,
+      50,
+      81
+    ],
+    "rotation": "NONE",
+    "template": 13,
+    "tail": 9124285617202435317
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      50,
+      50,
+      93
+    ],
+    "rotation": "NONE",
+    "template": 1,
+    "tail": -3902386591366554095
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      60,
+      50,
+      81
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 11,
+    "tail": -5154835969123569757
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      50,
+      50,
+      88
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 7,
+    "tail": -5787534677792549688
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      51,
+      50,
+      84
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 9,
+    "tail": -6475224431935587262
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      55,
+      50,
+      91
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 14,
+    "tail": 3173109707306975015
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      61,
+      50,
+      86
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": -3797311899638146389
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      53,
+      50,
+      87
+    ],
+    "rotation": "NONE",
+    "template": 5,
+    "tail": 3222036397036551423
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      52,
+      50,
+      85
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 13,
+    "tail": -1332156897821794645
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      55,
+      50,
+      83
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 6,
+    "tail": 8936510168656713027
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      55,
+      50,
+      92
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": -2088271623603209144
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 3,
+    "point": [
+      55,
+      50,
+      82
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 13,
+    "tail": 9033769061443457747
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -268,
+      50,
+      342
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 7,
+    "tail": -1463879161761884481
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -266,
+      50,
+      344
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 1,
+    "tail": 1692060475201556489
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -261,
+      50,
+      336
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 4,
+    "tail": -2575120159635163988
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -267,
+      50,
+      344
+    ],
+    "rotation": "NONE",
+    "template": 7,
+    "tail": 378854659187256299
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -260,
+      50,
+      342
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -8734303154788241201
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -262,
+      50,
+      337
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 8,
+    "tail": 7245385501482255337
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -265,
+      50,
+      350
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 1,
+    "tail": -8251532676499265654
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -264,
+      50,
+      345
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 4,
+    "tail": 2496208457103078996
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -272,
+      50,
+      346
+    ],
+    "rotation": "NONE",
+    "template": 7,
+    "tail": -2590814131410593890
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -268,
+      50,
+      349
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 14,
+    "tail": -6892208877301990162
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -262,
+      50,
+      347
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 7,
+    "tail": -8899255169305164934
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -261,
+      50,
+      337
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 8,
+    "tail": 1756850104054639646
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -259,
+      50,
+      348
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 12,
+    "tail": -8967043068638330919
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "point": [
+      -269,
+      50,
+      340
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": 7726714231487317239
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 3,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": -7261648964369397258
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 7515937759503895804
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 76665748188021738
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": -3592491610238171408
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": -3491534302889781745
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": -7160691657021007595
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 3846780401077702659
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 177623051241444105
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": -3390576999836359378
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 3947737704131125026
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 4048695015774481985
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 379537657348288839
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 4,
+    "tail": 7717852365610740539
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 5722687691243041374
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -9123911605492491478
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -2632295814798008523
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 5316847331614266612
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 2943309659459918086
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 8032011622090555202
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -5733224820882516367
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -7548919529193528314
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 6626782322964861077
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -6744209073102226335
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 3680324899872658918
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": 7837444870465716559
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 4,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 7924447243692764671
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 1246014422208660194
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 8508615522783467316
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 1694541035264883348
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 718913367224900616
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 5360472172380697648
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": -6888567152197090396
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": -1670712303160411391
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": -3957375358100642906
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": -3054778733839195631
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 2261064139712208529
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": -7054801810436198851
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": 6678303523910629743
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": -3702691789076919191
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 4,
+    "tail": -5563786781270780620
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -3578159620929281731
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 9103536319144710352
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -552722203934582353
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 4487776732758306605
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 6229616694967343511
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -2839846081107077845
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 8769672945913195417
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 5836366741412906450
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 715965614670167044
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -5364513842987337034
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 5397316161302023212
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -7849348491309719449
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -774792660715567261
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": -2743181474945290352
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 4,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      13
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 12,
+    "tail": 5700976833288827063
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      1
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 7,
+    "tail": 668424937071768037
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      4
+    ],
+    "rotation": "NONE",
+    "template": 6,
+    "tail": -2680663443691639204
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      8
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 1,
+    "tail": -7713215339908698230
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      14
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 10,
+    "tail": 4017513313540207983
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      2
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 5,
+    "tail": -1015038578381883748
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 4,
+    "tail": -4364126959145290989
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      10
+    ],
+    "rotation": "NONE",
+    "template": 13,
+    "tail": 9050065214052234305
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      4
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 4,
+    "tail": -2698502102425470125
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      11
+    ],
+    "rotation": "NONE",
+    "template": 12,
+    "tail": 7366601694303615224
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      0
+    ],
+    "rotation": "NONE",
+    "template": 5,
+    "tail": 650586278337937117
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 14,
+    "tail": -4381965622174089206
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 5,
+    "point": [
+      11,
+      50,
+      12
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": 5683138178849963439
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -2,
+      50,
+      -25
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -945964405165107998
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -9,
+      50,
+      -27
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 14,
+    "tail": -3832878434053403642
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -9,
+      50,
+      -21
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 3,
+    "tail": -2736624782266692797
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -2,
+      50,
+      -17
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 5,
+    "tail": -8634459242690121427
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -1,
+      50,
+      -18
+    ],
+    "rotation": "NONE",
+    "template": 8,
+    "tail": 591015174806232905
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -5,
+      50,
+      -32
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": -7939680058433475455
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -15,
+      50,
+      -30
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 11,
+    "tail": 7402760289555779301
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -6,
+      50,
+      -31
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 8,
+    "tail": 1007946708646727324
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -4,
+      50,
+      -26
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 5,
+    "tail": 6120085264022071375
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -5,
+      50,
+      -18
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 1,
+    "tail": 484306540364983637
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -7,
+      50,
+      -32
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": 8658410299686690353
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "point": [
+      -14,
+      50,
+      -25
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -4841890737884497408
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 5,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      59,
+      50,
+      95
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": 8840666283432866077
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      57,
+      50,
+      85
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": -4864625027557715754
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      54,
+      50,
+      89
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 9,
+    "tail": 5531451273455115075
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      49,
+      50,
+      81
+    ],
+    "rotation": "NONE",
+    "template": 13,
+    "tail": 9124285617202435317
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      50,
+      50,
+      93
+    ],
+    "rotation": "NONE",
+    "template": 1,
+    "tail": -3902386591366554095
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      60,
+      50,
+      81
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 11,
+    "tail": -5154835969123569757
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      50,
+      50,
+      88
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 7,
+    "tail": -5787534677792549688
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      51,
+      50,
+      84
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 9,
+    "tail": -6475224431935587262
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      55,
+      50,
+      91
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 14,
+    "tail": 3173109707306975015
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      61,
+      50,
+      86
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": -3797311899638146389
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      53,
+      50,
+      87
+    ],
+    "rotation": "NONE",
+    "template": 5,
+    "tail": 3222036397036551423
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      52,
+      50,
+      85
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 13,
+    "tail": -1332156897821794645
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      55,
+      50,
+      83
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 6,
+    "tail": 8936510168656713027
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      55,
+      50,
+      92
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": -2088271623603209144
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 5,
+    "point": [
+      55,
+      50,
+      82
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 13,
+    "tail": 9033769061443457747
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -268,
+      50,
+      342
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 7,
+    "tail": -1463879161761884481
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -266,
+      50,
+      344
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 1,
+    "tail": 1692060475201556489
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -261,
+      50,
+      336
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 4,
+    "tail": -2575120159635163988
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -267,
+      50,
+      344
+    ],
+    "rotation": "NONE",
+    "template": 7,
+    "tail": 378854659187256299
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -260,
+      50,
+      342
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 2,
+    "tail": -8734303154788241201
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -262,
+      50,
+      337
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 8,
+    "tail": 7245385501482255337
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -265,
+      50,
+      350
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 1,
+    "tail": -8251532676499265654
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -264,
+      50,
+      345
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 4,
+    "tail": 2496208457103078996
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -272,
+      50,
+      346
+    ],
+    "rotation": "NONE",
+    "template": 7,
+    "tail": -2590814131410593890
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -268,
+      50,
+      349
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 14,
+    "tail": -6892208877301990162
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -262,
+      50,
+      347
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 7,
+    "tail": -8899255169305164934
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -261,
+      50,
+      337
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 8,
+    "tail": 1756850104054639646
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -259,
+      50,
+      348
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 12,
+    "tail": -8967043068638330919
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "point": [
+      -269,
+      50,
+      340
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": 7726714231487317239
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 5,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": -7261648964369397258
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 7515937759503895804
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 76665748188021738
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": -3592491610238171408
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": -3491534302889781745
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": -7160691657021007595
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 3846780401077702659
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 177623051241444105
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": -3390576999836359378
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 3947737704131125026
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 4048695015774481985
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 379537657348288839
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 6,
+    "tail": 7717852365610740539
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 5722687691243041374
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -9123911605492491478
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -2632295814798008523
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 5316847331614266612
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 2943309659459918086
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 8032011622090555202
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -5733224820882516367
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -7548919529193528314
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 6626782322964861077
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -6744209073102226335
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 3680324899872658918
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": 7837444870465716559
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 6,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 7924447243692764671
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 1246014422208660194
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 8508615522783467316
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 1694541035264883348
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 718913367224900616
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 5360472172380697648
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": -6888567152197090396
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": -1670712303160411391
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": -3957375358100642906
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": -3054778733839195631
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 2261064139712208529
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": -7054801810436198851
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": 6678303523910629743
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": -3702691789076919191
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 6,
+    "tail": -5563786781270780620
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -3578159620929281731
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 9103536319144710352
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -552722203934582353
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 4487776732758306605
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 6229616694967343511
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -2839846081107077845
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 8769672945913195417
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 5836366741412906450
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 715965614670167044
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -5364513842987337034
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 5397316161302023212
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -7849348491309719449
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -774792660715567261
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": -2743181474945290352
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 6,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": -7261648964369397258
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 7515937759503895804
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 76665748188021738
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": -3592491610238171408
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": -3491534302889781745
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": -7160691657021007595
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 3846780401077702659
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 177623051241444105
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": -3390576999836359378
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 3947737704131125026
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 4048695015774481985
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 379537657348288839
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 7,
+    "tail": 7717852365610740539
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 5722687691243041374
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -9123911605492491478
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -2632295814798008523
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 5316847331614266612
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 2943309659459918086
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 8032011622090555202
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -5733224820882516367
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -7548919529193528314
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 6626782322964861077
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -6744209073102226335
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 3680324899872658918
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": 7837444870465716559
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 7,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 7924447243692764671
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 1246014422208660194
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 8508615522783467316
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 1694541035264883348
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 718913367224900616
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 5360472172380697648
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": -6888567152197090396
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": -1670712303160411391
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": -3957375358100642906
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": -3054778733839195631
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 2261064139712208529
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": -7054801810436198851
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": 6678303523910629743
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": -3702691789076919191
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 7,
+    "tail": -5563786781270780620
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -3578159620929281731
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 9103536319144710352
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -552722203934582353
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 4487776732758306605
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 6229616694967343511
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -2839846081107077845
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 8769672945913195417
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 5836366741412906450
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 715965614670167044
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -5364513842987337034
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 5397316161302023212
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -7849348491309719449
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -774792660715567261
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": -2743181474945290352
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 7,
+    "tail": 2906290008952229451
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "point": [
+      11,
+      105,
+      13
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 12,
+    "tail": 5700976833288827063
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": 7515937759503895804
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": 76665748188021738
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": -3592491610238171408
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": -3491534302889781745
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": -7160691657021007595
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "point": [
+      11,
+      105,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 4,
+    "tail": -4364126959145290989
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": 177623051241444105
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": 278580354294866472
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": -3390576999836359378
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": 7616895062557318172
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": 3947737704131125026
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": 4048695015774481985
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "point": [
+      11,
+      105,
+      5
+    ],
+    "rotation": "NONE",
+    "template": 14,
+    "tail": -4381965622174089206
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "tail": -7059734353967585227
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      0,
+      0
+    ],
+    "shape": 8,
+    "point": [
+      11,
+      105,
+      12
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": 5683138178849963439
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": 5722687691243041374
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "point": [
+      -9,
+      105,
+      -27
+    ],
+    "rotation": "CLOCKWISE_180",
+    "template": 14,
+    "tail": -3832878434053403642
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": -2632295814798008523
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": -4493319529740029869
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "point": [
+      -2,
+      105,
+      -17
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 5,
+    "tail": -8634459242690121427
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": 2943309659459918086
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "point": [
+      -5,
+      105,
+      -32
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 10,
+    "tail": -7939680058433475455
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": -5733224820882516367
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": -7548919529193528314
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": 6626782322964861077
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": -6744209073102226335
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": 8753858793502482011
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "point": [
+      -7,
+      105,
+      -32
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": 8658410299686690353
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": -4245647581354883669
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": 7837444870465716559
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -1,
+      -2
+    ],
+    "shape": 8,
+    "tail": -3547449659406522061
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": 7924447243692764671
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "point": [
+      57,
+      105,
+      85
+    ],
+    "rotation": "NONE",
+    "template": 2,
+    "tail": -4864625027557715754
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "point": [
+      54,
+      105,
+      89
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 9,
+    "tail": 5531451273455115075
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": 1694541035264883348
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": 718913367224900616
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": 244913395395423658
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": 5360472172380697648
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": -6888567152197090396
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": -1670712303160411391
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": -3957375358100642906
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "point": [
+      61,
+      105,
+      86
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 11,
+    "tail": -3797311899638146389
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": 2261064139712208529
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": -7054801810436198851
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "point": [
+      55,
+      105,
+      83
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 6,
+    "tail": 8936510168656713027
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": -3702691789076919191
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      3,
+      5
+    ],
+    "shape": 8,
+    "tail": -5563786781270780620
+  },
+  {
+    "seed": 0,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "point": [
+      -268,
+      105,
+      342
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 7,
+    "tail": -1463879161761884481
+  },
+  {
+    "seed": 1,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": 9103536319144710352
+  },
+  {
+    "seed": 2,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "point": [
+      -261,
+      105,
+      336
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 4,
+    "tail": -2575120159635163988
+  },
+  {
+    "seed": 3,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": 4487776732758306605
+  },
+  {
+    "seed": 4,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": 6229616694967343511
+  },
+  {
+    "seed": 5,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "point": [
+      -262,
+      105,
+      337
+    ],
+    "rotation": "COUNTERCLOCKWISE_90",
+    "template": 8,
+    "tail": 7245385501482255337
+  },
+  {
+    "seed": 6,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": -5544544711874316574
+  },
+  {
+    "seed": 7,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "point": [
+      -265,
+      105,
+      350
+    ],
+    "rotation": "CLOCKWISE_90",
+    "template": 1,
+    "tail": -8251532676499265654
+  },
+  {
+    "seed": 8,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": 5836366741412906450
+  },
+  {
+    "seed": 9,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": 715965614670167044
+  },
+  {
+    "seed": 10,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": -5364513842987337034
+  },
+  {
+    "seed": 11,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": 5397316161302023212
+  },
+  {
+    "seed": 12,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": -7849348491309719449
+  },
+  {
+    "seed": 13,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": -774792660715567261
+  },
+  {
+    "seed": 14,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": -2743181474945290352
+  },
+  {
+    "seed": 15,
+    "chunk": [
+      -17,
+      21
+    ],
+    "shape": 8,
+    "tail": 2906290008952229451
+  }
+]

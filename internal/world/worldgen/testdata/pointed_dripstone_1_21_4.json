@@ -1,0 +1,2261 @@
+[
+  {
+    "shape": 0,
+    "seed": 0,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6146794652083548235,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 0,
+    "seed": 1,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 112842269129291794,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 0,
+    "seed": 2,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -232044660012457795,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 0,
+    "seed": 3,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -3566243377172859107,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 0,
+    "seed": 4,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 4017513313540207983,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 0,
+    "seed": 5,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6377910989103090377,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          17,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 0,
+    "seed": 6,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 3702775523051895149,
+    "changes": [
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "frustum",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 0,
+    "seed": 7,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -7947786415086561792,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 0,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6146794652083548235,
+    "changes": [
+      {
+        "position": [
+          14,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 1,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 112842269129291794,
+    "changes": [
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 2,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -232044660012457795,
+    "changes": [
+      {
+        "position": [
+          14,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 3,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -3566243377172859107,
+    "changes": [
+      {
+        "position": [
+          14,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          16,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 4,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 4017513313540207983,
+    "changes": [
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 5,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6377910989103090377,
+    "changes": [
+      {
+        "position": [
+          14,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -21,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          17,
+          -21,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 6,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 3702775523051895149,
+    "changes": [
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "frustum",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 1,
+    "seed": 7,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -7947786415086561792,
+    "changes": [
+      {
+        "position": [
+          14,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "up",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -21,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -21,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 0,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 4662897195779605027,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 1,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 2817485429189991354,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 2,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 8353720724663865076,
+    "changes": [
+      {
+        "position": [
+          15,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 3,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 550039120288444364,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 4,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -5911126865076967316,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 5,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 8530236393079718019,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -3
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -3
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 6,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 972073662600377681,
+    "changes": [
+      {
+        "position": [
+          13,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 2,
+    "seed": 7,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6491681576930330529,
+    "changes": [
+      {
+        "position": [
+          15,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 3,
+    "seed": 0,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4962768465676381896,
+    "changes": []
+  },
+  {
+    "shape": 3,
+    "seed": 1,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4964420948893066024,
+    "changes": []
+  },
+  {
+    "shape": 3,
+    "seed": 2,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4959463499243013640,
+    "changes": []
+  },
+  {
+    "shape": 3,
+    "seed": 3,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4961115986754665064,
+    "changes": []
+  },
+  {
+    "shape": 3,
+    "seed": 4,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4969378402838085704,
+    "changes": []
+  },
+  {
+    "shape": 3,
+    "seed": 5,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4971030886054769832,
+    "changes": []
+  },
+  {
+    "shape": 3,
+    "seed": 6,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4966073432109750152,
+    "changes": []
+  },
+  {
+    "shape": 3,
+    "seed": 7,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": false,
+    "tail": -4967725919621401576,
+    "changes": []
+  },
+  {
+    "shape": 4,
+    "seed": 0,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6146794652083548235,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 4,
+    "seed": 1,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 112842269129291794,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 4,
+    "seed": 2,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -232044660012457795,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 4,
+    "seed": 3,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -3566243377172859107,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 4,
+    "seed": 4,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 4017513313540207983,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 4,
+    "seed": 5,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6377910989103090377,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          17,
+          -19,
+          -2
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 4,
+    "seed": 6,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 3702775523051895149,
+    "changes": [
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "frustum",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 4,
+    "seed": 7,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -7947786415086561792,
+    "changes": [
+      {
+        "position": [
+          14,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "true"
+        }
+      },
+      {
+        "position": [
+          15,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          15,
+          -19,
+          0
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      },
+      {
+        "position": [
+          16,
+          -19,
+          -1
+        ],
+        "name": "minecraft:dripstone_block",
+        "properties": {}
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 0,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6146794652083548235,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 1,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 112842269129291794,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 2,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -232044660012457795,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 3,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -3566243377172859107,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 4,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 4017513313540207983,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 5,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 6377910989103090377,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 6,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": 3702775523051895149,
+    "changes": [
+      {
+        "position": [
+          15,
+          -21,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      },
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "frustum",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  },
+  {
+    "shape": 5,
+    "seed": 7,
+    "origin": [
+      15,
+      -20,
+      -1
+    ],
+    "placed": true,
+    "tail": -7947786415086561792,
+    "changes": [
+      {
+        "position": [
+          15,
+          -20,
+          -1
+        ],
+        "name": "minecraft:pointed_dripstone",
+        "properties": {
+          "thickness": "tip",
+          "vertical_direction": "down",
+          "waterlogged": "false"
+        }
+      }
+    ]
+  }
+]
