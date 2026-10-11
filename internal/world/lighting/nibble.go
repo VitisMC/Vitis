@@ -12,8 +12,9 @@ const (
 type NibbleArray [NibbleArraySize]byte
 
 // Get returns the 4-bit light level at the given index (0-4095).
+// An absent sparse section has zero light.
 func (n *NibbleArray) Get(index int) uint8 {
-	if index < 0 || index >= EntriesPerSection {
+	if n == nil || index < 0 || index >= EntriesPerSection {
 		return 0
 	}
 	byteIdx := index >> 1
@@ -48,6 +49,9 @@ func (n *NibbleArray) SetXYZ(x, y, z int, value uint8) {
 
 // IsEmpty returns true if all entries are zero.
 func (n *NibbleArray) IsEmpty() bool {
+	if n == nil {
+		return true
+	}
 	for _, b := range n {
 		if b != 0 {
 			return false

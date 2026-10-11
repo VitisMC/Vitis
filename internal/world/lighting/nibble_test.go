@@ -2,6 +2,19 @@ package lighting
 
 import "testing"
 
+// TestAbsentNibbleReadsZero validates sparse sections without allocating storage.
+func TestAbsentNibbleReadsZero(t *testing.T) {
+	var n *NibbleArray
+	for _, index := range []int{-1, 0, 1, EntriesPerSection - 1, EntriesPerSection} {
+		if got := n.Get(index); got != 0 {
+			t.Fatalf("absent section at %d = %d", index, got)
+		}
+	}
+	if n.GetXYZ(15, 15, 15) != 0 || !n.IsEmpty() {
+		t.Fatal("absent section is not empty")
+	}
+}
+
 func TestNibbleGetSet(t *testing.T) {
 	var n NibbleArray
 
