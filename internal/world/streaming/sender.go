@@ -15,6 +15,12 @@ type ChunkProvider interface {
 	GetChunk(x, z int32) (*chunk.Chunk, bool)
 }
 
+// ChunkRequester accepts asynchronous demand for a chunk that is not loaded yet.
+// Implementations must coalesce duplicate requests.
+type ChunkRequester interface {
+	RequestLoad(x, z int32) bool
+}
+
 // ChunkSender sends chunk-related packets to a player.
 type ChunkSender interface {
 	Send(packet protocol.Packet) error

@@ -6,8 +6,9 @@ const defaultPriorityQueueCapacity = 512
 
 // PriorityEntry pairs a chunk position with its computed priority.
 type PriorityEntry struct {
-	Pos      ChunkPos
-	Priority int32
+	Pos       ChunkPos
+	Priority  int32
+	Secondary int32
 }
 
 // PriorityQueue is a min-heap of chunk positions ordered by distance from center.
@@ -32,6 +33,9 @@ func (pq *PriorityQueue) Len() int {
 func (pq *PriorityQueue) Less(i, j int) bool {
 	if pq.entries[i].Priority != pq.entries[j].Priority {
 		return pq.entries[i].Priority < pq.entries[j].Priority
+	}
+	if pq.entries[i].Secondary != pq.entries[j].Secondary {
+		return pq.entries[i].Secondary < pq.entries[j].Secondary
 	}
 	if pq.entries[i].Pos.X != pq.entries[j].Pos.X {
 		return pq.entries[i].Pos.X < pq.entries[j].Pos.X
@@ -63,6 +67,11 @@ func (pq *PriorityQueue) Enqueue(pos ChunkPos, priority int32) {
 	heap.Push(pq, PriorityEntry{Pos: pos, Priority: priority})
 }
 
+// EnqueueBalanced pushes a position with a secondary radial ordering key.
+func (pq *PriorityQueue) EnqueueBalanced(pos ChunkPos, priority, secondary int32) {
+	heap.Push(pq, PriorityEntry{Pos: pos, Priority: priority, Secondary: secondary})
+}
+
 // Dequeue removes and returns the highest-priority (lowest distance) entry.
 func (pq *PriorityQueue) Dequeue() (PriorityEntry, bool) {
 	if len(pq.entries) == 0 {
@@ -88,4 +97,11 @@ func ManhattanDistance(a, b ChunkPos) int32 {
 		dz = -dz
 	}
 	return dx + dz
+}
+
+// DistanceSquared returns squared Euclidean chunk distance for send ordering.
+func DistanceSquared(a, b ChunkPos) int32 {
+	dx := a.X - b.X
+	dz := a.Z - b.Z
+	return dx*dx + dz*dz
 }
