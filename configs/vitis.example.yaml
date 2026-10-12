@@ -1,0 +1,9 @@
+# Production defaults; copy to a separate config path before customization.
+server:
+  host: "0.0.0.0"
+  port: 25565
+  online_mode: true
+  default_game_mode: "survival"
+world:
+  view_distance: 10
+  simulation_distance: 6

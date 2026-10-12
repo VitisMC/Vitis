@@ -33,7 +33,6 @@ logging:
   enable_color: false
 performance:
   io_worker_pool_size: 4
-  packet_worker_pool_size: 8
   read_buffer_size: 65536
   write_buffer_size: 65536
   outbound_queue_size: 1024
@@ -51,6 +50,17 @@ performance:
 	}
 	if cfg.Logging.Format != "json" {
 		t.Fatalf("unexpected logging format: %q", cfg.Logging.Format)
+	}
+}
+
+// TestShippedConfigUsesOnlineMode verifies the production example is safe by default.
+func TestShippedConfigUsesOnlineMode(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", "configs", "vitis.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Server.OnlineMode {
+		t.Fatal("shipped config disables online mode")
 	}
 }
 

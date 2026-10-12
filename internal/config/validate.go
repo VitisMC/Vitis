@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/vitismc/vitis/internal/network/rcon"
 )
 
 const (
@@ -10,9 +12,9 @@ const (
 	maxPort                 = 65535
 	minDefaultWorldNameLen  = 1
 	minViewDistance         = 2
-	maxViewDistance         = 32
+	maxViewDistance         = 96
 	minSimulationDistance   = 2
-	maxSimulationDistance   = 32
+	maxSimulationDistance   = 96
 	minCompressionThreshold = -1
 	minMaxPacketSize        = 512
 	minQueueCapacity        = 1
@@ -53,6 +55,15 @@ func Validate(cfg *Config) error {
 	if cfg.Network.ReadTimeoutSeconds <= 0 {
 		return fmt.Errorf("network.read_timeout_seconds must be > 0, got %d", cfg.Network.ReadTimeoutSeconds)
 	}
+	if cfg.Network.MaxConnections <= 0 {
+		return fmt.Errorf("network.max_connections must be > 0, got %d", cfg.Network.MaxConnections)
+	}
+	if cfg.Network.AdmissionRatePerSecond <= 0 {
+		return fmt.Errorf("network.admission_rate_per_second must be > 0, got %d", cfg.Network.AdmissionRatePerSecond)
+	}
+	if cfg.Network.AdmissionBurst <= 0 {
+		return fmt.Errorf("network.admission_burst must be > 0, got %d", cfg.Network.AdmissionBurst)
+	}
 	if cfg.Network.WriteTimeoutSeconds <= 0 {
 		return fmt.Errorf("network.write_timeout_seconds must be > 0, got %d", cfg.Network.WriteTimeoutSeconds)
 	}
@@ -85,8 +96,22 @@ func Validate(cfg *Config) error {
 	if cfg.World.SimulationDistance > cfg.World.ViewDistance {
 		return fmt.Errorf("world.simulation_distance must be <= world.view_distance, got simulation=%d view=%d", cfg.World.SimulationDistance, cfg.World.ViewDistance)
 	}
+	if cfg.World.AutosaveIntervalTicks < 1 {
+		return fmt.Errorf("world.autosave_interval_ticks must be >= 1")
+	}
+	if cfg.World.AutosaveBatchPerTick < 1 {
+		return fmt.Errorf("world.autosave_batch_per_tick must be >= 1")
+	}
+	if cfg.World.AutosaveQueueCapacity < 1 {
+		return fmt.Errorf("world.autosave_queue_capacity must be >= 1")
+	}
 	if len(strings.TrimSpace(cfg.World.DefaultWorldName)) < minDefaultWorldNameLen {
 		return fmt.Errorf("world.default_world_name must not be empty")
+	}
+	switch strings.ToLower(cfg.World.Difficulty) {
+	case "peaceful", "easy", "normal", "hard":
+	default:
+		return fmt.Errorf("world.difficulty must be one of peaceful|easy|normal|hard, got %q", cfg.World.Difficulty)
 	}
 	if cfg.World.SchedulerQueueCapacity < minQueueCapacity {
 		return fmt.Errorf("world.scheduler_queue_capacity must be >= %d, got %d", minQueueCapacity, cfg.World.SchedulerQueueCapacity)
@@ -148,9 +173,6 @@ func Validate(cfg *Config) error {
 	if cfg.Performance.IOWorkerPoolSize < minWorkers {
 		return fmt.Errorf("performance.io_worker_pool_size must be >= %d, got %d", minWorkers, cfg.Performance.IOWorkerPoolSize)
 	}
-	if cfg.Performance.PacketWorkerPoolSize < minWorkers {
-		return fmt.Errorf("performance.packet_worker_pool_size must be >= %d, got %d", minWorkers, cfg.Performance.PacketWorkerPoolSize)
-	}
 	if cfg.Performance.ReadBufferSize < minBufferSize {
 		return fmt.Errorf("performance.read_buffer_size must be >= %d, got %d", minBufferSize, cfg.Performance.ReadBufferSize)
 	}
@@ -159,6 +181,27 @@ func Validate(cfg *Config) error {
 	}
 	if cfg.Performance.OutboundQueueSize < minQueueCapacity {
 		return fmt.Errorf("performance.outbound_queue_size must be >= %d, got %d", minQueueCapacity, cfg.Performance.OutboundQueueSize)
+	}
+
+	if cfg.RCON.Enabled {
+		if strings.TrimSpace(cfg.RCON.Address) == "" {
+			return fmt.Errorf("rcon.address must not be empty when RCON is enabled")
+		}
+		if cfg.RCON.Port < minPort || cfg.RCON.Port > maxPort {
+			return fmt.Errorf("rcon.port must be between %d and %d, got %d", minPort, maxPort, cfg.RCON.Port)
+		}
+		if !rcon.ValidPassword(cfg.RCON.Password) {
+			return fmt.Errorf("rcon.password must be a strong secret of at least 16 characters")
+		}
+	}
+	if cfg.Query.Enabled && (cfg.Query.Port < minPort || cfg.Query.Port > maxPort) {
+		return fmt.Errorf("query.port must be between %d and %d, got %d", minPort, maxPort, cfg.Query.Port)
+	}
+	if cfg.Security.ChatMessagesPer10Seconds <= 0 {
+		return fmt.Errorf("security.chat_messages_per_10_seconds must be > 0")
+	}
+	if cfg.Security.CommandsPer10Seconds <= 0 {
+		return fmt.Errorf("security.commands_per_10_seconds must be > 0")
 	}
 
 	return nil
