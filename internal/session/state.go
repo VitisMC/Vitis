@@ -15,6 +15,10 @@ var (
 	ErrSessionNotFound           = errors.New("session not found")
 	ErrSessionAlreadyExists      = errors.New("session already exists")
 	ErrInvalidProtocolTransition = errors.New("invalid protocol transition")
+	ErrProtocolPhaseTimeout      = errors.New("protocol phase timeout")
+	ErrKeepAliveTimeout          = errors.New("keepalive timeout")
+	ErrKeepAliveMismatch         = errors.New("keepalive response mismatch")
+	ErrPlayerAlreadyOnline       = errors.New("player already online")
 )
 
 const (

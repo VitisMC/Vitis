@@ -1,14 +1,19 @@
 package session
 
 import (
+	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/vitismc/vitis/internal/advancement"
 	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/block/behavior"
 	"github.com/vitismc/vitis/internal/command"
+	"github.com/vitismc/vitis/internal/crafting"
+	effectdata "github.com/vitismc/vitis/internal/data/generated/effect"
 	genentity "github.com/vitismc/vitis/internal/data/generated/entity"
 	entitypose "github.com/vitismc/vitis/internal/data/generated/entity_pose"
 	entitystatus "github.com/vitismc/vitis/internal/data/generated/entity_status"
@@ -20,6 +25,7 @@ import (
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/metadata"
 	"github.com/vitismc/vitis/internal/equipment"
+	"github.com/vitismc/vitis/internal/experience"
 	"github.com/vitismc/vitis/internal/food"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
@@ -30,8 +36,6 @@ import (
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	"github.com/vitismc/vitis/internal/registry"
 	"github.com/vitismc/vitis/internal/world/blockentity"
-	"github.com/vitismc/vitis/internal/world/chunk"
-	"github.com/vitismc/vitis/internal/world/terrain"
 )
 
 var teleportIDCounter atomic.Int32
@@ -39,12 +43,95 @@ var keepAliveValueCounter atomic.Int64
 
 const playKeepAliveStartedKey = "play_keepalive_started"
 
+const (
+	maxPlayerCoordinate       = 3.0e7
+	maxMovementDistanceSquare = 100.0 * 100.0
+)
+
 func nextTeleportID() int32 {
 	return teleportIDCounter.Add(1)
 }
 
 func nextKeepAliveValue() int64 {
 	return keepAliveValueCounter.Add(1)
+}
+
+func finiteFloat32(value float32) bool {
+	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
+}
+
+func validPlayerPosition(x, y, z float64) bool {
+	return !math.IsNaN(x) && !math.IsInf(x, 0) && !math.IsNaN(y) && !math.IsInf(y, 0) &&
+		!math.IsNaN(z) && !math.IsInf(z, 0) && math.Abs(x) <= maxPlayerCoordinate &&
+		math.Abs(y) <= maxPlayerCoordinate && math.Abs(z) <= maxPlayerCoordinate
+}
+
+func validateMovement(s Session, pm *PlayerManager, x, y, z float64, yaw, pitch float32, hasRotation bool) (bool, error) {
+	if !validPlayerPosition(x, y, z) || (hasRotation && (!finiteFloat32(yaw) || !finiteFloat32(pitch))) {
+		return false, fmt.Errorf("invalid player movement values")
+	}
+	ds, ok := s.(*DefaultSession)
+	if ok && ds.hasPendingTeleport() {
+		return false, nil
+	}
+	if pm == nil {
+		return true, nil
+	}
+	op := pm.GetBySession(s)
+	if op == nil {
+		return true, nil
+	}
+	dx, dy, dz := x-op.X, y-op.Y, z-op.Z
+	if dx*dx+dy*dy+dz*dz <= maxMovementDistanceSquare {
+		return true, nil
+	}
+	teleportID := nextTeleportID()
+	if ok {
+		ds.setPendingTeleport(teleportID)
+	}
+	if err := s.Send(&playpacket.SyncPlayerPosition{
+		TeleportID: teleportID,
+		X:          op.X,
+		Y:          op.Y,
+		Z:          op.Z,
+		Yaw:        op.Yaw,
+		Pitch:      op.Pitch,
+	}); err != nil {
+		if ok {
+			ds.pendingTeleport.CompareAndSwap(teleportID, 0)
+		}
+		return false, err
+	}
+	return false, nil
+}
+
+func blockWithinReach(player *entity.Player, position playpacket.BlockPos, reach float64) bool {
+	if player == nil {
+		return false
+	}
+	pos := player.Position()
+	dx := (float64(position.X) + 0.5) - pos.X
+	dy := (float64(position.Y) + 0.5) - (pos.Y + 1.62)
+	dz := (float64(position.Z) + 0.5) - pos.Z
+	return dx*dx+dy*dy+dz*dz <= reach*reach
+}
+
+func resyncBlock(s Session, wa WorldAccessor, position playpacket.BlockPos) error {
+	stateID := int32(0)
+	if wa != nil {
+		stateID = wa.GetBlock(int(position.X), int(position.Y), int(position.Z))
+	}
+	if stateID < 0 {
+		return nil
+	}
+	return s.Send(&playpacket.BlockUpdate{Position: position, BlockID: stateID})
+}
+
+func rejectBlockDig(s Session, wa WorldAccessor, position playpacket.BlockPos, sequence int32) error {
+	if err := resyncBlock(s, wa, position); err != nil {
+		return err
+	}
+	return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 }
 
 // StartPlayKeepAlive starts periodic clientbound keepalive probes for an active play session.
@@ -63,19 +150,42 @@ func StartPlayKeepAlive(s Session, interval time.Duration) {
 	}
 
 	go func() {
-		if err := s.Send(&playpacket.KeepAliveClientbound{Value: nextKeepAliveValue()}); err != nil {
-			return
-		}
-
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		timeout := interval * 3
+		sendProbe := func() bool {
+			ds, ok := s.(*DefaultSession)
+			if !ok {
+				return false
+			}
+			if outstanding := ds.keepAliveID.Load(); outstanding != 0 {
+				sentAt := time.Unix(0, ds.keepAliveSentAt.Load())
+				if time.Since(sentAt) >= timeout {
+					_ = s.ForceClose(fmt.Errorf("%w: id=%d", ErrKeepAliveTimeout, outstanding))
+					return false
+				}
+				return true
+			}
+			id := nextKeepAliveValue()
+			if !ds.beginKeepAlive(id) {
+				return true
+			}
+			if err := s.Send(&playpacket.KeepAliveClientbound{Value: id}); err != nil {
+				_ = s.ForceClose(err)
+				return false
+			}
+			return true
+		}
+		if !sendProbe() {
+			return
+		}
 
 		for {
 			select {
 			case <-s.Context().Done():
 				return
 			case <-ticker.C:
-				if err := s.Send(&playpacket.KeepAliveClientbound{Value: nextKeepAliveValue()}); err != nil {
+				if !sendProbe() {
 					return
 				}
 			}
@@ -83,29 +193,47 @@ func StartPlayKeepAlive(s Session, interval time.Duration) {
 	}()
 }
 
-// SpawnChunkProvider generates chunk packet payloads for the initial spawn area.
-type SpawnChunkProvider interface {
-	GenerateSpawnChunk(cx, cz int32) []byte
-}
-
 // PlayBootstrapConfig holds configuration for the play state bootstrap sequence.
 type PlayBootstrapConfig struct {
-	ViewDistance       int32
-	SimulationDistance int32
-	SpawnX             float64
-	SpawnY             float64
-	SpawnZ             float64
-	GameMode           int32
-	RegistryManager    *registry.Manager
-	CommandRegistry    *command.Registry
-	OperatorList       *operator.List
-	PlayerUUID         protocol.UUID
-	PlayerName         string
-	TabHeader          string
-	TabFooter          string
-	SpawnChunks        SpawnChunkProvider
-	WorldBorderInit    protocol.Packet
-	WeatherPackets     []protocol.Packet
+	DimensionName         string
+	PortalCooldown        int32
+	RequestRespawn        func(Session) error
+	ViewDistance          int32
+	SimulationDistance    int32
+	SpawnX                float64
+	SpawnY                float64
+	SpawnZ                float64
+	SpawnYaw              float32
+	SpawnPitch            float32
+	GameMode              int32
+	Difficulty            int32
+	InitialHealth         float32
+	InitialFood           int32
+	InitialFoodSaturation float32
+	InitialXPLevel        int32
+	InitialXPTotal        int32
+	InitialXPBar          float32
+	InitialSelectedSlot   int32
+	WorldAge              int64
+	TimeOfDay             int64
+	TickDayTime           bool
+	RegistryManager       *registry.Manager
+	CommandRegistry       *command.Registry
+	OperatorList          *operator.List
+	PlayerUUID            protocol.UUID
+	PlayerName            string
+	TabHeader             string
+	TabFooter             string
+	WorldBorderInit       protocol.Packet
+	WeatherPackets        []protocol.Packet
+	ChatRateLimit         int
+	CommandRateLimit      int
+	KeepInventory         func() bool
+	Crafting              *crafting.Runtime
+	RecipeAdvancements    *advancement.Runtime
+	ReadWorldSpawn        func() (int32, int32, int32, float32)
+	GameRule              func(string) string
+	CreateMap             func(int32, int32) (inventory.ItemStack, error)
 }
 
 // GameModeFromString converts a game mode name to its protocol ID.
@@ -124,15 +252,70 @@ func GameModeFromString(name string) int32 {
 	}
 }
 
+// DifficultyFromString converts a difficulty name to its protocol ID.
+func DifficultyFromString(name string) int32 {
+	switch name {
+	case "peaceful":
+		return 0
+	case "easy":
+		return 1
+	case "hard":
+		return 3
+	default:
+		return 2
+	}
+}
+
 // DefaultPlayBootstrapConfig returns sane defaults for play bootstrap.
 func DefaultPlayBootstrapConfig() PlayBootstrapConfig {
 	return PlayBootstrapConfig{
-		ViewDistance:       10,
-		SimulationDistance: 10,
-		SpawnX:             0.5,
-		SpawnY:             65.0,
-		SpawnZ:             0.5,
+		ViewDistance:          10,
+		SimulationDistance:    10,
+		SpawnX:                0.5,
+		SpawnY:                65.0,
+		SpawnZ:                0.5,
+		Difficulty:            2,
+		InitialHealth:         20,
+		InitialFood:           20,
+		InitialFoodSaturation: 5,
+		TimeOfDay:             6000,
+		TickDayTime:           true,
+		ChatRateLimit:         5,
+		CommandRateLimit:      10,
 	}
+}
+
+type fixedWindowLimiter struct {
+	mu          sync.Mutex
+	windowStart time.Time
+	count       int
+}
+
+func (l *fixedWindowLimiter) allow(now time.Time, limit int) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.windowStart.IsZero() || now.Sub(l.windowStart) >= 10*time.Second {
+		l.windowStart = now
+		l.count = 0
+	}
+	if l.count >= limit {
+		return false
+	}
+	l.count++
+	return true
+}
+
+func allowSessionAction(s Session, key string, limit int) bool {
+	if limit <= 0 {
+		return false
+	}
+	ds, ok := s.(*DefaultSession)
+	if !ok {
+		return true
+	}
+	value, _ := ds.SessionData().LoadOrStore(key, &fixedWindowLimiter{})
+	limiter, ok := value.(*fixedWindowLimiter)
+	return ok && limiter.allow(time.Now(), limit)
 }
 
 func checkFallDamage(s Session, oldY, newY float64, onGround bool) {
@@ -141,19 +324,23 @@ func checkFallDamage(s Session, oldY, newY float64, onGround bool) {
 		return
 	}
 	living := p.Living()
-	if living.IsDead() || living.GameMode() == 1 || living.GameMode() == 3 {
+	if living.IsDead() || living.GameMode() == 1 || living.GameMode() == 3 || living.Effects().Has(effectdata.EffectSlowFalling) || living.Effects().Has(effectdata.EffectLevitation) {
 		living.SetFallDistance(0)
 		return
 	}
 
-	if newY < oldY && !onGround {
+	if newY < oldY {
 		living.SetFallDistance(living.FallDistance() + (oldY - newY))
-	} else if onGround {
+	}
+	if onGround {
 		fd := living.FallDistance()
 		living.SetFallDistance(0)
+		if boost := living.Effects().Get(effectdata.EffectJumpBoost); boost != nil {
+			fd -= float64(boost.Amplifier) + 1
+		}
 		if fd > 3.0 {
-			dmg := float32(fd - 3.0)
-			actual := living.Damage(dmg, "fall")
+			dmg := float32(math.Ceil(fd - 3.0))
+			actual := living.ApplyDamage(entity.NewDamageSource(entity.DamageTypeFall, dmg), living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
 			if actual > 0 {
 				_ = s.Send(&playpacket.UpdateHealth{
 					Health:         living.Health(),
@@ -193,7 +380,7 @@ func applyMovementExhaustion(s Session, op *OnlinePlayer, oldX, oldY, oldZ, newX
 
 	isSprinting := op.Flags&0x08 != 0
 
-	if dy > 0 && onGround {
+	if dy > 0 && p.OnGround() && !onGround {
 		if isSprinting {
 			living.AddExhaustion(0.2)
 		} else {
@@ -204,8 +391,6 @@ func applyMovementExhaustion(s Session, op *OnlinePlayer, oldX, oldY, oldZ, newX
 	if horizontal > 0.0001 {
 		if isSprinting {
 			living.AddExhaustion(float32(horizontal * 0.1))
-		} else {
-			living.AddExhaustion(float32(horizontal * 0.01))
 		}
 	}
 }
@@ -214,20 +399,16 @@ func chunkCoord(v float64) int32 {
 	return int32(math.Floor(v / 16))
 }
 
-func sendCenterChunkIfNeeded(s Session, oldX, oldZ, newX, newZ float64) {
-	oldCX := chunkCoord(oldX)
-	oldCZ := chunkCoord(oldZ)
-	newCX := chunkCoord(newX)
-	newCZ := chunkCoord(newZ)
-	if oldCX != newCX || oldCZ != newCZ {
-		_ = s.Send(&playpacket.SetCenterChunk{ChunkX: newCX, ChunkZ: newCZ})
-	}
-}
-
 // RegisterPlayHandlers registers handlers for Play-state packets on a packet router.
 func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *PlayerManager, wa WorldAccessor) error {
 	if router == nil {
 		return ErrNilRegistry
+	}
+	if err := registerRecipePlacementHandler(router, pm, wa, cfg); err != nil {
+		return err
+	}
+	if err := registerRecipeBookHandlers(router, pm); err != nil {
+		return err
 	}
 
 	confirmTeleportID := playpacket.NewConfirmTeleportation().ID()
@@ -235,6 +416,13 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		pkt, ok := packet.(*playpacket.ConfirmTeleportation)
 		if !ok {
 			return protocol.ErrNilPacket
+		}
+		ds, ok := s.(*DefaultSession)
+		if !ok {
+			return fmt.Errorf("confirm teleport: invalid session type")
+		}
+		if wa == nil || !wa.Submit(&teleportAckCommand{session: ds, id: pkt.TeleportID, players: pm}) {
+			return fmt.Errorf("world command queue is unavailable or full")
 		}
 		logger.Debug("confirm_teleportation", "session", s.ID(), "teleport_id", pkt.TeleportID)
 		return nil
@@ -244,7 +432,15 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 	keepAliveID := playpacket.NewKeepAliveServerbound().ID()
 	if err := router.Register(protocol.StatePlay, keepAliveID, func(s Session, packet protocol.Packet) error {
-		return nil
+		pkt, ok := packet.(*playpacket.KeepAliveServerbound)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		ds, ok := s.(*DefaultSession)
+		if !ok {
+			return fmt.Errorf("keepalive: invalid session type")
+		}
+		return ds.acknowledgeKeepAlive(pkt.Value)
 	}); err != nil {
 		return err
 	}
@@ -255,28 +451,10 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
-		mp, ok := s.Player().(MovablePlayer)
-		if !ok || mp == nil {
-			return nil
-		}
-		if pm != nil {
-			if op := pm.GetBySession(s); op != nil {
-				checkFallDamage(s, op.Y, pkt.Y, pkt.OnGround)
-				applyMovementExhaustion(s, op, op.X, op.Y, op.Z, pkt.X, pkt.Y, pkt.Z, pkt.OnGround)
-				sendCenterChunkIfNeeded(s, op.X, op.Z, pkt.X, pkt.Z)
-				op.X, op.Y, op.Z = pkt.X, pkt.Y, pkt.Z
-				pm.BroadcastExcept(op.UUID, &playpacket.SyncEntityPosition{
-					EntityID: op.EntityID,
-					X:        pkt.X,
-					Y:        pkt.Y,
-					Z:        pkt.Z,
-					OnGround: pkt.OnGround,
-				})
-			}
-		}
-		mp.SetPositionXYZ(pkt.X, pkt.Y, pkt.Z)
-		mp.SetOnGround(pkt.OnGround)
-		return nil
+		return submitMovement(s, wa, movementCommand{
+			players: pm, hasPosition: true,
+			x: pkt.X, y: pkt.Y, z: pkt.Z, onGround: pkt.OnGround,
+		})
 	}); err != nil {
 		return err
 	}
@@ -287,36 +465,11 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
-		mp, ok := s.Player().(MovablePlayer)
-		if !ok || mp == nil {
-			return nil
-		}
-		if pm != nil {
-			if op := pm.GetBySession(s); op != nil {
-				checkFallDamage(s, op.Y, pkt.Y, pkt.OnGround)
-				applyMovementExhaustion(s, op, op.X, op.Y, op.Z, pkt.X, pkt.Y, pkt.Z, pkt.OnGround)
-				sendCenterChunkIfNeeded(s, op.X, op.Z, pkt.X, pkt.Z)
-				op.X, op.Y, op.Z = pkt.X, pkt.Y, pkt.Z
-				op.Yaw, op.Pitch = pkt.Yaw, pkt.Pitch
-				pm.BroadcastExcept(op.UUID, &playpacket.SyncEntityPosition{
-					EntityID: op.EntityID,
-					X:        pkt.X,
-					Y:        pkt.Y,
-					Z:        pkt.Z,
-					Yaw:      pkt.Yaw,
-					Pitch:    pkt.Pitch,
-					OnGround: pkt.OnGround,
-				})
-				pm.BroadcastExcept(op.UUID, &playpacket.SetHeadRotation{
-					EntityID: op.EntityID,
-					HeadYaw:  byte(int32(pkt.Yaw*256.0/360.0) & 0xFF),
-				})
-			}
-		}
-		mp.SetPositionXYZ(pkt.X, pkt.Y, pkt.Z)
-		mp.SetRotationYP(pkt.Yaw, pkt.Pitch)
-		mp.SetOnGround(pkt.OnGround)
-		return nil
+		return submitMovement(s, wa, movementCommand{
+			players: pm, hasPosition: true, hasRotation: true,
+			x: pkt.X, y: pkt.Y, z: pkt.Z,
+			yaw: pkt.Yaw, pitch: pkt.Pitch, onGround: pkt.OnGround,
+		})
 	}); err != nil {
 		return err
 	}
@@ -327,31 +480,10 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
-		mp, ok := s.Player().(MovablePlayer)
-		if !ok || mp == nil {
-			return nil
-		}
-		mp.SetRotationYP(pkt.Yaw, pkt.Pitch)
-		mp.SetOnGround(pkt.OnGround)
-		if pm != nil {
-			if op := pm.GetBySession(s); op != nil {
-				op.Yaw, op.Pitch = pkt.Yaw, pkt.Pitch
-				pm.BroadcastExcept(op.UUID, &playpacket.SyncEntityPosition{
-					EntityID: op.EntityID,
-					X:        op.X,
-					Y:        op.Y,
-					Z:        op.Z,
-					Yaw:      pkt.Yaw,
-					Pitch:    pkt.Pitch,
-					OnGround: pkt.OnGround,
-				})
-				pm.BroadcastExcept(op.UUID, &playpacket.SetHeadRotation{
-					EntityID: op.EntityID,
-					HeadYaw:  byte(int32(pkt.Yaw*256.0/360.0) & 0xFF),
-				})
-			}
-		}
-		return nil
+		return submitMovement(s, wa, movementCommand{
+			players: pm, hasRotation: true,
+			yaw: pkt.Yaw, pitch: pkt.Pitch, onGround: pkt.OnGround,
+		})
 	}); err != nil {
 		return err
 	}
@@ -362,18 +494,24 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
-		mp, ok := s.Player().(MovablePlayer)
-		if !ok || mp == nil {
-			return nil
-		}
-		mp.SetOnGround(pkt.OnGround)
-		return nil
+		return submitMovement(s, wa, movementCommand{players: pm, onGround: pkt.OnGround})
 	}); err != nil {
 		return err
 	}
 
 	chunkBatchReceivedID := playpacket.NewChunkBatchReceived().ID()
 	if err := router.Register(protocol.StatePlay, chunkBatchReceivedID, func(s Session, packet protocol.Packet) error {
+		pkt, ok := packet.(*playpacket.ChunkBatchReceived)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		if math.IsNaN(float64(pkt.ChunksPerTick)) || math.IsInf(float64(pkt.ChunksPerTick), 0) || pkt.ChunksPerTick < 0 || pkt.ChunksPerTick > 1000 {
+			return fmt.Errorf("invalid chunk batch rate: %v", pkt.ChunksPerTick)
+		}
+		if ds, ok := s.(*DefaultSession); ok {
+			ds.SessionData().Store("chunk_batch_rate", pkt.ChunksPerTick)
+			ds.AcknowledgeChunkBatch()
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -381,6 +519,12 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 	playerLoadedID := playpacket.NewPlayerLoaded().ID()
 	if err := router.Register(protocol.StatePlay, playerLoadedID, func(s Session, packet protocol.Packet) error {
+		if _, ok := packet.(*playpacket.PlayerLoaded); !ok {
+			return protocol.ErrNilPacket
+		}
+		if wa == nil || !wa.Submit(&clientLoadedCommand{session: s}) {
+			return fmt.Errorf("world command queue is unavailable or full")
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -388,6 +532,13 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 	abilitiesID := playpacket.NewPlayerAbilitiesServerbound().ID()
 	if err := router.Register(protocol.StatePlay, abilitiesID, func(s Session, packet protocol.Packet) error {
+		abilities, ok := packet.(*playpacket.PlayerAbilitiesServerbound)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		if wa == nil || !wa.Submit(&abilitiesCommand{session: s, players: pm, flying: abilities.Flags&playpacket.AbilityFlying != 0}) {
+			return fmt.Errorf("world command queue is unavailable or full")
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -398,6 +549,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		pkt, ok := packet.(*playpacket.ChatCommand)
 		if !ok {
 			return protocol.ErrNilPacket
+		}
+		if !allowSessionAction(s, "command_rate", cfg.CommandRateLimit) {
+			return s.Send(&playpacket.SystemChatMessage{Text: "You are sending commands too quickly", Overlay: true})
 		}
 		logger.Debug("chat_command", "session", s.ID(), "command", pkt.Command)
 		if cfg.CommandRegistry != nil {
@@ -414,6 +568,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		pkt, ok := packet.(*playpacket.ChatCommandSigned)
 		if !ok {
 			return protocol.ErrNilPacket
+		}
+		if !allowSessionAction(s, "command_rate", cfg.CommandRateLimit) {
+			return s.Send(&playpacket.SystemChatMessage{Text: "You are sending commands too quickly", Overlay: true})
 		}
 		logger.Debug("chat_command_signed", "session", s.ID(), "command", pkt.Command)
 		if cfg.CommandRegistry != nil {
@@ -435,78 +592,16 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
-		gm := int32(1)
-		var playerEntity *entity.Player
-		if p, ok := s.Player().(*entity.Player); ok && p != nil {
-			gm = p.Living().GameMode()
-			playerEntity = p
+		if pkt.Status < playpacket.DigStarted || pkt.Status > playpacket.DigSwapHands || pkt.Face < 0 || pkt.Face > 5 || pkt.Sequence < 0 {
+			return fmt.Errorf("invalid block dig action: status=%d face=%d sequence=%d", pkt.Status, pkt.Face, pkt.Sequence)
 		}
-
-		switch pkt.Status {
-		case playpacket.DigStarted:
-			if playerEntity != nil {
-				eatingTracker.Cancel(playerEntity.ID())
-			}
-			if gm == 1 {
-				breakBlock(s, pm, wa, pkt.Position, gm, true)
-			} else {
-				heldItemName := getHeldItemName(pm, s)
-				onGround := playerEntity != nil && playerEntity.OnGround()
-				stateID := int32(0)
-				if wa != nil {
-					stateID = wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
-				}
-				var effLevel int32
-				if op := pm.GetBySession(s); op != nil && op.Windows != nil {
-					held := op.Windows.HeldItem()
-					if !held.Empty() {
-						effLevel = enchantment.EfficiencyLevel(slotEnchantList(held))
-					}
-				}
-				result := mining.CalculateBreakTime(stateID, heldItemName, onGround, effLevel)
-				if result.Instant {
-					breakBlock(s, pm, wa, pkt.Position, gm, result.CanHarvest)
-				} else if result.Ticks > 0 && playerEntity != nil {
-					miningTracker.Start(playerEntity.ID(),
-						int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z),
-						stateID, result.Ticks, result.CanHarvest)
-				}
-			}
-
-		case playpacket.DigCancelled:
-			if playerEntity != nil {
-				if ds := miningTracker.Cancel(playerEntity.ID()); ds != nil {
-					if pm != nil {
-						pm.Broadcast(&playpacket.BlockBreakAnimation{
-							EntityID:     playerEntity.ID(),
-							Position:     pkt.Position,
-							DestroyStage: -1,
-						})
-					}
-				}
-			}
-
-		case playpacket.DigFinished:
-			if gm != 1 && playerEntity != nil {
-				ds := miningTracker.Cancel(playerEntity.ID())
-				if ds != nil {
-					breakBlock(s, pm, wa, pkt.Position, gm, ds.CanHarvest)
-				} else if wa != nil {
-					actual := wa.GetBlock(int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z))
-					_ = s.Send(&playpacket.BlockUpdate{
-						Position: pkt.Position,
-						BlockID:  actual,
-					})
-				}
-			}
-
-		case playpacket.DigShootArrow:
-			if playerEntity != nil {
-				completeEating(s, pm, playerEntity, eatingTracker)
-			}
+		if wa == nil || !wa.Submit(&digActionCommand{
+			session: s, players: pm, world: wa, packet: *pkt,
+			mining: miningTracker, eating: eatingTracker, receivedAt: time.Now(),
+		}) {
+			return rejectBlockDig(s, wa, pkt.Position, pkt.Sequence)
 		}
-
-		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
+		return nil
 	}); err != nil {
 		return err
 	}
@@ -516,6 +611,24 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		pkt, ok := packet.(*playpacket.UseItemOn)
 		if !ok {
 			return protocol.ErrNilPacket
+		}
+		if pkt.Hand < 0 || pkt.Hand > 1 || pkt.Face < 0 || pkt.Face > 5 || pkt.Sequence < 0 {
+			return fmt.Errorf("invalid use item on packet")
+		}
+		if pm != nil && wa != nil {
+			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+				useSlot := inventory.HotbarStart + int(op.Windows.HeldSlot())
+				if pkt.Hand == 1 {
+					useSlot = inventory.OffhandSlot
+				}
+				name := item.NameByID(op.Windows.GetSlot(useSlot).ItemID)
+				if name == "minecraft:flint_and_steel" || name == "minecraft:fire_charge" {
+					if !pkt.WorldBorderHit && wa.Submit(&ignitionCommand{session: s, players: pm, world: wa, packet: *pkt}) {
+						return nil
+					}
+					return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
+				}
+			}
 		}
 
 		if wa != nil {
@@ -527,14 +640,21 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 				}
 				if behavior.GetByState(clickedState).OnUse(ctx) {
 					if ctx.StateID == -2 && behavior.IsBed(clickedState) {
-						return handleBedUse(s, pm, wa, clickedState, int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), pkt.Sequence)
+						if wa.Submit(&bedUseCommand{session: s, players: pm, world: wa, x: int(pkt.Position.X), y: int(pkt.Position.Y), z: int(pkt.Position.Z), sequence: pkt.Sequence}) {
+							return nil
+						}
+						return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 					}
 					if ctx.StateID == -1 {
-						if furnaceType, wt, title, ok := behavior.IsFurnace(clickedState); ok {
-							return handleOpenFurnace(s, pm, wa, furnaceType, wt, title, pkt.Position.X, pkt.Position.Y, pkt.Position.Z, pkt.Sequence)
+						if _, _, _, furnace := behavior.IsFurnace(clickedState); furnace {
+							if wa.Submit(&openBlockWindowCommand{session: s, players: pm, world: wa, x: pkt.Position.X, y: pkt.Position.Y, z: pkt.Position.Z, sequence: pkt.Sequence}) {
+								return nil
+							}
 						}
-						if wt, title, slots, ok := behavior.IsContainer(clickedState); ok {
-							return handleOpenContainer(s, pm, wa, clickedState, wt, title, slots, int(pkt.Position.X), int(pkt.Position.Y), int(pkt.Position.Z), pkt.Sequence)
+						if _, _, _, container := behavior.IsContainer(clickedState); container {
+							if wa.Submit(&openBlockWindowCommand{session: s, players: pm, world: wa, x: pkt.Position.X, y: pkt.Position.Y, z: pkt.Position.Z, sequence: pkt.Sequence}) {
+								return nil
+							}
 						}
 						return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 					}
@@ -608,6 +728,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 		if wa != nil {
 			existing := wa.GetBlock(int(targetX), int(targetY), int(targetZ))
+			if existing < 0 {
+				return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
+			}
 			if block.IsSolid(existing) {
 				_ = s.Send(&playpacket.BlockUpdate{
 					Position: playpacket.BlockPos{X: targetX, Y: targetY, Z: targetZ},
@@ -648,74 +771,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		}
 
 		if blockToPlace > 0 && wa != nil {
-			wa.SetBlock(int(targetX), int(targetY), int(targetZ), blockToPlace)
-
-			blockUpdate := &playpacket.BlockUpdate{
-				Position: playpacket.BlockPos{X: targetX, Y: targetY, Z: targetZ},
-				BlockID:  blockToPlace,
-			}
-			if err := s.Send(blockUpdate); err != nil {
-				return err
-			}
-
-			if op != nil {
-				living := func() *entity.LivingEntity {
-					if p, ok := s.Player().(*entity.Player); ok && p != nil {
-						return p.Living()
-					}
-					return nil
-				}()
-				if living != nil && living.GameMode() != 1 {
-					op.Windows.ConsumeHeldItem()
-					newHeld := op.Windows.HeldItem()
-					_ = s.Send(&playpacket.SetContainerSlot{
-						WindowID: 0,
-						StateID:  op.Windows.CurrentStateID(),
-						SlotIdx:  int16(inventory.HotbarStart + int(op.Windows.HeldSlot())),
-						SlotData: newHeld,
-					})
-				}
-
-				pm.BroadcastExcept(op.UUID, blockUpdate)
-
-				blockName := block.NameFromState(blockToPlace)
-				placeSoundName := "block.stone.place"
-				if strings.Contains(blockName, "wood") || strings.Contains(blockName, "planks") || strings.Contains(blockName, "log") {
-					placeSoundName = "block.wood.place"
-				} else if strings.Contains(blockName, "sand") || strings.Contains(blockName, "gravel") {
-					placeSoundName = "block.sand.place"
-				} else if strings.Contains(blockName, "grass") || strings.Contains(blockName, "dirt") {
-					placeSoundName = "block.grass.place"
-				} else if strings.Contains(blockName, "glass") {
-					placeSoundName = "block.glass.place"
-				}
-				soundID := gensound.SoundIDByName(placeSoundName)
-				if soundID >= 0 {
-					pm.Broadcast(&playpacket.SoundEffect{
-						SoundID:       soundID + 1,
-						SoundCategory: soundcategory.CategoryBlock,
-						X:             int32(targetX*8 + 4),
-						Y:             int32(targetY*8 + 4),
-						Z:             int32(targetZ*8 + 4),
-						Volume:        1.0,
-						Pitch:         1.0,
-					})
-				}
-			}
-			wa.ScheduleTicksForBlock(int(targetX), int(targetY), int(targetZ), blockToPlace)
-			wa.NotifyNeighbors(int(targetX), int(targetY), int(targetZ))
-
-			// Open sign editor if a sign was placed
-			blockName := block.NameFromState(blockToPlace)
-			if strings.Contains(blockName, "_sign") {
-				if bes := wa.BlockEntities(); bes != nil {
-					bes.SetSign(int(targetX), int(targetY), int(targetZ), &blockentity.SignData{})
-				}
-				_ = s.Send(&playpacket.OpenSignEditor{
-					X: targetX, Y: targetY, Z: targetZ,
-					IsFront: true,
-				})
-			}
+			return submitPlaceBlock(s, pm, wa, op, targetX, targetY, targetZ, blockToPlace, pkt.Sequence)
 		}
 
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
@@ -758,43 +814,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if pm == nil {
 			return nil
 		}
-		op := pm.GetBySession(s)
-		if op == nil {
-			return nil
+		if wa == nil || !wa.Submit(&playerModeCommand{session: s, players: pm, world: wa, request: *pkt}) {
+			return fmt.Errorf("world command queue is unavailable or full")
 		}
-		switch pkt.ActionID {
-		case 0: // start sneaking
-			op.Flags = (op.Flags | 0x02)
-			op.Pose = 5
-			// Stop shield blocking when sneaking
-			if p, ok := s.Player().(*entity.Player); ok && p != nil {
-				living := p.Living()
-				if living.IsBlocking() {
-					living.SetBlocking(false)
-				}
-			}
-		case 1: // stop sneaking
-			op.Flags = (op.Flags &^ 0x02)
-			op.Pose = 0
-		case 2: // leave bed
-			if wa != nil {
-				wakePlayer(pm, op, wa)
-			}
-			return nil
-		case 3: // start sprinting
-			op.Flags = (op.Flags | 0x08)
-		case 4: // stop sprinting
-			op.Flags = (op.Flags &^ 0x08)
-		default:
-			return nil
-		}
-		md := metadata.New()
-		md.SetByte(metadata.IndexBase, int8(op.Flags))
-		md.SetPose(metadata.IndexPose, op.Pose)
-		pm.BroadcastExcept(op.UUID, &playpacket.SetEntityMetadata{
-			EntityID: op.EntityID,
-			Metadata: md.Encode(),
-		})
 		return nil
 	}); err != nil {
 		return err
@@ -806,23 +828,18 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
-		if pm == nil {
-			return nil
+		if pkt.Slot < 0 || pkt.Slot > 8 {
+			return fmt.Errorf("held item slot out of range: %d", pkt.Slot)
 		}
-		op := pm.GetBySession(s)
-		if op == nil || op.Windows == nil {
-			return nil
+		if wa == nil || !wa.Submit(&heldSlotCommand{
+			session: s, players: pm, eating: eatingTracker, slot: int32(pkt.Slot),
+		}) {
+			if pm != nil {
+				if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+					return s.Send(&playpacket.ClientboundHeldItemSlot{Slot: op.Windows.HeldSlot()})
+				}
+			}
 		}
-		op.Windows.SetHeldSlot(int32(pkt.Slot))
-		if p, ok := s.Player().(*entity.Player); ok && p != nil {
-			eatingTracker.Cancel(p.ID())
-		}
-		held := op.Windows.HeldItem()
-		eqSlot := playpacket.EquipmentSlot{SlotID: 0, Empty: held.Empty(), ItemID: held.ItemID, Count: int32(held.ItemCount)}
-		pm.BroadcastExcept(op.UUID, &playpacket.EntityEquipment{
-			EntityID: op.EntityID,
-			Slots:    []playpacket.EquipmentSlot{eqSlot},
-		})
 		return nil
 	}); err != nil {
 		return err
@@ -835,7 +852,10 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			return protocol.ErrNilPacket
 		}
 		if pkt.ActionID == 0 {
-			return handleRespawn(s, cfg, pm)
+			if wa != nil && wa.Submit(&respawnPlayerCommand{session: s, players: pm, world: wa, config: cfg}) {
+				return nil
+			}
+			return fmt.Errorf("respawn queue unavailable")
 		}
 		return nil
 	}); err != nil {
@@ -844,6 +864,13 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 	settingsID := playpacket.NewServerboundSettings().ID()
 	if err := router.Register(protocol.StatePlay, settingsID, func(s Session, packet protocol.Packet) error {
+		pkt, ok := packet.(*playpacket.ServerboundSettings)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		if ds, ok := s.(*DefaultSession); ok {
+			ds.SessionData().Store("client_view_distance", int32(pkt.ViewDistance))
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -855,14 +882,25 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if !ok {
 			return protocol.ErrNilPacket
 		}
-		if pm != nil {
-			if ds, ok := s.(*DefaultSession); ok {
-				if raw, found := ds.SessionData().Load("login_uuid"); found {
-					if uuid, ok := raw.(protocol.UUID); ok {
-						if op := pm.GetByUUID(uuid); op != nil && op.Windows != nil {
-							op.Windows.HandleCreativeSet(pkt.SlotIndex, pkt.Item)
-						}
-					}
+		player, playerOK := s.Player().(*entity.Player)
+		if !playerOK || player == nil || player.Living().GameMode() != 1 {
+			return fmt.Errorf("creative slot action without creative capability")
+		}
+		if pkt.SlotIndex < 1 || int(pkt.SlotIndex) >= inventory.PlayerInventorySize {
+			return fmt.Errorf("creative slot index out of range: %d", pkt.SlotIndex)
+		}
+		if !pkt.Item.Empty() {
+			maxStack := pkt.Item.MaxStackSize()
+			if maxStack <= 0 || pkt.Item.ItemCount > maxStack {
+				return fmt.Errorf("invalid creative item id=%d count=%d", pkt.Item.ItemID, pkt.Item.ItemCount)
+			}
+		}
+		if wa == nil || !wa.Submit(&creativeSlotCommand{
+			session: s, players: pm, slot: pkt.SlotIndex, item: pkt.Item.Clone(),
+		}) {
+			if pm != nil {
+				if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+					return sendWindowSnapshot(s, op.Windows, 0)
 				}
 			}
 		}
@@ -878,53 +916,10 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			return protocol.ErrNilPacket
 		}
 
-		if pm != nil {
-			if p, ok := s.Player().(*entity.Player); ok && p != nil {
-				living := p.Living()
-				gm := living.GameMode()
-				if gm != 1 && gm != 3 {
-					op := pm.GetBySession(s)
-					if op != nil && op.Windows != nil {
-						held := op.Windows.HeldItem()
-						if !held.Empty() {
-							itemName := item.NameByID(held.ItemID)
-							props := food.Get(itemName)
-							if props != nil {
-								canEat := living.FoodLevel() < 20 || props.CanAlwaysEat
-								if canEat {
-									eatingTracker.Start(p.ID(), itemName, held.ItemID, pkt.Hand, props)
-								}
-							}
-						}
-
-						// Shield blocking: check main hand or offhand
-						var shieldName string
-						if pkt.Hand == 0 {
-							h := op.Windows.HeldItem()
-							if !h.Empty() {
-								shieldName = item.NameByID(h.ItemID)
-							}
-						} else {
-							oh := op.Windows.Inventory().Get(inventory.OffhandSlot)
-							if !oh.Empty() {
-								shieldName = item.NameByID(oh.ItemID)
-							}
-						}
-						if shieldName == "minecraft:shield" && living.ShieldCooldown() <= 0 {
-							living.SetBlocking(true)
-							smd := metadata.New()
-							smd.SetByte(metadata.IndexLivingHandStates, 0x01)
-							pm.Broadcast(&playpacket.SetEntityMetadata{
-								EntityID: op.EntityID,
-								Metadata: smd.Encode(),
-							})
-						}
-					}
-				}
-			}
+		if wa == nil || !wa.Submit(&useItemCommand{session: s, players: pm, world: wa, request: *pkt, config: cfg, eating: eatingTracker, mining: miningTracker}) {
+			return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
 		}
-
-		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: pkt.Sequence})
+		return nil
 	}); err != nil {
 		return err
 	}
@@ -934,6 +929,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		pkt, ok := packet.(*playpacket.ServerboundChatMessage)
 		if !ok {
 			return protocol.ErrNilPacket
+		}
+		if !allowSessionAction(s, "chat_rate", cfg.ChatRateLimit) {
+			return s.Send(&playpacket.SystemChatMessage{Text: "You are sending messages too quickly", Overlay: true})
 		}
 		senderName := "Player"
 		if ds, ok := s.(*DefaultSession); ok {
@@ -945,13 +943,16 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		}
 		logger.Info("chat", "player", senderName, "message", pkt.Message)
 		if pm != nil {
-			pm.Broadcast(playpacket.NewDisguisedChatSimple(pkt.Message, senderName))
+			pm.Global().Broadcast(playpacket.NewDisguisedChatSimple(pkt.Message, senderName))
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
+	if err := registerMenuButtonHandler(router, pm, wa, cfg.Crafting); err != nil {
+		return err
+	}
 	windowClickID := playpacket.NewWindowClick().ID()
 	if err := router.Register(protocol.StatePlay, windowClickID, func(s Session, packet protocol.Packet) error {
 		pkt, ok := packet.(*playpacket.WindowClick)
@@ -961,53 +962,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		if pm == nil {
 			return nil
 		}
-		if ds, ok := s.(*DefaultSession); ok {
-			if raw, found := ds.SessionData().Load("login_uuid"); found {
-				if uuid, ok := raw.(protocol.UUID); ok {
-					if op := pm.GetByUUID(uuid); op != nil && op.Windows != nil {
-						isCraftOutput := pkt.WindowID == 0 && pkt.Slot == int16(inventory.CraftOutputSlot)
-						isCraftTableOutput := pkt.WindowID != 0 && pkt.Slot == 0 && op.Windows.ActiveWindow() != nil && op.Windows.ActiveWindow().Type == inventory.WindowTypeCrafting
-
-						if isCraftOutput || isCraftTableOutput {
-							outputSlot := op.Windows.GetSlot(int(pkt.Slot))
-							if !outputSlot.Empty() {
-								if isCraftOutput {
-									op.Windows.ConsumeCraftIngredients()
-								} else {
-									op.Windows.ConsumeCraftTableIngredients()
-								}
-								op.Windows.HandleClick(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, nil, inventory.EmptySlot())
-								if isCraftOutput {
-									op.Windows.UpdateCraftOutput()
-								} else {
-									op.Windows.UpdateCraftTableOutput()
-								}
-							}
-						} else {
-							op.Windows.HandleClick(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, nil, inventory.EmptySlot())
-							if pkt.WindowID == 0 && pkt.Slot >= int16(inventory.CraftInputStart) && pkt.Slot <= int16(inventory.CraftInputEnd) {
-								op.Windows.UpdateCraftOutput()
-							}
-						}
-
-						stateID, slots, cursor := op.Windows.SnapshotForResync(pkt.WindowID)
-						if slots != nil {
-							_ = s.Send(&playpacket.SetContainerContent{
-								WindowID: pkt.WindowID,
-								StateID:  stateID,
-								Slots:    slots,
-								Carried:  cursor,
-							})
-						}
-
-						if pkt.WindowID == 0 && IsEquipmentSlot(pkt.Slot) {
-							UpdateArmorStats(op)
-							if equipPkt := BuildFullEquipmentPacket(op.EntityID, op.Windows); equipPkt != nil {
-								pm.BroadcastExcept(uuid, equipPkt)
-							}
-						}
-					}
-				}
+		if wa == nil || !wa.Submit(&windowClickCommand{session: s, players: pm, world: wa, packet: pkt}) {
+			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+				return sendWindowSnapshot(s, op.Windows, pkt.WindowID)
 			}
 		}
 		return nil
@@ -1050,10 +1007,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			newSlot := inventory.NewSlot(writtenID, 1)
 			// Store title and pages as raw component data (simplified)
 			op.Windows.Inventory().Set(invIdx, newSlot)
-			_ = s.Send(&playpacket.SetPlayerInventorySlot{
-				SlotIdx:  int32(invIdx),
-				SlotData: newSlot,
-			})
+			_ = sendWindowResync(s, op.Windows, 0)
 		} else {
 			// Just editing pages - keep the writable_book, acknowledge
 			// Pages are stored client-side until signing; server just acknowledges
@@ -1087,6 +1041,7 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		} else {
 			sd.BackLines = pkt.Lines
 		}
+		bes.SetSign(int(pkt.X), int(pkt.Y), int(pkt.Z), sd)
 
 		nbtData := blockentity.EncodeSignNBT(sd)
 		beType := blockentity.TypeSign
@@ -1109,14 +1064,25 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 	closeWindowID := playpacket.NewCloseWindow().ID()
 	if err := router.Register(protocol.StatePlay, closeWindowID, func(s Session, packet protocol.Packet) error {
-		if pm == nil {
+		pkt, ok := packet.(*playpacket.CloseWindow)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		if pkt.WindowID <= 0 {
 			return nil
 		}
-		if ds, ok := s.(*DefaultSession); ok {
-			if raw, found := ds.SessionData().Load("login_uuid"); found {
-				if uuid, ok := raw.(protocol.UUID); ok {
-					if op := pm.GetByUUID(uuid); op != nil && op.Windows != nil {
-						op.Windows.CloseWindow()
+		if wa == nil || !wa.Submit(&closeWindowCommand{
+			session: s, players: pm, world: wa, windowID: pkt.WindowID,
+		}) {
+			if pm != nil {
+				if op := pm.GetBySession(s); op != nil && op.Windows != nil {
+					if active := op.Windows.ActiveWindow(); active != nil && active.ID == pkt.WindowID {
+						if err := s.Send(&playpacket.OpenScreen{
+							WindowID: active.ID, WindowType: active.Type, Title: active.Title,
+						}); err != nil {
+							return err
+						}
+						return sendWindowSnapshot(s, op.Windows, active.ID)
 					}
 				}
 			}
@@ -1136,7 +1102,9 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 			return nil
 		}
 		if pkt.Type == playpacket.UseEntityAttack {
-			return handleAttack(s, pkt.EntityID, pm)
+			if wa == nil || !wa.Submit(&attackEntityCommand{session: s, players: pm, world: wa, target: pkt.EntityID}) {
+				return fmt.Errorf("world command queue is unavailable or full")
+			}
 		}
 		return nil
 	}); err != nil {
@@ -1194,49 +1162,36 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 		return err
 	}
 
-	for _, factory := range []func() protocol.Packet{
-		playpacket.NewTickEnd,
-		playpacket.NewServerboundPingRequest,
-		playpacket.NewServerboundPong,
-		playpacket.NewServerboundPlayCustomPayload,
-		playpacket.NewPlayerInput,
-		playpacket.NewServerboundRecipeBook,
-		playpacket.NewMessageAcknowledgement,
-		playpacket.NewChatSessionUpdate,
-		playpacket.NewConfigurationAcknowledged,
-		playpacket.NewVehicleMove,
-		playpacket.NewSteerBoat,
-		playpacket.NewResourcePackReceive,
-		playpacket.NewSetDifficulty,
-		playpacket.NewLockDifficulty,
-		playpacket.NewEnchantItem,
-		playpacket.NewPickItemFromBlock,
-		playpacket.NewPickItemFromEntity,
-		playpacket.NewCraftRecipeRequest,
-		playpacket.NewDisplayedRecipe,
-		playpacket.NewNameItem,
-		playpacket.NewAdvancementTab,
-		playpacket.NewSelectTrade,
-		playpacket.NewSetBeaconEffect,
-		playpacket.NewSpectate,
-		playpacket.NewSetSlotState,
-		playpacket.NewQueryBlockNbt,
-		playpacket.NewQueryEntityNbt,
-		playpacket.NewSelectBundleItem,
-		playpacket.NewServerboundCookieResponse,
-		playpacket.NewDebugSampleSubscription,
-		playpacket.NewGenerateStructure,
-		playpacket.NewUpdateCommandBlock,
-		playpacket.NewUpdateCommandBlockMinecart,
-		playpacket.NewUpdateJigsawBlock,
-		playpacket.NewUpdateStructureBlock,
-	} {
-		pktID := factory().ID()
-		if err := router.Register(protocol.StatePlay, pktID, func(s Session, packet protocol.Packet) error {
-			return nil
-		}); err != nil {
-			return err
+	playerInputID := playpacket.NewPlayerInput().ID()
+	if err := router.Register(protocol.StatePlay, playerInputID, func(_ Session, packet protocol.Packet) error {
+		pkt, ok := packet.(*playpacket.PlayerInput)
+		if !ok {
+			return protocol.ErrNilPacket
 		}
+		if pkt.Flags&^byte(0x7F) != 0 {
+			return fmt.Errorf("player input has reserved flags: 0x%02X", pkt.Flags)
+		}
+		// Input is meaningful only while a vehicle controller is attached. Until
+		// vehicle ownership is implemented, accepting this validated neutral input
+		// preserves the normal client tick flow without changing world state.
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	pingRequestID := playpacket.NewServerboundPingRequest().ID()
+	if err := router.Register(protocol.StatePlay, pingRequestID, func(s Session, packet protocol.Packet) error {
+		ping, ok := packet.(*playpacket.ServerboundPingRequest)
+		if !ok {
+			return protocol.ErrNilPacket
+		}
+		return s.Send(&playpacket.ClientboundPingResponse{Payload: ping.Payload})
+	}); err != nil {
+		return err
+	}
+
+	if err := registerPlayValidatedNoOps(router); err != nil {
+		return err
 	}
 
 	return nil
@@ -1244,8 +1199,20 @@ func RegisterPlayHandlers(router PacketRouter, cfg PlayBootstrapConfig, pm *Play
 
 // SendPlayBootstrap sends the initial play-state packet sequence to the client.
 func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error {
+	if cfg.InitialSelectedSlot < 0 || cfg.InitialSelectedSlot > 8 {
+		return fmt.Errorf("invalid initial selected item slot")
+	}
+	dimension := cfg.DimensionName
+	if dimension == "" {
+		dimension = "minecraft:overworld"
+	}
 	teleportID := nextTeleportID()
 
+	respawnScreen, limitedCrafting := true, false
+	if cfg.GameRule != nil {
+		respawnScreen = cfg.GameRule("doImmediateRespawn") != "true"
+		limitedCrafting = cfg.GameRule("doLimitedCrafting") == "true"
+	}
 	loginPlay := &playpacket.LoginPlay{
 		EntityID:            entityID,
 		IsHardcore:          false,
@@ -1254,21 +1221,24 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		ViewDistance:        cfg.ViewDistance,
 		SimulationDistance:  cfg.SimulationDistance,
 		ReducedDebugInfo:    false,
-		EnableRespawnScreen: true,
-		DoLimitedCrafting:   false,
-		DimensionType:       dimensionTypeID(cfg.RegistryManager, "minecraft:overworld"),
-		DimensionName:       "minecraft:overworld",
+		EnableRespawnScreen: respawnScreen,
+		DoLimitedCrafting:   limitedCrafting,
+		DimensionType:       dimensionTypeID(cfg.RegistryManager, dimension),
+		DimensionName:       dimension,
 		HashedSeed:          0,
 		GameMode:            byte(cfg.GameMode),
 		PreviousGameMode:    -1,
 		IsDebug:             false,
 		IsFlat:              false,
 		HasDeathLocation:    false,
-		PortalCooldown:      0,
+		PortalCooldown:      cfg.PortalCooldown,
 		SeaLevel:            63,
-		EnforcesSecureChat:  true,
+		EnforcesSecureChat:  false,
 	}
 	if err := s.Send(loginPlay); err != nil {
+		return err
+	}
+	if err := s.Send(&playpacket.Difficulty{DifficultyLevel: byte(cfg.Difficulty), Locked: false}); err != nil {
 		return err
 	}
 	logger.Debug("sent login_play", "session", s.ID(), "entity_id", entityID)
@@ -1291,12 +1261,7 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		}
 	}
 
-	var abilities *playpacket.PlayerAbilitiesClientbound
-	if cfg.GameMode == 1 {
-		abilities = playpacket.CreativeAbilities()
-	} else {
-		abilities = playpacket.SurvivalAbilities()
-	}
+	abilities := playerAbilitiesWithSpeed(cfg.GameMode, 0, cfg.GameMode == 3)
 	if err := s.Send(abilities); err != nil {
 		return err
 	}
@@ -1324,7 +1289,7 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		}
 	}
 
-	if err := s.Send(&playpacket.UpdateHealth{Health: 20.0, Food: 20, FoodSaturation: 5.0}); err != nil {
+	if err := s.Send(&playpacket.UpdateHealth{Health: cfg.InitialHealth, Food: cfg.InitialFood, FoodSaturation: cfg.InitialFoodSaturation}); err != nil {
 		return err
 	}
 
@@ -1338,11 +1303,11 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		}
 	}
 
-	if err := s.Send(&playpacket.UpdateTime{WorldAge: 0, TimeOfDay: 6000, TickDayTime: true}); err != nil {
+	if err := s.Send(&playpacket.UpdateTime{WorldAge: cfg.WorldAge, TimeOfDay: cfg.TimeOfDay, TickDayTime: cfg.TickDayTime}); err != nil {
 		return err
 	}
 
-	if err := s.Send(&playpacket.SetExperience{ExperienceBar: 0, ExperienceLevel: 0, TotalExperience: 0}); err != nil {
+	if err := s.Send(&playpacket.SetExperience{ExperienceBar: cfg.InitialXPBar, ExperienceLevel: cfg.InitialXPLevel, TotalExperience: cfg.InitialXPTotal}); err != nil {
 		return err
 	}
 
@@ -1356,7 +1321,7 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		return err
 	}
 
-	if err := s.Send(&playpacket.ClientboundHeldItemSlot{Slot: 0}); err != nil {
+	if err := s.Send(&playpacket.ClientboundHeldItemSlot{Slot: cfg.InitialSelectedSlot}); err != nil {
 		return err
 	}
 
@@ -1429,12 +1394,15 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		VelocityX:  0,
 		VelocityY:  0,
 		VelocityZ:  0,
-		Yaw:        0,
-		Pitch:      0,
+		Yaw:        cfg.SpawnYaw,
+		Pitch:      cfg.SpawnPitch,
 		Flags:      0,
 	}
 	if err := s.Send(syncPos); err != nil {
 		return err
+	}
+	if ds, ok := s.(*DefaultSession); ok {
+		ds.setPendingTeleport(teleportID)
 	}
 	logger.Debug("sent sync_player_position", "session", s.ID(), "teleport_id", teleportID)
 
@@ -1446,82 +1414,8 @@ func SendPlayBootstrap(s Session, entityID int32, cfg PlayBootstrapConfig) error
 		return err
 	}
 
-	if err := s.Send(&playpacket.ChunkBatchStart{}); err != nil {
-		return err
-	}
+	logger.Debug("play bootstrap complete", "session", s.ID())
 
-	radius := int32(3)
-	chunkCount := int32(0)
-	for dx := -radius; dx <= radius; dx++ {
-		for dz := -radius; dz <= radius; dz++ {
-			cx := chunkX + dx
-			cz := chunkZ + dz
-			payload := generateSpawnChunkPayload(cfg, cx, cz)
-			if payload == nil {
-				continue
-			}
-			pkt := &playpacket.ChunkDataAndUpdateLight{
-				ChunkX:  cx,
-				ChunkZ:  cz,
-				Payload: payload,
-			}
-			if err := s.Send(pkt); err != nil {
-				return err
-			}
-			chunkCount++
-		}
-	}
-
-	if err := s.Send(&playpacket.ChunkBatchFinished{BatchSize: chunkCount}); err != nil {
-		return err
-	}
-
-	logger.Debug("play bootstrap complete", "session", s.ID(), "spawn_chunks", chunkCount)
-
-	return nil
-}
-
-func generateSpawnChunkPayload(cfg PlayBootstrapConfig, cx, cz int32) []byte {
-	if cfg.SpawnChunks != nil {
-		return cfg.SpawnChunks.GenerateSpawnChunk(cx, cz)
-	}
-	biomeID := int32(0)
-	if cfg.RegistryManager != nil {
-		if id := cfg.RegistryManager.IDByName("minecraft:worldgen/biome", "minecraft:plains"); id >= 0 {
-			biomeID = id
-		}
-	}
-	gen := terrain.NewNoiseGenerator(42, biomeID)
-	c := gen.Generate(cx, cz)
-	return c.EncodePacketPayload()
-}
-
-// WorldChunkProvider implements SpawnChunkProvider using the world's chunk manager.
-type WorldChunkProvider struct {
-	Chunks   *chunk.Manager
-	Fallback *terrain.NoiseGenerator
-}
-
-// GenerateSpawnChunk produces a chunk payload, trying the world's chunk manager first.
-func (p *WorldChunkProvider) GenerateSpawnChunk(cx, cz int32) []byte {
-	if p.Chunks != nil {
-		p.Chunks.RequestLoad(cx, cz)
-		p.Chunks.PumpLoadRequests()
-		for i := 0; i < 100; i++ {
-			p.Chunks.ApplyLoadCompletions(256)
-			if c, ok := p.Chunks.GetChunk(cx, cz); ok {
-				if payload := c.EncodePacketPayload(); payload != nil {
-					return payload
-				}
-			}
-			time.Sleep(time.Millisecond)
-			p.Chunks.PumpLoadRequests()
-		}
-	}
-	if p.Fallback != nil {
-		c := p.Fallback.Generate(cx, cz)
-		return c.EncodePacketPayload()
-	}
 	return nil
 }
 
@@ -1534,20 +1428,52 @@ func handleOpenContainer(s Session, pm *PlayerManager, wa WorldAccessor, clicked
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 	}
 
-	// Detect double chest
 	actualWindowType := windowType
 	actualSlotCount := slotCount
 	actualTitle := title
-	if behavior.IsChest(clickedState) {
-		if _, _, _, ok := behavior.FindDoubleChestHalf(clickedState, bx, by, bz); ok {
-			actualWindowType = 5 // Generic9x6
-			actualSlotCount = 54
-			actualTitle = "Large Chest"
+
+	var w *inventory.Window
+	if behavior.IsChest(clickedState) && wa != nil && wa.BlockEntities() != nil {
+		if ox, oy, oz, paired := behavior.FindDoubleChestHalf(clickedState, bx, by, bz); paired {
+			otherState := wa.GetBlock(ox, oy, oz)
+			left := block.PropertiesFromState(clickedState)["type"] == "left"
+			otherType := "left"
+			if left {
+				otherType = "right"
+			}
+			if block.NameFromState(otherState) == block.NameFromState(clickedState) && block.PropertiesFromState(otherState)["type"] == otherType {
+				typeName := block.NameFromState(clickedState)
+				first := wa.BlockEntities().Container(bx, by, bz, typeName, 27)
+				second := wa.BlockEntities().Container(ox, oy, oz, typeName, 27)
+				if first != nil && second != nil {
+					if left {
+						w = op.Windows.OpenDoubleChest("Large Chest", first, second)
+					} else {
+						w = op.Windows.OpenDoubleChest("Large Chest", second, first)
+					}
+					actualWindowType, actualTitle = inventory.WindowTypeGeneric9x6, "Large Chest"
+					w.OtherX, w.OtherY, w.OtherZ = ox, oy, oz
+				}
+			}
 		}
 	}
-
-	container := inventory.NewContainer(actualSlotCount)
-	w := op.Windows.OpenWindow(actualWindowType, actualTitle, container)
+	if w == nil {
+		var container *inventory.Container
+		if actualWindowType == inventory.WindowTypeCrafting || actualWindowType == inventory.WindowTypeStonecutter {
+			container = inventory.NewContainer(actualSlotCount)
+		} else if wa != nil && wa.BlockEntities() != nil {
+			typeName := block.NameFromState(clickedState)
+			if strings.Contains(typeName, "shulker_box") {
+				typeName = "minecraft:shulker_box"
+			}
+			container = wa.BlockEntities().Container(bx, by, bz, typeName, actualSlotCount)
+		}
+		if container == nil {
+			return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+		}
+		w = op.Windows.OpenWindow(actualWindowType, actualTitle, container)
+	}
+	w.BlockX, w.BlockY, w.BlockZ = bx, by, bz
 
 	if err := s.Send(&playpacket.OpenScreen{
 		WindowID:   w.ID,
@@ -1557,25 +1483,43 @@ func handleOpenContainer(s Session, pm *PlayerManager, wa WorldAccessor, clicked
 		return err
 	}
 
-	slots := make([]inventory.Slot, actualSlotCount)
+	slots := w.Container.Slots()
 	stateID := op.Windows.StateID()
 	if err := s.Send(&playpacket.SetContainerContent{
 		WindowID: w.ID,
 		StateID:  stateID,
 		Slots:    slots,
-		Carried:  inventory.EmptySlot(),
+		Carried:  op.Windows.CursorItem(),
 	}); err != nil {
 		return err
+	}
+	if actualWindowType == inventory.WindowTypeStonecutter {
+		if err := sendStonecuttingSelection(s, op.Windows, w.ID); err != nil {
+			return err
+		}
 	}
 
 	// Send chest open animation via BlockAction
 	if behavior.IsChest(clickedState) && pm != nil {
+		viewerCount := byte(0)
+		for _, viewer := range pm.Players() {
+			if viewer != nil && viewer.Windows != nil && sameOpenBlockContainer(viewer.Windows.ActiveWindow(), w) && viewerCount < 255 {
+				viewerCount++
+			}
+		}
 		pm.Broadcast(&playpacket.BlockAction{
 			Position:        playpacket.BlockPos{X: int32(bx), Y: int32(by), Z: int32(bz)},
 			ActionID:        1, // action: number of players viewing
-			ActionParameter: 1, // value: 1 player
+			ActionParameter: viewerCount,
 			BlockType:       block.BlockIDFromState(clickedState),
 		})
+		if w.DoubleChest {
+			otherState := wa.GetBlock(w.OtherX, w.OtherY, w.OtherZ)
+			pm.Broadcast(&playpacket.BlockAction{
+				Position: playpacket.BlockPos{X: int32(w.OtherX), Y: int32(w.OtherY), Z: int32(w.OtherZ)},
+				ActionID: 1, ActionParameter: viewerCount, BlockType: block.BlockIDFromState(otherState),
+			})
+		}
 	}
 
 	return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
@@ -1590,8 +1534,22 @@ func handleOpenFurnace(s Session, pm *PlayerManager, wa WorldAccessor, furnaceTy
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 	}
 
-	container := inventory.NewContainer(3)
+	typeName := "minecraft:furnace"
+	var container *inventory.Container
+	if wa != nil && wa.BlockEntities() != nil {
+		switch furnaceType {
+		case behavior.FurnaceTypeBlast:
+			typeName = "minecraft:blast_furnace"
+		case behavior.FurnaceTypeSmoker:
+			typeName = "minecraft:smoker"
+		}
+		container = wa.BlockEntities().Container(int(x), int(y), int(z), typeName, 3)
+	}
+	if container == nil {
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
 	w := op.Windows.OpenWindow(windowType, title, container)
+	w.BlockX, w.BlockY, w.BlockZ = int(x), int(y), int(z)
 
 	if err := s.Send(&playpacket.OpenScreen{
 		WindowID:   w.ID,
@@ -1601,57 +1559,82 @@ func handleOpenFurnace(s Session, pm *PlayerManager, wa WorldAccessor, furnaceTy
 		return err
 	}
 
-	slots := container.Slots()
+	slots := w.Container.Slots()
 	stateID := op.Windows.StateID()
 	if err := s.Send(&playpacket.SetContainerContent{
 		WindowID: w.ID,
 		StateID:  stateID,
 		Slots:    slots,
-		Carried:  inventory.EmptySlot(),
+		Carried:  op.Windows.CursorItem(),
 	}); err != nil {
 		return err
 	}
 
-	if err := s.Send(&playpacket.SetContainerProperty{
-		WindowID: int8(w.ID),
-		Property: 0,
-		Value:    0,
-	}); err != nil {
-		return err
-	}
-	if err := s.Send(&playpacket.SetContainerProperty{
-		WindowID: int8(w.ID),
-		Property: 1,
-		Value:    0,
-	}); err != nil {
-		return err
-	}
-	if err := s.Send(&playpacket.SetContainerProperty{
-		WindowID: int8(w.ID),
-		Property: 2,
-		Value:    0,
-	}); err != nil {
-		return err
-	}
-	if err := s.Send(&playpacket.SetContainerProperty{
-		WindowID: int8(w.ID),
-		Property: 3,
-		Value:    200,
-	}); err != nil {
-		return err
+	furnace := wa.BlockEntities().Furnace(int(x), int(y), int(z), typeName)
+	for property := 0; property < 4; property++ {
+		if err := s.Send(&playpacket.SetContainerProperty{
+			WindowID: w.ID, Property: int16(property), Value: furnace.GetProperty(property),
+		}); err != nil {
+			return err
+		}
 	}
 
 	return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 }
 
-func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) error {
-	dimType := dimensionTypeID(cfg.RegistryManager, "minecraft:overworld")
+// handleRespawn restores a dead player at a prepared, collision-safe position.
+func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager, wa WorldAccessor) error {
+	if cfg.RequestRespawn != nil {
+		return cfg.RequestRespawn(s)
+	}
+	player, ok := s.Player().(*entity.Player)
+	if !ok || player == nil || !player.Living().IsDead() {
+		return fmt.Errorf("respawn requested while player is alive")
+	}
+	gameMode := player.Living().GameMode()
+	spawnX, spawnY, spawnZ := cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ
+	spawnAngle := cfg.SpawnYaw
+	spawnResolved := false
+	if cfg.ReadWorldSpawn != nil {
+		x, y, z, angle := cfg.ReadWorldSpawn()
+		spawnX, spawnY, spawnZ, spawnAngle = float64(x)+0.5, float64(y), float64(z)+0.5, angle
+	}
+	if err := prepareRespawnChunks(wa, spawnX, spawnZ); err != nil {
+		return err
+	}
+	if pm != nil {
+		if op := pm.GetBySession(s); op != nil && op.HasSpawnPoint {
+			if err := prepareRespawnChunks(wa, float64(op.SpawnX), float64(op.SpawnZ)); err != nil {
+				return err
+			}
+			if x, y, z, ok := playerRespawnPoint(wa, op); ok {
+				spawnAngle = op.SpawnAngle
+				spawnX, spawnY, spawnZ = x, y, z
+				spawnResolved = true
+			} else {
+				op.HasSpawnPoint = false
+				_ = s.Send(&playpacket.SystemChatMessage{Text: "Your home bed was missing or obstructed", Overlay: false})
+			}
+		}
+	}
+	if accessor, ok := wa.(*DefaultWorldAccessor); ok && accessor.Chunks != nil && !spawnResolved {
+		x, y, z, ok := safeWorldRespawn(wa, int(math.Floor(spawnX)), int(spawnY), int(math.Floor(spawnZ)))
+		if !ok {
+			return errRespawnObstructed
+		}
+		spawnX, spawnY, spawnZ = x, y, z
+	}
+	dimension := cfg.DimensionName
+	if dimension == "" {
+		dimension = "minecraft:overworld"
+	}
+	dimType := dimensionTypeID(cfg.RegistryManager, dimension)
 
 	respawnPkt := &playpacket.Respawn{
 		DimensionType:    dimType,
-		DimensionName:    "minecraft:overworld",
+		DimensionName:    dimension,
 		HashedSeed:       0,
-		GameMode:         1,
+		GameMode:         byte(gameMode),
 		PreviousGameMode: -1,
 		IsDebug:          false,
 		IsFlat:           false,
@@ -1663,40 +1646,107 @@ func handleRespawn(s Session, cfg PlayBootstrapConfig, pm *PlayerManager) error 
 	if err := s.Send(respawnPkt); err != nil {
 		return err
 	}
-
-	teleportID := nextTeleportID()
-	if err := s.Send(&playpacket.SyncPlayerPosition{
-		TeleportID: teleportID,
-		X:          cfg.SpawnX,
-		Y:          cfg.SpawnY,
-		Z:          cfg.SpawnZ,
-	}); err != nil {
-		return err
-	}
-
-	chunkX := int32(cfg.SpawnX) >> 4
-	chunkZ := int32(cfg.SpawnZ) >> 4
+	chunkX, chunkZ := chunkCoord(spawnX), chunkCoord(spawnZ)
 	if err := s.Send(&playpacket.SetCenterChunk{ChunkX: chunkX, ChunkZ: chunkZ}); err != nil {
 		return err
 	}
 
+	teleportID := nextTeleportID()
+	if err := s.Send(&playpacket.SyncPlayerPosition{
+		TeleportID: teleportID,
+		X:          spawnX,
+		Y:          spawnY,
+		Z:          spawnZ,
+		Yaw:        spawnAngle,
+	}); err != nil {
+		return err
+	}
+	if ds, ok := s.(*DefaultSession); ok {
+		ds.setPendingTeleport(teleportID)
+	}
+	if err := s.Send(&playpacket.GameEvent{Event: 13}); err != nil {
+		return err
+	}
+	player.SetClientLoaded(false)
+
 	if err := s.Send(&playpacket.UpdateHealth{Health: 20.0, Food: 20, FoodSaturation: 5.0}); err != nil {
+		return err
+	}
+	speed := 0.0
+	if pm != nil {
+		if online := pm.GetBySession(s); online != nil {
+			speed = online.SpeedBlocksPerSecond
+		}
+	}
+	if ds, ok := s.(*DefaultSession); ok {
+		ds.SessionData().Store("player_flying", false)
+	}
+	if err := s.Send(playerAbilitiesWithSpeed(gameMode, speed, false)); err != nil {
+		return err
+	}
+	if err := s.Send(&playpacket.EntityUpdateAttributes{EntityID: player.ID(), Properties: player.Attributes().ToProperties()}); err != nil {
+		return err
+	}
+	keepExperience := cfg.KeepInventory != nil && cfg.KeepInventory()
+	if pm != nil {
+		if online := pm.GetBySession(s); online != nil && online.DeathProcessed {
+			keepExperience = online.DeathKeepInventory
+		}
+	}
+	player.Living().RespawnWithKeepExperience(keepExperience)
+	if err := s.Send(&playpacket.SetExperience{ExperienceBar: player.Living().XPBar(), ExperienceLevel: player.Living().XPLevel(), TotalExperience: player.Living().XPTotal()}); err != nil {
 		return err
 	}
 
 	if pm != nil {
 		if op := pm.GetBySession(s); op != nil {
-			op.X, op.Y, op.Z = cfg.SpawnX, cfg.SpawnY, cfg.SpawnZ
+			op.X, op.Y, op.Z = spawnX, spawnY, spawnZ
+			op.movement = movementState{}
+			op.Flags &^= 0x80
+			op.Pose = entitypose.PoseStanding
+			op.DeathProcessed = false
+			op.RespawnPending = false
+			if op.Windows != nil {
+				if err := sendWindowResync(s, op.Windows, 0); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
-	if p, ok := s.Player().(*entity.Player); ok && p != nil {
-		p.Living().Respawn()
-		p.SetPosition(entity.Vec3{X: cfg.SpawnX, Y: cfg.SpawnY, Z: cfg.SpawnZ})
+	player.SetPosition(entity.Vec3{X: spawnX, Y: spawnY, Z: spawnZ})
+	player.SetRotationYP(spawnAngle, 0)
+	if wa != nil {
+		wa.ResendPlayerChunks(player.ID(), chunkX, chunkZ)
 	}
 
-	logger.Debug("respawned", "session", s.ID(), "x", cfg.SpawnX, "y", cfg.SpawnY, "z", cfg.SpawnZ)
+	logger.Debug("respawned", "session", s.ID(), "x", spawnX, "y", spawnY, "z", spawnZ)
 	return nil
+}
+
+// safeBedRespawn returns an unobstructed location adjacent to a valid bed head.
+func safeBedRespawn(wa WorldAccessor, x, y, z int) (float64, float64, float64, bool) {
+	if wa == nil {
+		return 0, 0, 0, false
+	}
+	head := wa.GetBlock(x, y, z)
+	if !behavior.IsBed(head) || block.PropertiesFromState(head)["part"] != "head" {
+		return 0, 0, 0, false
+	}
+	ox, oy, oz := behavior.BedOtherHalfPos(head, x, y, z)
+	foot := wa.GetBlock(ox, oy, oz)
+	if block.NameFromState(foot) != block.NameFromState(head) || block.PropertiesFromState(foot)["part"] != "foot" || block.PropertiesFromState(foot)["facing"] != block.PropertiesFromState(head)["facing"] {
+		return 0, 0, 0, false
+	}
+	for _, offset := range [][2]int{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}} {
+		px, pz := x+offset[0], z+offset[1]
+		for _, py := range []int{y + 1, y} {
+			if sx, sy, sz, valid := standingSpawnAt(wa, px, py, pz); valid {
+				return sx, sy, sz, true
+			}
+		}
+	}
+	return 0, 0, 0, false
 }
 
 func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
@@ -1709,7 +1759,7 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		return nil
 	}
 	attackerLiving := attackerPlayer.Living()
-	if attackerLiving.IsDead() {
+	if attackerLiving.IsDead() || attackerLiving.GameMode() == 3 || attacker.EntityID == targetEntityID {
 		return nil
 	}
 
@@ -1728,35 +1778,27 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 	if targetLiving.GameMode() == 1 || targetLiving.GameMode() == 3 {
 		return nil
 	}
+	attackerPos := attackerPlayer.Position()
+	targetPos := targetPlayer.Position()
+	reachDX := attackerPos.X - targetPos.X
+	reachDY := attackerPos.Y - targetPos.Y
+	reachDZ := attackerPos.Z - targetPos.Z
+	maxReach := 3.0
+	if attackerLiving.GameMode() == 1 {
+		maxReach = 5.0
+	}
+	if reachDX*reachDX+reachDY*reachDY+reachDZ*reachDZ > maxReach*maxReach {
+		return fmt.Errorf("attack target out of reach")
+	}
 
-	var baseDamage float32 = 1.0
 	attackerWeapon := getHeldItemName(pm, s)
 	isSword := strings.HasSuffix(attackerWeapon, "_sword")
-	var attackSpeedTicks int32 = 10
-	if wp := equipment.GetWeapon(attackerWeapon); wp != nil {
-		baseDamage = float32(wp.AttackDamage)
-		if wp.AttackSpeed > 0 {
-			attackSpeedTicks = int32(20.0 / wp.AttackSpeed)
-		}
+	heldWeapon := inventory.ItemStack{}
+	if attacker.Windows != nil {
+		heldWeapon = attacker.Windows.HeldItem()
 	}
-
-	cooldownProgress := float32(1.0)
-	if attackerLiving.AttackCooldown() > 0 {
-		elapsed := attackSpeedTicks - attackerLiving.AttackCooldown()
-		if elapsed < 0 {
-			elapsed = 0
-		}
-		cooldownProgress = float32(elapsed) / float32(attackSpeedTicks)
-		if cooldownProgress > 1 {
-			cooldownProgress = 1
-		}
-	}
-	baseDamage *= 0.2 + cooldownProgress*cooldownProgress*0.8
-
+	baseDamage, attackSpeedTicks, cooldownProgress := playerAttackDamage(attackerLiving, heldWeapon)
 	critical := cooldownProgress > 0.9 && !attackerLiving.OnGround() && attackerLiving.FallDistance() > 0
-	if critical {
-		baseDamage *= 1.5
-	}
 
 	var totalDefense, totalToughness float64
 	var enchProtection float64
@@ -1771,21 +1813,11 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 				}
 				el := slotEnchantList(as)
 				enchProtection += enchantment.ProtectionFactor(el)
-				enchProtection += enchantment.FireProtectionFactor(el)
-				enchProtection += enchantment.BlastProtectionFactor(el)
-				enchProtection += enchantment.ProjectileProtectionFactor(el)
 			}
 		}
 	}
 	if enchProtection > 20 {
 		enchProtection = 20
-	}
-	if attacker.Windows != nil {
-		held := attacker.Windows.HeldItem()
-		if !held.Empty() {
-			elist := slotEnchantList(held)
-			baseDamage += float32(enchantment.SharpnessDamage(elist))
-		}
 	}
 
 	// Shield blocking check
@@ -1797,16 +1829,8 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		targetYaw := targetPlayer.Rotation().X
 		dx := attackerPos.X - targetPos.X
 		dz := attackerPos.Z - targetPos.Z
-		attackAngle := math.Atan2(dz, dx) * (180.0 / math.Pi)
-		facingAngle := float64(-targetYaw)
-		diff := attackAngle - facingAngle
-		for diff > 180 {
-			diff -= 360
-		}
-		for diff < -180 {
-			diff += 360
-		}
-		if diff > -90 && diff < 90 {
+		yaw := float64(targetYaw) * math.Pi / 180
+		if dx*-math.Sin(yaw)+dz*math.Cos(yaw) > 0 {
 			// Attack blocked by shield
 			if isAxe {
 				// Axe disables shield for 5 seconds (100 ticks)
@@ -1828,14 +1852,12 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 		}
 	}
 
-	if totalDefense > 0 {
-		baseDamage = float32(equipment.CalculateDamageReduction(float64(baseDamage), totalDefense, totalToughness))
+	source := entity.NewAttackDamageSource(entity.DamageTypePlayerAttack, baseDamage, attacker.EntityID)
+	source.AttackerType = "minecraft:player"
+	if attacker.Windows != nil {
+		source.Weapon = attacker.Windows.HeldItem().Clone()
 	}
-	if enchProtection > 0 {
-		baseDamage *= float32(1.0 - enchProtection/25.0)
-	}
-
-	actual := targetLiving.Damage(baseDamage, "player")
+	actual := targetLiving.ApplyDamage(source, totalDefense, totalToughness, enchProtection)
 	if actual <= 0 {
 		return nil
 	}
@@ -1852,17 +1874,11 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 				heldIdx := inventory.HotbarStart + int(attacker.Windows.HeldSlot())
 				if broken {
 					attacker.Windows.Inventory().Clear(heldIdx)
-					_ = s.Send(&playpacket.SetPlayerInventorySlot{
-						SlotIdx:  int32(heldIdx),
-						SlotData: inventory.EmptySlot(),
-					})
+					_ = sendWindowResync(s, attacker.Windows, 0)
 				} else {
-					held.Damage = newDmg
+					held.SetDamage(newDmg)
 					attacker.Windows.Inventory().Set(heldIdx, held)
-					_ = s.Send(&playpacket.SetPlayerInventorySlot{
-						SlotIdx:  int32(heldIdx),
-						SlotData: held,
-					})
+					_ = sendWindowResync(s, attacker.Windows, 0)
 				}
 			}
 		}
@@ -1885,7 +1901,9 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 				if sweepLiving.IsDead() || sweepLiving.GameMode() == 1 || sweepLiving.GameMode() == 3 {
 					continue
 				}
-				sweepLiving.Damage(sweepDamage, "player_sweep")
+				sweepSource := *source
+				sweepSource.Type, sweepSource.Amount, sweepSource.PlayerCredit = entity.DamageTypeSweep, sweepDamage, true
+				sweepLiving.ApplyDamage(&sweepSource, sweepLiving.ArmorDefense(), sweepLiving.ArmorToughness(), sweepLiving.ArmorEnchProtection())
 				_ = op.Session.Send(&playpacket.UpdateHealth{
 					Health:         sweepLiving.Health(),
 					Food:           sweepLiving.FoodLevel(),
@@ -1905,10 +1923,6 @@ func handleAttack(s Session, targetEntityID int32, pm *PlayerManager) error {
 			Z:             target.Z,
 			ParticleCount: 1,
 		})
-	}
-
-	if target.Windows != nil {
-		damageArmorSlots(target)
 	}
 
 	_ = target.Session.Send(&playpacket.UpdateHealth{
@@ -2028,42 +2042,71 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 	if wa == nil {
 		return
 	}
+	bx, by, bz := int(pos.X), int(pos.Y), int(pos.Z)
+	oldState := wa.GetBlock(bx, by, bz)
+	if oldState <= 0 {
+		_ = resyncBlock(s, wa, pos)
+		return
+	}
+	var toolAtBreak inventory.Slot
+	var online *OnlinePlayer
+	if pm != nil {
+		online = pm.GetBySession(s)
+		if online != nil && online.Windows != nil {
+			toolAtBreak = online.Windows.HeldItem()
+		}
+	}
 
 	if gm != 1 {
 		if p, ok := s.Player().(*entity.Player); ok && p != nil {
 			p.Living().AddExhaustion(0.005)
 		}
-		if pm != nil {
-			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
-				held := op.Windows.HeldItem()
-				if !held.Empty() && item.IsDurable(held.ItemID) {
-					unbreaking := held.EnchantLevel(item.EnchantUnbreakingID)
-					if item.ShouldConsumeDurability(unbreaking, false) {
-						newDmg, broken := item.ApplyDamage(held.ItemID, held.Damage, 1)
-						heldIdx := inventory.HotbarStart + int(op.Windows.HeldSlot())
-						if broken {
-							op.Windows.Inventory().Clear(heldIdx)
-							_ = s.Send(&playpacket.SetPlayerInventorySlot{
-								SlotIdx:  int32(heldIdx),
-								SlotData: inventory.EmptySlot(),
-							})
-						} else {
-							held.Damage = newDmg
-							op.Windows.Inventory().Set(heldIdx, held)
-							_ = s.Send(&playpacket.SetPlayerInventorySlot{
-								SlotIdx:  int32(heldIdx),
-								SlotData: held,
-							})
-						}
+		if online != nil && online.Windows != nil {
+			held := toolAtBreak.Clone()
+			if !held.Empty() && item.IsDurable(held.ItemID) {
+				unbreaking := held.EnchantLevel(item.EnchantUnbreakingID)
+				if item.ShouldConsumeDurability(unbreaking, false) {
+					newDmg, broken := item.ApplyDamage(held.ItemID, held.Damage, 1)
+					heldIdx := inventory.HotbarStart + int(online.Windows.HeldSlot())
+					if broken {
+						online.Windows.Inventory().Clear(heldIdx)
+						_ = sendWindowResync(s, online.Windows, 0)
+					} else {
+						held.SetDamage(newDmg)
+						online.Windows.Inventory().Set(heldIdx, held)
+						_ = sendWindowResync(s, online.Windows, 0)
 					}
 				}
 			}
 		}
 	}
 
-	bx, by, bz := int(pos.X), int(pos.Y), int(pos.Z)
-	oldState := wa.GetBlock(bx, by, bz)
+	if wa.BlockEntities() != nil {
+		_, _, _, isContainer := behavior.IsContainer(oldState)
+		_, _, _, isFurnace := behavior.IsFurnace(oldState)
+		if isContainer || isFurnace {
+			for _, stack := range wa.BlockEntities().RemoveContainer(bx, by, bz) {
+				if !stack.Empty() {
+					spawnInventoryItem(pm, wa, float64(bx), float64(by), float64(bz), stack)
+				}
+			}
+		}
+	}
 	wa.SetBlock(bx, by, bz, 0)
+	if behavior.IsBed(oldState) {
+		ox, oy, oz := behavior.BedOtherHalfPos(oldState, bx, by, bz)
+		other := wa.GetBlock(ox, oy, oz)
+		if block.NameFromState(other) == block.NameFromState(oldState) && block.PropertiesFromState(other)["part"] != block.PropertiesFromState(oldState)["part"] {
+			wa.SetBlock(ox, oy, oz, 0)
+			update := &playpacket.BlockUpdate{Position: playpacket.BlockPos{X: int32(ox), Y: int32(oy), Z: int32(oz)}, BlockID: 0}
+			if pm != nil {
+				pm.Broadcast(update)
+			} else {
+				_ = s.Send(update)
+			}
+			wa.NotifyNeighbors(ox, oy, oz)
+		}
+	}
 
 	var drops []behavior.Drop
 	if oldState > 0 && canHarvest {
@@ -2071,15 +2114,10 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 			X: bx, Y: by, Z: bz,
 			StateID: oldState, PlayerGM: gm,
 		}
-		if pm != nil {
-			if op := pm.GetBySession(s); op != nil && op.Windows != nil {
-				held := op.Windows.HeldItem()
-				if !held.Empty() {
-					ctx.ToolName = item.NameByID(held.ItemID)
-					if len(held.Enchantments) > 0 {
-						ctx.ToolEnchantments = held.Enchantments
-					}
-				}
+		if !toolAtBreak.Empty() {
+			ctx.ToolName = item.NameByID(toolAtBreak.ItemID)
+			if len(toolAtBreak.Enchantments) > 0 {
+				ctx.ToolEnchantments = toolAtBreak.Enchantments
 			}
 		}
 		drops = behavior.GetByState(oldState).OnBreak(ctx)
@@ -2087,7 +2125,7 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 
 	blockUpdate := &playpacket.BlockUpdate{Position: pos, BlockID: 0}
 	if err := s.Send(blockUpdate); err != nil {
-		return
+		logger.Warn("block update send failed after break", "session", s.ID(), "error", err)
 	}
 
 	if pm != nil {
@@ -2108,6 +2146,9 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 	for _, drop := range drops {
 		ie := wa.SpawnItemDrop(float64(bx), float64(by), float64(bz), drop.ItemID, drop.Count)
 		if ie == nil || pm == nil {
+			continue
+		}
+		if worldOwnsItemTracking(wa) {
 			continue
 		}
 		ipos := ie.Position()
@@ -2132,6 +2173,293 @@ func breakBlock(s Session, pm *PlayerManager, wa WorldAccessor, pos playpacket.B
 			Metadata: md.Encode(),
 		})
 	}
+}
+
+type windowClickCommand struct {
+	session Session
+	players *PlayerManager
+	world   WorldAccessor
+	packet  *playpacket.WindowClick
+}
+
+// Execute applies one inventory transaction on the authoritative world tick.
+func (c *windowClickCommand) Execute() {
+	if c.session == nil || c.session.Context().Err() != nil {
+		return
+	}
+	op := c.players.GetBySession(c.session)
+	if op == nil || op.Windows == nil {
+		return
+	}
+	pkt := c.packet
+	if active := op.Windows.ActiveWindow(); active != nil && active.ID == pkt.WindowID && active.Type == inventory.WindowTypeStonecutter && !stonecuttingMenuValid(c.session, c.world, active) {
+		closeInvalidMenu(c.session, c.players, c.world, active)
+		return
+	}
+	var furnaceOutputBefore inventory.Slot
+	if active := op.Windows.ActiveWindow(); active != nil && active.ID == pkt.WindowID && pkt.Slot == 2 {
+		if active.Type == inventory.WindowTypeFurnace || active.Type == inventory.WindowTypeBlastFurnace || active.Type == inventory.WindowTypeSmoker {
+			furnaceOutputBefore = active.Backing.Get(2)
+		}
+	}
+	accepted, dropped := op.Windows.HandleClickWithDrop(pkt.WindowID, pkt.StateID, pkt.Slot, pkt.Button, pkt.Mode, pkt.ChangedSlots, pkt.CarriedItem)
+	if accepted && pkt.WindowID == 0 {
+		op.Windows.UpdateCraftOutput()
+	} else if accepted {
+		if active := op.Windows.ActiveWindow(); active != nil && active.ID == pkt.WindowID && active.Type == inventory.WindowTypeCrafting {
+			op.Windows.UpdateCraftTableOutput()
+		}
+	}
+	if accepted && c.world != nil {
+		for _, stack := range op.Windows.TakeCraftDrops() {
+			spawnInventoryItem(c.players, c.world, op.X, op.Y+1, op.Z, stack)
+		}
+	}
+	if accepted && !dropped.Empty() && c.world != nil {
+		spawnInventoryItem(c.players, c.world, op.X, op.Y+1, op.Z, dropped)
+	}
+	if accepted && !furnaceOutputBefore.Empty() && pkt.Mode != inventory.ClickTypeDrop && c.world != nil && c.world.BlockEntities() != nil {
+		if active := op.Windows.ActiveWindow(); active != nil && active.ID == pkt.WindowID && active.Backing.Get(2).ItemCount < furnaceOutputBefore.ItemCount {
+			typeName := block.NameFromState(c.world.GetBlock(active.BlockX, active.BlockY, active.BlockZ))
+			if furnace := c.world.BlockEntities().Furnace(active.BlockX, active.BlockY, active.BlockZ, typeName); furnace != nil {
+				xp := furnace.ExtractExperience()
+				if xp > 0 {
+					amount := max(int32(1), int32(math.Round(xp)))
+					if player, ok := c.session.Player().(*entity.Player); ok && player != nil {
+						living := player.Living()
+						updated := experience.AddXP(living.XPLevel(), living.XPTotal(), amount)
+						living.SetXP(updated.Level, updated.Total, updated.Bar)
+						_ = c.session.Send(&playpacket.SetExperience{ExperienceBar: updated.Bar, ExperienceLevel: updated.Level, TotalExperience: updated.Total})
+						c.world.BlockEntities().MarkContainerDirty(active.BlockX, active.BlockZ)
+					}
+				}
+			}
+		}
+	}
+	intermediateDrag := pkt.Mode == inventory.ClickTypeDrag && (pkt.Button == 0 || pkt.Button == 1 || pkt.Button == 4 || pkt.Button == 5)
+	if accepted && !intermediateDrag && pkt.WindowID != 0 && c.world != nil && c.world.BlockEntities() != nil {
+		if active := op.Windows.ActiveWindow(); active != nil && active.ID == pkt.WindowID && active.Type != inventory.WindowTypeCrafting && active.Type != inventory.WindowTypeStonecutter {
+			c.world.BlockEntities().MarkContainerDirty(active.BlockX, active.BlockZ)
+			if active.DoubleChest {
+				c.world.BlockEntities().MarkContainerDirty(active.OtherX, active.OtherZ)
+			}
+			for _, other := range c.players.Players() {
+				if other == nil || other.UUID == op.UUID || other.Windows == nil {
+					continue
+				}
+				view := other.Windows.ActiveWindow()
+				if sameOpenBlockContainer(view, active) {
+					_ = sendWindowResync(other.Session, other.Windows, view.ID)
+				}
+			}
+		}
+	}
+	if !accepted || !intermediateDrag {
+		_ = sendWindowResync(c.session, op.Windows, pkt.WindowID)
+		if active := op.Windows.ActiveWindow(); active != nil && active.ID == pkt.WindowID && active.Type == inventory.WindowTypeStonecutter {
+			if err := sendStonecuttingSelection(c.session, op.Windows, active.ID); err != nil {
+				logger.Warn("sync stonecutter selection failed", "session", c.session.ID(), "error", err)
+			}
+		}
+	}
+	equipmentChanged := pkt.WindowID == 0 && IsEquipmentSlot(pkt.Slot) || pkt.Mode == inventory.ClickTypeNumberKey && (pkt.Button == 40 || pkt.Button == op.Windows.HeldSlot())
+	if accepted && equipmentChanged {
+		if pkt.WindowID != 0 && pkt.Button == 40 {
+			if err := sendWindowResync(c.session, op.Windows, 0); err != nil {
+				logger.Warn("sync offhand swap failed", "session", c.session.ID(), "error", err)
+			}
+		}
+		UpdateArmorStats(op)
+		if equipPkt := BuildFullEquipmentPacket(op.EntityID, op.Windows); equipPkt != nil {
+			c.players.BroadcastExcept(op.UUID, equipPkt)
+		}
+	}
+}
+
+func sameOpenBlockContainer(a, b *inventory.Window) bool {
+	if a == nil || b == nil || a.Type != b.Type {
+		return false
+	}
+	if a.Type == inventory.WindowTypeCrafting || a.Type == inventory.WindowTypeStonecutter {
+		return false
+	}
+	if a.BlockX == b.BlockX && a.BlockY == b.BlockY && a.BlockZ == b.BlockZ {
+		return true
+	}
+	return a.DoubleChest && b.DoubleChest && a.BlockX == b.OtherX && a.BlockY == b.OtherY && a.BlockZ == b.OtherZ && a.OtherX == b.BlockX && a.OtherY == b.BlockY && a.OtherZ == b.BlockZ
+}
+
+func sendWindowResync(s Session, windows *inventory.WindowManager, windowID int32) error {
+	stateID, slots, cursor := windows.SnapshotForResync(windowID)
+	return sendWindowContent(s, windowID, stateID, slots, cursor)
+}
+
+func sendWindowSnapshot(s Session, windows *inventory.WindowManager, windowID int32) error {
+	stateID, slots, cursor := windows.Snapshot(windowID)
+	return sendWindowContent(s, windowID, stateID, slots, cursor)
+}
+
+func sendWindowContent(s Session, windowID, stateID int32, slots []inventory.Slot, cursor inventory.Slot) error {
+	if slots == nil {
+		return nil
+	}
+	return s.Send(&playpacket.SetContainerContent{
+		WindowID: windowID,
+		StateID:  stateID,
+		Slots:    slots,
+		Carried:  cursor,
+	})
+}
+
+type placeBlockCommand struct {
+	session  Session
+	players  *PlayerManager
+	world    WorldAccessor
+	player   *OnlinePlayer
+	x, y, z  int32
+	stateID  int32
+	sequence int32
+}
+
+// Execute validates destination availability again before applying a queued placement.
+func (c *placeBlockCommand) Execute() {
+	if c.session == nil || c.session.Context().Err() != nil {
+		return
+	}
+	if c.world == nil || c.world.GetBlock(int(c.x), int(c.y), int(c.z)) < 0 {
+		_ = c.session.Send(&playpacket.AcknowledgeBlockChange{Sequence: c.sequence})
+		return
+	}
+	if behavior.IsBed(c.stateID) {
+		if !c.placeBed() {
+			_ = c.session.Send(&playpacket.AcknowledgeBlockChange{Sequence: c.sequence})
+			return
+		}
+	} else {
+		c.world.SetBlock(int(c.x), int(c.y), int(c.z), c.stateID)
+	}
+	update := &playpacket.BlockUpdate{
+		Position: playpacket.BlockPos{X: c.x, Y: c.y, Z: c.z},
+		BlockID:  c.stateID,
+	}
+	_ = c.session.Send(update)
+
+	if c.player != nil {
+		if player, ok := c.session.Player().(*entity.Player); ok && player != nil && player.Living().GameMode() != 1 {
+			c.player.Windows.ConsumeHeldItem()
+			_ = c.session.Send(&playpacket.SetContainerSlot{
+				WindowID: 0,
+				StateID:  c.player.Windows.CurrentStateID(),
+				SlotIdx:  int16(inventory.HotbarStart + int(c.player.Windows.HeldSlot())),
+				SlotData: c.player.Windows.HeldItem(),
+			})
+		}
+		c.players.BroadcastExcept(c.player.UUID, update)
+		c.broadcastSound()
+	}
+
+	c.world.ScheduleTicksForBlock(int(c.x), int(c.y), int(c.z), c.stateID)
+	c.world.NotifyNeighbors(int(c.x), int(c.y), int(c.z))
+	if strings.Contains(block.NameFromState(c.stateID), "_sign") {
+		if entities := c.world.BlockEntities(); entities != nil {
+			entities.SetSign(int(c.x), int(c.y), int(c.z), &blockentity.SignData{})
+		}
+		_ = c.session.Send(&playpacket.OpenSignEditor{X: c.x, Y: c.y, Z: c.z, IsFront: true})
+	}
+	_ = c.session.Send(&playpacket.AcknowledgeBlockChange{Sequence: c.sequence})
+}
+
+func (c *placeBlockCommand) placeBed() bool {
+	footProps := block.PropertiesFromState(c.stateID)
+	if footProps == nil {
+		return false
+	}
+	footProps["part"] = "foot"
+	footProps["occupied"] = "false"
+	name := block.NameFromState(c.stateID)
+	footState := block.StateID(name, footProps)
+	if footState < 0 {
+		return false
+	}
+	hx, hy, hz := behavior.BedHeadPos(footState, int(c.x), int(c.y), int(c.z))
+	if hx == int(c.x) && hy == int(c.y) && hz == int(c.z) {
+		return false
+	}
+	reject := func() bool {
+		_ = resyncBlock(c.session, c.world, playpacket.BlockPos{X: c.x, Y: c.y, Z: c.z})
+		_ = resyncBlock(c.session, c.world, playpacket.BlockPos{X: int32(hx), Y: int32(hy), Z: int32(hz)})
+		return false
+	}
+	if _, ok := c.world.GetChunk(chunkCoord(float64(c.x)), chunkCoord(float64(c.z))); !ok {
+		return reject()
+	}
+	if _, ok := c.world.GetChunk(chunkCoord(float64(hx)), chunkCoord(float64(hz))); !ok {
+		return reject()
+	}
+	if !isAirForPlacement(c.world.GetBlock(int(c.x), int(c.y), int(c.z))) || !isAirForPlacement(c.world.GetBlock(hx, hy, hz)) ||
+		!block.IsSolid(c.world.GetBlock(int(c.x), int(c.y)-1, int(c.z))) || !block.IsSolid(c.world.GetBlock(hx, hy-1, hz)) {
+		return reject()
+	}
+	if c.players != nil {
+		for _, op := range c.players.Players() {
+			footCollision := op.X >= float64(c.x) && op.X < float64(c.x+1) && op.Z >= float64(c.z) && op.Z < float64(c.z+1) && op.Y >= float64(c.y)-1.8 && op.Y < float64(c.y)+1
+			headCollision := op.X >= float64(hx) && op.X < float64(hx+1) && op.Z >= float64(hz) && op.Z < float64(hz+1) && op.Y >= float64(hy)-1.8 && op.Y < float64(hy)+1
+			if footCollision || headCollision {
+				return reject()
+			}
+		}
+	}
+	headProps := block.PropertiesFromState(footState)
+	headProps["part"] = "head"
+	headState := block.StateID(name, headProps)
+	if headState < 0 {
+		return reject()
+	}
+	c.stateID = footState
+	c.world.SetBlock(int(c.x), int(c.y), int(c.z), footState)
+	c.world.SetBlock(hx, hy, hz, headState)
+	headUpdate := &playpacket.BlockUpdate{Position: playpacket.BlockPos{X: int32(hx), Y: int32(hy), Z: int32(hz)}, BlockID: headState}
+	if c.players != nil {
+		c.players.Broadcast(headUpdate)
+	} else {
+		_ = c.session.Send(headUpdate)
+	}
+	c.world.NotifyNeighbors(hx, hy, hz)
+	return true
+}
+
+func (c *placeBlockCommand) broadcastSound() {
+	blockName := block.NameFromState(c.stateID)
+	soundName := "block.stone.place"
+	switch {
+	case strings.Contains(blockName, "wood"), strings.Contains(blockName, "planks"), strings.Contains(blockName, "log"):
+		soundName = "block.wood.place"
+	case strings.Contains(blockName, "sand"), strings.Contains(blockName, "gravel"):
+		soundName = "block.sand.place"
+	case strings.Contains(blockName, "grass"), strings.Contains(blockName, "dirt"):
+		soundName = "block.grass.place"
+	case strings.Contains(blockName, "glass"):
+		soundName = "block.glass.place"
+	}
+	soundID := gensound.SoundIDByName(soundName)
+	if soundID >= 0 {
+		c.players.Broadcast(&playpacket.SoundEffect{
+			SoundID: soundID + 1, SoundCategory: soundcategory.CategoryBlock,
+			X: c.x*8 + 4, Y: c.y*8 + 4, Z: c.z*8 + 4, Volume: 1, Pitch: 1,
+		})
+	}
+}
+
+func submitPlaceBlock(s Session, pm *PlayerManager, wa WorldAccessor, player *OnlinePlayer, x, y, z, stateID, sequence int32) error {
+	command := &placeBlockCommand{
+		session: s, players: pm, world: wa, player: player,
+		x: x, y: y, z: z, stateID: stateID, sequence: sequence,
+	}
+	if wa.Submit(command) {
+		return nil
+	}
+	_ = resyncBlock(s, wa, playpacket.BlockPos{X: x, Y: y, Z: z})
+	return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 }
 
 func slotEnchantList(s inventory.Slot) *enchantment.List {
@@ -2224,15 +2552,34 @@ func handleBedUse(s Session, pm *PlayerManager, wa WorldAccessor, clickedState i
 	if op == nil {
 		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 	}
-
+	if op.Sleeping {
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
+	if player, ok := s.Player().(*entity.Player); !ok || player == nil || player.Living().IsDead() {
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
+	if dimension := SessionDimension(s); dimension == "minecraft:the_nether" || dimension == "minecraft:the_end" {
+		if explosive, ok := wa.(interface{ ExplodeBed(int, int, int) bool }); ok {
+			explosive.ExplodeBed(bx, by, bz)
+		}
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
 	// Find the head position of the bed
 	hx, hy, hz := behavior.BedHeadPos(clickedState, bx, by, bz)
 
 	// Check if the bed is already occupied
 	headState := wa.GetBlock(hx, hy, hz)
+	if !behavior.IsBed(headState) || block.NameFromState(headState) != block.NameFromState(clickedState) || block.PropertiesFromState(headState)["part"] != "head" {
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
+	fx, fy, fz := behavior.BedOtherHalfPos(headState, hx, hy, hz)
+	footState := wa.GetBlock(fx, fy, fz)
+	if block.NameFromState(footState) != block.NameFromState(headState) || block.PropertiesFromState(footState)["part"] != "foot" || block.PropertiesFromState(footState)["facing"] != block.PropertiesFromState(headState)["facing"] {
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
 	if headState > 0 {
 		props := block.PropertiesFromState(headState)
-		if props != nil && props["occupied"] == "true" {
+		if props != nil && (props["occupied"] == "true" || block.PropertiesFromState(footState)["occupied"] == "true") {
 			// Bed is occupied - send action bar message
 			_ = s.Send(&playpacket.SystemChatMessage{
 				Text:    "This bed is occupied",
@@ -2243,11 +2590,36 @@ func handleBedUse(s Session, pm *PlayerManager, wa WorldAccessor, clickedState i
 	}
 
 	// Set spawn point
+	changedSpawn := !op.HasSpawnPoint || op.SpawnX != hx || op.SpawnY != hy || op.SpawnZ != hz
 	op.SpawnX = hx
 	op.SpawnY = hy
 	op.SpawnZ = hz
 	op.HasSpawnPoint = true
+	op.SpawnDimension, op.SpawnAngle, op.SpawnForced = SessionDimension(s), 0, false
+	if changedSpawn {
+		_ = s.Send(&playpacket.SystemChatMessage{Text: "Respawn point set", Overlay: false})
+	}
+	clock, ok := wa.(interface {
+		TimeOfDay() int64
+		SetTimeOfDay(int64)
+	})
+	phase := int64(0)
+	if ok {
+		phase = (clock.TimeOfDay()%24000 + 24000) % 24000
+	}
+	if !ok || (phase < 12542 || phase > 23458) && !sleepThunder(wa) {
+		_ = s.Send(&playpacket.SystemChatMessage{Text: "You can sleep only at night", Overlay: true})
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
 
+	if op.GameMode == 3 || !block.IsAir(wa.GetBlock(hx, hy+1, hz)) || !block.IsAir(wa.GetBlock(fx, fy+1, fz)) {
+		_ = s.Send(&playpacket.SystemChatMessage{Text: "This bed is obstructed", Overlay: true})
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
+	if threats, ok := wa.(interface{ SleepThreat(int, int, int) bool }); ok && threats.SleepThreat(hx, hy, hz) {
+		_ = s.Send(&playpacket.SystemChatMessage{Text: "You may not rest now; there are monsters nearby", Overlay: true})
+		return s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
+	}
 	// Set both halves to occupied
 	if headState > 0 {
 		newState := behavior.BedOccupiedState(headState, true)
@@ -2257,8 +2629,6 @@ func handleBedUse(s Session, pm *PlayerManager, wa WorldAccessor, clickedState i
 			BlockID:  newState,
 		})
 	}
-	fx, fy, fz := behavior.BedOtherHalfPos(clickedState, bx, by, bz)
-	footState := wa.GetBlock(fx, fy, fz)
 	if footState > 0 {
 		newFootState := behavior.BedOccupiedState(footState, true)
 		wa.SetBlock(fx, fy, fz, newFootState)
@@ -2270,6 +2640,14 @@ func handleBedUse(s Session, pm *PlayerManager, wa WorldAccessor, clickedState i
 
 	// Mark player as sleeping
 	op.Sleeping = true
+	op.SleepTicks = 0
+	op.SleepX, op.SleepY, op.SleepZ = hx, hy, hz
+	op.SleepBedState = headState
+	if player, ok := s.Player().(*entity.Player); ok {
+		position := entity.Vec3{X: float64(hx) + 0.5, Y: float64(hy) + 0.6875, Z: float64(hz) + 0.5}
+		player.SetPosition(position)
+		op.X, op.Y, op.Z = position.X, position.Y, position.Z
+	}
 	op.Pose = entitypose.PoseSleeping
 
 	// Send sleeping metadata to all players
@@ -2283,65 +2661,85 @@ func handleBedUse(s Session, pm *PlayerManager, wa WorldAccessor, clickedState i
 
 	_ = s.Send(&playpacket.AcknowledgeBlockChange{Sequence: sequence})
 
-	// Check if all players are now sleeping → skip to dawn
-	if pm.AllSleeping() {
-		skipToDawn(pm, wa)
-	}
+	// Night skipping is evaluated after the required sleeping delay on the tick.
 
 	return nil
 }
 
+// skipToDawn advances the absolute clock and applies sleep weather rules.
 func skipToDawn(pm *PlayerManager, wa WorldAccessor) {
+	if clock, ok := wa.(interface {
+		TimeOfDay() int64
+		SetTimeOfDay(int64)
+	}); ok {
+		clock.SetTimeOfDay(clock.TimeOfDay() + 24000 - (clock.TimeOfDay()%24000+24000)%24000)
+	}
+	if weather, ok := wa.(interface{ ClearSleepWeather() }); ok {
+		weather.ClearSleepWeather()
+	}
 	// Wake all players
 	for _, op := range pm.Players() {
 		wakePlayer(pm, op, wa)
 	}
 
-	// TODO: advance time to dawn when WorldTimeAccessor is available here
-	// For now, just send a system message
 	pm.Broadcast(&playpacket.SystemChatMessage{
 		Text:    "All players sleeping. Sweet dreams!",
 		Overlay: true,
 	})
 }
 
+// wakePlayer releases the occupied bed and restores an unobstructed standing position.
 func wakePlayer(pm *PlayerManager, op *OnlinePlayer, wa WorldAccessor) {
-	if !op.Sleeping {
+	if op == nil || !op.Sleeping {
 		return
 	}
 	op.Sleeping = false
+	op.SleepTicks = 0
 	op.Pose = entitypose.PoseStanding
-
-	// Clear sleeping metadata
 	md := metadata.New()
 	md.SetPose(metadata.IndexPose, entitypose.PoseStanding)
 	md.SetOptPosition(metadata.IndexLivingSleepingPos, nil)
-	pm.Broadcast(&playpacket.SetEntityMetadata{
-		EntityID: op.EntityID,
-		Metadata: md.Encode(),
-	})
-
-	// Unoccupy the bed at the spawn point if it still exists
-	if op.HasSpawnPoint && wa != nil {
-		bedState := wa.GetBlock(op.SpawnX, op.SpawnY, op.SpawnZ)
-		if bedState > 0 && behavior.IsBed(bedState) {
-			newState := behavior.BedOccupiedState(bedState, false)
-			wa.SetBlock(op.SpawnX, op.SpawnY, op.SpawnZ, newState)
-			pm.Broadcast(&playpacket.BlockUpdate{
-				Position: playpacket.BlockPos{X: int32(op.SpawnX), Y: int32(op.SpawnY), Z: int32(op.SpawnZ)},
-				BlockID:  newState,
-			})
-			// Also unoccupy the other half
-			ox, oy, oz := behavior.BedOtherHalfPos(bedState, op.SpawnX, op.SpawnY, op.SpawnZ)
-			otherState := wa.GetBlock(ox, oy, oz)
-			if otherState > 0 && behavior.IsBed(otherState) {
-				newOther := behavior.BedOccupiedState(otherState, false)
-				wa.SetBlock(ox, oy, oz, newOther)
-				pm.Broadcast(&playpacket.BlockUpdate{
-					Position: playpacket.BlockPos{X: int32(ox), Y: int32(oy), Z: int32(oz)},
-					BlockID:  newOther,
-				})
+	pm.Broadcast(&playpacket.SetEntityMetadata{EntityID: op.EntityID, Metadata: md.Encode()})
+	if wa != nil {
+		saved := op.SleepBedState
+		if !behavior.IsBed(saved) {
+			saved = wa.GetBlock(op.SleepX, op.SleepY, op.SleepZ)
+		}
+		if behavior.IsBed(saved) {
+			ox, oy, oz := behavior.BedOtherHalfPos(saved, op.SleepX, op.SleepY, op.SleepZ)
+			for _, pos := range [][3]int{{op.SleepX, op.SleepY, op.SleepZ}, {ox, oy, oz}} {
+				state := wa.GetBlock(pos[0], pos[1], pos[2])
+				if block.NameFromState(state) != block.NameFromState(saved) || block.PropertiesFromState(state)["facing"] != block.PropertiesFromState(saved)["facing"] {
+					continue
+				}
+				state = behavior.BedOccupiedState(state, false)
+				wa.SetBlock(pos[0], pos[1], pos[2], state)
+				pm.Broadcast(&playpacket.BlockUpdate{Position: playpacket.BlockPos{X: int32(pos[0]), Y: int32(pos[1]), Z: int32(pos[2])}, BlockID: state})
 			}
 		}
+	}
+	op.SleepBedState = 0
+	if op.Session == nil || op.Session.Context().Err() != nil {
+		return
+	}
+	player, ok := op.Session.Player().(*entity.Player)
+	if !ok || player == nil || player.Living().IsDead() {
+		return
+	}
+	x, y, z, valid := safeBedRespawn(wa, op.SleepX, op.SleepY, op.SleepZ)
+	if !valid {
+		x, y, z, valid = safeLocalRespawn(wa, op.SleepX, op.SleepY+1, op.SleepZ)
+	}
+	if !valid {
+		return
+	}
+	player.SetPosition(entity.Vec3{X: x, Y: y, Z: z})
+	op.X, op.Y, op.Z = x, y, z
+	id := nextTeleportID()
+	if ds, ok := op.Session.(*DefaultSession); ok {
+		ds.setPendingTeleport(id)
+	}
+	if err := op.Session.Send(&playpacket.SyncPlayerPosition{TeleportID: id, X: x, Y: y, Z: z, Yaw: op.Yaw, Pitch: op.Pitch}); err != nil {
+		logger.Warn("send wake position failed", "player", op.Name, "error", err)
 	}
 }

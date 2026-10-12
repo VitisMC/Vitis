@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/vitismc/vitis/internal/network"
 	"github.com/vitismc/vitis/internal/protocol"
@@ -23,10 +24,10 @@ type Manager interface {
 type ManagerConfig struct {
 	Registry       *protocol.Registry
 	Router         PacketRouter
-	WorkerPool     *network.WorkerPool
 	InitialVersion int32
 	InitialState   protocol.State
 	Events         Events
+	PhaseTimeout   time.Duration
 }
 
 // DefaultManager is the production session manager implementation.
@@ -86,10 +87,10 @@ func (m *DefaultManager) CreateWithConnection(conn Connection, networkSessionID 
 		Connection:       conn,
 		Registry:         m.cfg.Registry,
 		Router:           m.cfg.Router,
-		WorkerPool:       m.cfg.WorkerPool,
 		InitialVersion:   m.cfg.InitialVersion,
 		InitialState:     m.cfg.InitialState,
 		Events:           m.cfg.Events,
+		PhaseTimeout:     m.cfg.PhaseTimeout,
 	})
 	if err != nil {
 		return nil, err

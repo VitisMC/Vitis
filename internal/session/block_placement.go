@@ -56,12 +56,16 @@ func resolveDirectionalBlockState(itemID int32, face int32, yaw float32) int32 {
 			props["half"] = "top"
 		}
 	}
+	if strings.HasSuffix(itemName, "_bed") {
+		props["part"] = "foot"
+		props["occupied"] = "false"
+	}
 
-	stateID := block.StateID(itemName, props)
-	if stateID < 0 {
+	state, err := block.BlockStateFromProperties(itemName, props)
+	if err != nil {
 		return info.DefaultState
 	}
-	return stateID
+	return state.ID()
 }
 
 func yawToFacing(yaw float32) string {
@@ -95,6 +99,14 @@ func faceToAxis(face int32) string {
 	default:
 		return "y"
 	}
+}
+
+func isAirForPlacement(stateID int32) bool {
+	switch block.NameFromState(stateID) {
+	case "minecraft:air", "minecraft:cave_air", "minecraft:void_air":
+		return true
+	}
+	return false
 }
 
 // isWoodBlock returns true if the block name suggests wood material.

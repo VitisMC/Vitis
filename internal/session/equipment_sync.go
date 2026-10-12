@@ -1,11 +1,9 @@
 package session
 
 import (
-	"github.com/vitismc/vitis/internal/enchantment"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/equipment"
 	"github.com/vitismc/vitis/internal/inventory"
-	"github.com/vitismc/vitis/internal/item"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 )
 
@@ -52,6 +50,7 @@ func BuildFullEquipmentPacket(entityID int32, wm *inventory.WindowManager) *play
 
 func makeEquipSlot(protoSlot byte, s inventory.Slot) playpacket.EquipmentSlot {
 	return playpacket.EquipmentSlot{
+		Stack:  s.Clone(),
 		SlotID: protoSlot,
 		Empty:  s.Empty(),
 		ItemID: s.ItemID,
@@ -70,29 +69,9 @@ func UpdateArmorStats(op *OnlinePlayer) {
 		return
 	}
 
-	var totalDefense, totalToughness, enchProt float64
-	inv := op.Windows.Inventory()
-	for slot := inventory.ArmorStart; slot <= inventory.ArmorEnd; slot++ {
-		as := inv.Get(slot)
-		if as.Empty() {
-			continue
-		}
-		armorName := item.NameByID(as.ItemID)
-		if ap := equipment.GetArmor(armorName); ap != nil {
-			totalDefense += ap.Defense
-			totalToughness += ap.Toughness
-		}
-		el := slotEnchantList(as)
-		enchProt += enchantment.ProtectionFactor(el)
-		enchProt += enchantment.FireProtectionFactor(el)
-		enchProt += enchantment.BlastProtectionFactor(el)
-		enchProt += enchantment.ProjectileProtectionFactor(el)
-	}
-	if enchProt > 20 {
-		enchProt = 20
-	}
-
-	p.Living().SetArmorStats(totalDefense, totalToughness, enchProt)
+	stats := equipment.PlayerArmorStats(op.Windows.Inventory())
+	p.Living().SetArmorStats(stats.Defense, stats.Toughness, stats.Protection)
+	p.Living().SetArmorDamageProtection(stats.Fire, stats.Blast, stats.Projectile, stats.Fall)
 }
 
 // IsEquipmentSlot returns true if the given player inventory slot index
@@ -100,43 +79,4 @@ func UpdateArmorStats(op *OnlinePlayer) {
 func IsEquipmentSlot(slot int16) bool {
 	return (slot >= int16(inventory.ArmorStart) && slot <= int16(inventory.ArmorEnd)) ||
 		slot == int16(inventory.OffhandSlot)
-}
-
-// damageArmorSlots reduces durability by 1 on each equipped armor piece,
-// respecting the Unbreaking enchantment. Broken pieces are cleared.
-func damageArmorSlots(op *OnlinePlayer) {
-	if op == nil || op.Windows == nil {
-		return
-	}
-	inv := op.Windows.Inventory()
-	changed := false
-	for slot := inventory.ArmorStart; slot <= inventory.ArmorEnd; slot++ {
-		as := inv.Get(slot)
-		if as.Empty() || !item.IsDurable(as.ItemID) {
-			continue
-		}
-		unbreaking := as.EnchantLevel(item.EnchantUnbreakingID)
-		if !item.ShouldConsumeDurability(unbreaking, true) {
-			continue
-		}
-		newDmg, broken := item.ApplyDamage(as.ItemID, as.Damage, 1)
-		if broken {
-			inv.Clear(slot)
-			_ = op.Session.Send(&playpacket.SetPlayerInventorySlot{
-				SlotIdx:  int32(slot),
-				SlotData: inventory.EmptySlot(),
-			})
-		} else {
-			as.Damage = newDmg
-			inv.Set(slot, as)
-			_ = op.Session.Send(&playpacket.SetPlayerInventorySlot{
-				SlotIdx:  int32(slot),
-				SlotData: as,
-			})
-		}
-		changed = true
-	}
-	if changed {
-		UpdateArmorStats(op)
-	}
 }

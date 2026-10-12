@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -13,6 +14,7 @@ import (
 	"github.com/vitismc/vitis/internal/network"
 	"github.com/vitismc/vitis/internal/protocol"
 	handshakepacket "github.com/vitismc/vitis/internal/protocol/packets/handshake"
+	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
 	statuspacket "github.com/vitismc/vitis/internal/protocol/packets/status"
 	"github.com/vitismc/vitis/internal/protocol/states"
 )
@@ -152,6 +154,53 @@ func TestCreateSession(t *testing.T) {
 	}
 }
 
+func TestSessionProtocolPhaseTimeout(t *testing.T) {
+	conn := newMockConn()
+	s, err := New(Config{
+		Connection:   conn,
+		Registry:     protocol.NewRegistry(),
+		InitialState: protocol.StateHandshake,
+		PhaseTimeout: 20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-conn.Done():
+	case <-time.After(time.Second):
+		t.Fatal("session remained open after protocol phase timeout")
+	}
+	if s.Lifecycle() == LifecycleActive {
+		t.Fatal("session lifecycle remained active")
+	}
+}
+
+func TestKeepAliveRequiresOutstandingMatchingID(t *testing.T) {
+	conn := newMockConn()
+	s, err := New(Config{Connection: conn, Registry: protocol.NewRegistry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if err := s.acknowledgeKeepAlive(1); !errors.Is(err, ErrKeepAliveMismatch) {
+		t.Fatalf("unexpected response without challenge: %v", err)
+	}
+	if !s.beginKeepAlive(42) {
+		t.Fatal("failed to create keepalive challenge")
+	}
+	if s.beginKeepAlive(43) {
+		t.Fatal("accepted a second outstanding keepalive")
+	}
+	if err := s.acknowledgeKeepAlive(43); !errors.Is(err, ErrKeepAliveMismatch) {
+		t.Fatalf("mismatched keepalive: %v", err)
+	}
+	if err := s.acknowledgeKeepAlive(42); err != nil {
+		t.Fatalf("matching keepalive: %v", err)
+	}
+}
+
 func TestSendPacket(t *testing.T) {
 	registry := protocol.NewRegistry()
 	factory := func() protocol.Packet { return &testPayloadPacket{packetID: 0x21} }
@@ -238,6 +287,132 @@ func TestInboundStateTransition(t *testing.T) {
 
 	if s.ProtocolState() != protocol.StateLogin {
 		t.Fatalf("expected login state, got %s", s.ProtocolState())
+	}
+}
+
+func TestInboundPacketWithoutHandlerIsRejected(t *testing.T) {
+	registry := protocol.NewRegistry()
+	if err := registry.Register(protocol.AnyVersion, protocol.StateHandshake, protocol.DirectionInbound, 0x02, func() protocol.Packet {
+		return &testPayloadPacket{packetID: 0x02}
+	}); err != nil {
+		t.Fatalf("register inbound packet: %v", err)
+	}
+
+	s, err := New(Config{
+		ID:               1,
+		NetworkSessionID: 7,
+		Connection:       newMockConn(),
+		Registry:         registry,
+		Router:           NewPacketRouter(),
+		InitialVersion:   protocol.AnyVersion,
+		InitialState:     protocol.StateHandshake,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	if err := s.HandleNetworkPacket(&network.Packet{ID: 0x02, Payload: []byte{0}}); !errors.Is(err, ErrPacketHandlerNotFound) {
+		t.Fatalf("expected unhandled packet error, got %v", err)
+	}
+}
+
+func TestValidatedNonAuthoritativePlayPacketIsAccepted(t *testing.T) {
+	router := NewPacketRouter()
+	if err := RegisterPlayHandlers(router, PlayBootstrapConfig{}, nil, nil); err != nil {
+		t.Fatalf("register play handlers: %v", err)
+	}
+
+	s, err := New(Config{
+		ID:               1,
+		NetworkSessionID: 7,
+		Connection:       newMockConn(),
+		Registry:         protocol.NewRegistry(),
+		InitialVersion:   protocol.CurrentVersion,
+		InitialState:     protocol.StatePlay,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	packet := playpacket.NewSetDifficulty()
+	if err := router.Handle(s, protocol.StatePlay, packet); err != nil {
+		t.Fatalf("expected validated packet policy, got %v", err)
+	}
+}
+
+func TestPlayerInputIsAcceptedWithoutVehicleState(t *testing.T) {
+	router := NewPacketRouter()
+	if err := RegisterPlayHandlers(router, PlayBootstrapConfig{}, nil, nil); err != nil {
+		t.Fatalf("register play handlers: %v", err)
+	}
+	s, err := New(Config{
+		ID:               1,
+		NetworkSessionID: 7,
+		Connection:       newMockConn(),
+		Registry:         protocol.NewRegistry(),
+		InitialVersion:   protocol.CurrentVersion,
+		InitialState:     protocol.StatePlay,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := router.Handle(s, protocol.StatePlay, &playpacket.PlayerInput{Flags: 0x7F}); err != nil {
+		t.Fatalf("expected valid player input to be accepted, got %v", err)
+	}
+	if err := router.Handle(s, protocol.StatePlay, &playpacket.PlayerInput{Flags: 0x80}); err == nil {
+		t.Fatal("expected reserved player input flags to be rejected")
+	}
+}
+
+func TestPlayerInputWirePacketDoesNotDisconnectSession(t *testing.T) {
+	registry := protocol.NewRegistry()
+	if err := states.RegisterCore(registry, protocol.CurrentVersion); err != nil {
+		t.Fatalf("register protocol state: %v", err)
+	}
+	router := NewPacketRouter()
+	if err := RegisterPlayHandlers(router, PlayBootstrapConfig{}, nil, nil); err != nil {
+		t.Fatalf("register play handlers: %v", err)
+	}
+	s, err := New(Config{
+		ID:               1,
+		NetworkSessionID: 7,
+		Connection:       newMockConn(),
+		Registry:         registry,
+		Router:           router,
+		InitialVersion:   protocol.CurrentVersion,
+		InitialState:     protocol.StatePlay,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := s.HandleNetworkPacket(&network.Packet{ID: 0x29, Payload: []byte{0x10}}); err != nil {
+		t.Fatalf("handle PlayerInput (0x29): %v", err)
+	}
+}
+
+func TestChunkBatchRateRejectsNonFiniteInput(t *testing.T) {
+	router := NewPacketRouter()
+	if err := RegisterPlayHandlers(router, PlayBootstrapConfig{}, nil, nil); err != nil {
+		t.Fatalf("register play handlers: %v", err)
+	}
+	s, err := New(Config{
+		ID:               1,
+		NetworkSessionID: 7,
+		Connection:       newMockConn(),
+		Registry:         protocol.NewRegistry(),
+		InitialVersion:   protocol.CurrentVersion,
+		InitialState:     protocol.StatePlay,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := router.Handle(s, protocol.StatePlay, &playpacket.ChunkBatchReceived{ChunksPerTick: float32(math.NaN())}); err == nil {
+		t.Fatal("expected NaN chunk batch rate to be rejected")
+	}
+	if err := router.Handle(s, protocol.StatePlay, &playpacket.ChunkBatchReceived{ChunksPerTick: 8}); err != nil {
+		t.Fatalf("expected valid chunk batch rate to be accepted, got %v", err)
+	}
+	if value, ok := s.SessionData().Load("chunk_batch_rate"); !ok || value != float32(8) {
+		t.Fatalf("stored chunk batch rate = %v, %t", value, ok)
 	}
 }
 

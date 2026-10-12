@@ -24,23 +24,112 @@ type TickScheduler interface {
 
 // WorldAccessor provides block-level world access for play state handlers.
 type WorldAccessor interface {
+	Submit(command WorldCommand) bool
 	GetChunk(x, z int32) (*chunk.Chunk, bool)
 	SetBlock(x, y, z int, stateID int32)
 	GetBlock(x, y, z int) int32
 	ScheduleTicksForBlock(x, y, z int, stateID int32)
 	NotifyNeighbors(x, y, z int)
 	SpawnItemDrop(x, y, z float64, itemID, count int32) *entity.ItemEntity
+	IgniteTNT(x, y, z int, ownerID int32) bool
+	ResendPlayerChunks(playerID int32, chunkX, chunkZ int32)
 	BlockEntities() *blockentity.Store
+}
+
+// WorldCommand is one ordered mutation executed by the authoritative world tick.
+type WorldCommand interface {
+	Execute()
 }
 
 // DefaultWorldAccessor implements WorldAccessor using a chunk.Manager.
 type DefaultWorldAccessor struct {
-	Chunks           *chunk.Manager
-	TickScheduler    TickScheduler
-	CurrentTick      func() uint64
-	NextEntityID     func() int32
-	Items            *entity.ItemEntityManager
-	BlockEntityStore *blockentity.Store
+	DimensionName          string
+	Chunks                 *chunk.Manager
+	TickScheduler          TickScheduler
+	CurrentTick            func() uint64
+	NextEntityID           func() int32
+	Items                  *entity.ItemEntityManager
+	RegisterItem           func(*entity.ItemEntity)
+	BlockEntityStore       *blockentity.Store
+	SubmitTask             func(func()) bool
+	ReadTimeOfDay          func() int64
+	WriteTimeOfDay         func(int64)
+	ResetPlayerChunks      func(playerID int32, chunkX, chunkZ int32)
+	PrimeTNT               func(x, y, z int, ownerID int32) bool
+	ReadSleepThreat        func(int, int, int) bool
+	ReadThunder            func() bool
+	ClearWeatherAfterSleep func()
+	CreateBedExplosion     func(int, int, int) bool
+	UpdateNeighbors        func(int, int, int)
+	AttackMobEntity        func(*entity.Player, int32, *entity.DamageSource, float64) bool
+}
+
+// AttackMob applies a validated player attack to a resident mob on the world tick.
+func (a *DefaultWorldAccessor) AttackMob(player *entity.Player, target int32, source *entity.DamageSource, reach float64) bool {
+	return a != nil && a.AttackMobEntity != nil && a.AttackMobEntity(player, target, source, reach)
+}
+
+// ExplodeBed applies a forbidden-dimension bed explosion on the authoritative tick.
+func (a *DefaultWorldAccessor) ExplodeBed(x, y, z int) bool {
+	return a != nil && a.CreateBedExplosion != nil && a.CreateBedExplosion(x, y, z)
+}
+
+// IgniteTNT primes a loaded TNT block on the authoritative world tick.
+func (a *DefaultWorldAccessor) IgniteTNT(x, y, z int, ownerID int32) bool {
+	return a != nil && a.PrimeTNT != nil && a.PrimeTNT(x, y, z, ownerID)
+}
+
+// ResendPlayerChunks restarts chunk delivery after the client resets its level on respawn.
+func (a *DefaultWorldAccessor) ResendPlayerChunks(playerID int32, chunkX, chunkZ int32) {
+	if a != nil && a.ResetPlayerChunks != nil {
+		a.ResetPlayerChunks(playerID, chunkX, chunkZ)
+	}
+}
+
+// TimeOfDay returns the current world daytime for sleep validation.
+func (a *DefaultWorldAccessor) TimeOfDay() int64 {
+	if a != nil && a.ReadTimeOfDay != nil {
+		return a.ReadTimeOfDay()
+	}
+	return 0
+}
+
+// SetTimeOfDay advances daytime after all active players sleep.
+func (a *DefaultWorldAccessor) SetTimeOfDay(value int64) {
+	if a != nil && a.WriteTimeOfDay != nil {
+		a.WriteTimeOfDay(value)
+	}
+}
+
+// Submit queues one command for ordered execution by the authoritative world tick.
+func (a *DefaultWorldAccessor) Submit(command WorldCommand) bool {
+	if a == nil || command == nil {
+		return false
+	}
+	if a.SubmitTask == nil {
+		return false
+	}
+	if owned, ok := command.(interface{ OwnerSession() Session }); ok {
+		s := owned.OwnerSession()
+		if s == nil || s.Context().Err() != nil || (a.DimensionName != "" && SessionDimension(s) != a.DimensionName) {
+			return false
+		}
+		var binding *worldBinding
+		if concrete, ok := s.(*DefaultSession); ok {
+			binding = concrete.world.Load()
+		}
+		_, preserveOrder := command.(interface{ preserveDisconnectOrder() })
+		return a.SubmitTask(func() {
+			if s.Context().Err() != nil && !preserveOrder || (a.DimensionName != "" && SessionDimension(s) != a.DimensionName) {
+				return
+			}
+			if concrete, ok := s.(*DefaultSession); ok && concrete.world.Load() != binding {
+				return
+			}
+			command.Execute()
+		})
+	}
+	return a.SubmitTask(command.Execute)
 }
 
 // GetChunk returns a loaded chunk from the manager.
@@ -62,21 +151,34 @@ func (a *DefaultWorldAccessor) SetBlock(x, y, z int, stateID int32) {
 	if !ok || c == nil {
 		return
 	}
+	if y < c.Data().MinY() || y > c.Data().MaxY() || c.GetBlock(x, y, z) == stateID {
+		return
+	}
 	c.SetBlock(x, y, z, stateID)
+	if a.UpdateNeighbors != nil {
+		a.UpdateNeighbors(x, y, z)
+	}
 }
 
-// GetBlock returns the block state ID at the given absolute coordinates.
+// GetBlock returns a resident state or -1 when chunk data is unavailable.
 func (a *DefaultWorldAccessor) GetBlock(x, y, z int) int32 {
+	state, available := a.LookupBlockState(x, y, z)
+	if !available {
+		return -1
+	}
+	return state
+}
+
+// LookupBlockState reports block availability without substituting unloaded data with air.
+func (a *DefaultWorldAccessor) LookupBlockState(x, y, z int) (int32, bool) {
 	if a == nil || a.Chunks == nil {
-		return 0
+		return 0, false
 	}
-	cx := int32(math.Floor(float64(x) / 16))
-	cz := int32(math.Floor(float64(z) / 16))
-	c, ok := a.Chunks.GetChunk(cx, cz)
-	if !ok || c == nil {
-		return 0
+	c, ok := a.Chunks.PeekLoaded(int32(x>>4), int32(z>>4))
+	if !ok || y < c.Data().MinY() || y > c.Data().MaxY() {
+		return 0, false
 	}
-	return c.GetBlock(x, y, z)
+	return c.GetBlock(x, y, z), true
 }
 
 // ScheduleTicksForBlock schedules block/fluid ticks for a newly placed block.
@@ -106,9 +208,13 @@ func (a *DefaultWorldAccessor) ScheduleTicksForBlock(x, y, z int, stateID int32)
 	}
 }
 
-// NotifyNeighbors calls OnNeighborUpdate on the 6 blocks adjacent to (x, y, z).
+// NotifyNeighbors queues production updates or invokes the legacy adapter.
 func (a *DefaultWorldAccessor) NotifyNeighbors(x, y, z int) {
 	if a == nil || a.Chunks == nil {
+		return
+	}
+	if a.UpdateNeighbors != nil {
+		a.UpdateNeighbors(x, y, z)
 		return
 	}
 	offsets := [6][3]int{{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}}
@@ -188,8 +294,21 @@ func (a *DefaultWorldAccessor) SpawnItemDrop(x, y, z float64, itemID, count int3
 	stack := inventory.NewSlot(itemID, count)
 	pos := entity.Vec3{X: x + 0.5, Y: y + 0.5, Z: z + 0.5}
 	ie := entity.NewItemEntity(eid, uuid, pos, stack)
-	a.Items.Add(ie)
+	if a.RegisterItem != nil {
+		a.RegisterItem(ie)
+	} else {
+		a.Items.Add(ie)
+	}
 	return ie
+}
+
+// ManagesItemTracking reports whether item spawns are owned by the runtime entity tracker.
+func (a *DefaultWorldAccessor) ManagesItemTracking() bool { return a != nil && a.RegisterItem != nil }
+
+// worldOwnsItemTracking keeps compatibility broadcasts confined to standalone accessors.
+func worldOwnsItemTracking(world WorldAccessor) bool {
+	owner, ok := world.(interface{ ManagesItemTracking() bool })
+	return ok && owner.ManagesItemTracking()
 }
 
 // resolveBlockStateFromItem maps an item ID to the default block state ID.
@@ -204,4 +323,21 @@ func resolveBlockStateFromItem(itemID int32) int32 {
 		return 0
 	}
 	return stateID
+}
+
+// SleepThreat checks nearby monsters on the authoritative world tick.
+func (a *DefaultWorldAccessor) SleepThreat(x, y, z int) bool {
+	return a != nil && a.ReadSleepThreat != nil && a.ReadSleepThreat(x, y, z)
+}
+
+// Thundering reports whether daytime sleep is allowed by a thunderstorm.
+func (a *DefaultWorldAccessor) Thundering() bool {
+	return a != nil && a.ReadThunder != nil && a.ReadThunder()
+}
+
+// ClearSleepWeather resets weather when the weather cycle permits it.
+func (a *DefaultWorldAccessor) ClearSleepWeather() {
+	if a != nil && a.ClearWeatherAfterSleep != nil {
+		a.ClearWeatherAfterSleep()
+	}
 }

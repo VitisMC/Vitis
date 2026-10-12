@@ -3,7 +3,9 @@ package session
 import (
 	"bytes"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
+	"net"
 
 	"github.com/vitismc/vitis/internal/auth"
 	"github.com/vitismc/vitis/internal/logger"
@@ -21,6 +23,7 @@ type LoginConfig struct {
 	OnLoginSuccess       func(session Session, name string, uuid protocol.UUID)
 	WhitelistChecker     func(uuid protocol.UUID) bool
 	BanChecker           func(uuid protocol.UUID) (banned bool, reason string)
+	IPBanChecker         func(remote net.Addr) (banned bool, reason string)
 }
 
 type loginSessionKey struct{}
@@ -35,12 +38,37 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 	if router == nil {
 		return ErrNilRegistry
 	}
+	if cfg.OnlineMode && (cfg.PrivateKey == nil || len(cfg.PublicKeyDER) == 0) {
+		return fmt.Errorf("register login handlers: online mode requires an RSA key pair")
+	}
 
 	loginStartID := loginpacket.NewLoginStart().ID()
 	if err := router.Register(protocol.StateLogin, loginStartID, func(s Session, packet protocol.Packet) error {
 		pkt, ok := packet.(*loginpacket.LoginStart)
 		if !ok {
 			return protocol.ErrNilPacket
+		}
+		flow, err := flowFor(s)
+		if err != nil {
+			return err
+		}
+		if flow.login != loginAwaitStart {
+			return fmt.Errorf("login_start: unexpected login phase %d", flow.login)
+		}
+		if !validPlayerName(pkt.Name) {
+			return fmt.Errorf("login_start: invalid player name")
+		}
+		if cfg.IPBanChecker != nil {
+			if banned, reason := cfg.IPBanChecker(s.RemoteAddr()); banned {
+				message := "You are banned from this server!"
+				if reason != "" {
+					message += "\nReason: " + reason
+				}
+				_ = s.Send(&loginpacket.Disconnect{Reason: disconnectReason(message)})
+				_ = s.Close()
+				logger.Info("ip_ban_reject", "session", s.ID(), "remote", s.RemoteAddr())
+				return nil
+			}
 		}
 
 		logger.Info("login_start", "session", s.ID(), "name", pkt.Name)
@@ -55,6 +83,7 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 				username:    pkt.Name,
 				verifyToken: verifyToken,
 			})
+			flow.login = loginAwaitEncryptionResponse
 
 			encReq := &loginpacket.EncryptionRequest{
 				ServerID:           "",
@@ -69,11 +98,7 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 			return nil
 		}
 
-		uuid := pkt.PlayerUUID
-		if uuid == (protocol.UUID{}) {
-			uuid = protocol.OfflinePlayerUUID(pkt.Name)
-		}
-
+		uuid := protocol.OfflinePlayerUUID(pkt.Name)
 		return completeLogin(s, pkt.Name, uuid, nil, cfg)
 	}); err != nil {
 		return err
@@ -96,6 +121,13 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 			pending, ok := raw.(*pendingLogin)
 			if !ok || pending == nil {
 				return fmt.Errorf("encryption_response: no pending login")
+			}
+			flow, err := flowFor(s)
+			if err != nil {
+				return err
+			}
+			if flow.login != loginAwaitEncryptionResponse {
+				return fmt.Errorf("encryption_response: unexpected login phase %d", flow.login)
 			}
 			ds.sessionData.Delete(loginSessionKey{})
 
@@ -154,6 +186,18 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 
 	loginAcknowledgedID := loginpacket.NewLoginAcknowledged().ID()
 	if err := router.Register(protocol.StateLogin, loginAcknowledgedID, func(s Session, packet protocol.Packet) error {
+		flow, err := flowFor(s)
+		if err != nil {
+			return err
+		}
+		if flow.login != loginAwaitAcknowledgement {
+			return fmt.Errorf("login_acknowledged: login success was not sent")
+		}
+		if err := transitionProtocol(s, protocol.StateConfiguration); err != nil {
+			return err
+		}
+		flow.login = loginComplete
+		flow.configuration = configurationAwaitKnownPacks
 		logger.Debug("login_acknowledged", "session", s.ID())
 		return handleEnterConfiguration(s)
 	}); err != nil {
@@ -165,15 +209,23 @@ func RegisterLoginHandlers(router PacketRouter, cfg LoginConfig) error {
 
 // completeLogin sends SetCompression (if enabled) and LoginSuccess, then fires the callback.
 func completeLogin(s Session, name string, uuid protocol.UUID, properties []loginpacket.LoginProperty, cfg LoginConfig) error {
+	if !validPlayerName(name) || uuid == (protocol.UUID{}) {
+		return fmt.Errorf("complete login: invalid authenticated profile")
+	}
+	flow, err := flowFor(s)
+	if err != nil {
+		return err
+	}
+	if flow.login != loginAwaitStart && flow.login != loginAwaitEncryptionResponse {
+		return fmt.Errorf("complete login: unexpected login phase %d", flow.login)
+	}
 	if cfg.BanChecker != nil {
 		if banned, reason := cfg.BanChecker(uuid); banned {
 			msg := "You are banned from this server!"
 			if reason != "" {
 				msg += "\nReason: " + reason
 			}
-			disconnect := &loginpacket.Disconnect{
-				Reason: fmt.Sprintf(`{"text":"%s"}`, msg),
-			}
+			disconnect := &loginpacket.Disconnect{Reason: disconnectReason(msg)}
 			_ = s.Send(disconnect)
 			s.Close()
 			logger.Info("ban_reject", "session", s.ID(), "name", name)
@@ -182,9 +234,7 @@ func completeLogin(s Session, name string, uuid protocol.UUID, properties []logi
 	}
 
 	if cfg.WhitelistChecker != nil && !cfg.WhitelistChecker(uuid) {
-		disconnect := &loginpacket.Disconnect{
-			Reason: `{"text":"You are not white-listed on this server!"}`,
-		}
+		disconnect := &loginpacket.Disconnect{Reason: disconnectReason("You are not white-listed on this server!")}
 		_ = s.Send(disconnect)
 		s.Close()
 		logger.Info("whitelist_reject", "session", s.ID(), "name", name)
@@ -214,10 +264,22 @@ func completeLogin(s Session, name string, uuid protocol.UUID, properties []logi
 	if err := s.Send(response); err != nil {
 		return err
 	}
+	flow.login = loginAwaitAcknowledgement
 
 	if cfg.OnLoginSuccess != nil {
 		cfg.OnLoginSuccess(s, name, uuid)
 	}
 
 	return nil
+}
+
+// disconnectReason encodes an untrusted disconnect message as a JSON text component.
+func disconnectReason(message string) string {
+	payload, err := json.Marshal(struct {
+		Text string `json:"text"`
+	}{Text: message})
+	if err != nil {
+		return `{"text":"Disconnected"}`
+	}
+	return string(payload)
 }
