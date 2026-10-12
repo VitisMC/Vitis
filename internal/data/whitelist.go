@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/vitismc/vitis/internal/protocol"
+	"github.com/vitismc/vitis/internal/storage"
 )
 
 // WhitelistEntry represents a single whitelisted player.
@@ -70,7 +71,7 @@ func (w *Whitelist) Save() error {
 		return err
 	}
 
-	return os.WriteFile(w.filePath, data, 0644)
+	return storage.WriteFileAtomic(w.filePath, data, 0644)
 }
 
 // Add adds a player to the whitelist and saves to disk.

@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -388,19 +389,27 @@ func cmdSetworldspawn(server ServerControl) *Command {
 	return &Command{
 		Name:            "setworldspawn",
 		Description:     "Sets the world spawn point",
-		Usage:           "/setworldspawn [x] [y] [z]",
+		Usage:           "/setworldspawn [x y z] [angle]",
 		PermissionLevel: 2,
 		Children: []*CommandNode{
-			ArgumentNode("pos", ParserBlockPos, nil).Executable(),
+			ArgumentNode("pos", ParserBlockPos, nil, ArgumentNode("angle", ParserFloat, nil).Executable()).Executable(),
 		},
 		Execute: func(ctx *Context) error {
 			ps, ok := ctx.Sender.(PlayerSender)
-			if !ok {
-				ctx.ReplyError("This command can only be used by a player")
+			if !ok && ctx.ArgCount() < 3 {
+				ctx.ReplyError("Coordinates are required for console")
 				return nil
 			}
 			var x, y, z float64
 			if ctx.ArgCount() >= 3 {
+				if !ok {
+					for _, coordinate := range ctx.Args[:3] {
+						if strings.ContainsAny(coordinate, "~^") {
+							ctx.ReplyError("Console requires absolute coordinates")
+							return nil
+						}
+					}
+				}
 				var err error
 				x, y, z, err = parseCoordinates(ctx.Args[:3], ps)
 				if err != nil {
@@ -410,11 +419,28 @@ func cmdSetworldspawn(server ServerControl) *Command {
 			} else {
 				x, y, z = ps.Position()
 			}
-			if err := server.SetWorldSpawn(int(x), int(y), int(z)); err != nil {
+			angle := float32(0)
+			if ctx.ArgCount() > 3 {
+				parsed, err := strconv.ParseFloat(ctx.Arg(3), 32)
+				if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+					ctx.ReplyError("Invalid spawn angle")
+					return nil
+				}
+				angle = float32(math.Mod(math.Mod(parsed+180, 360)+360, 360) - 180)
+			}
+			apply := func() error {
+				if control, ok := server.(interface {
+					SetWorldSpawnAngle(int, int, int, float32) error
+				}); ok {
+					return control.SetWorldSpawnAngle(int(math.Floor(x)), int(math.Floor(y)), int(math.Floor(z)), angle)
+				}
+				return server.SetWorldSpawn(int(math.Floor(x)), int(math.Floor(y)), int(math.Floor(z)))
+			}
+			if err := apply(); err != nil {
 				ctx.ReplyError("Failed: %v", err)
 				return nil
 			}
-			ctx.Reply("§aSet world spawn to %d %d %d", int(x), int(y), int(z))
+			ctx.Reply("§aSet world spawn to %d %d %d", int(math.Floor(x)), int(math.Floor(y)), int(math.Floor(z)))
 			return nil
 		},
 	}
@@ -425,11 +451,11 @@ func cmdSpawnpoint(players PlayerLookup, server ServerControl) *Command {
 	return &Command{
 		Name:            "spawnpoint",
 		Description:     "Sets a player's spawn point",
-		Usage:           "/spawnpoint [player] [x] [y] [z]",
+		Usage:           "/spawnpoint [player] [x y z] [angle]",
 		PermissionLevel: 2,
 		Children: []*CommandNode{
 			ArgumentNode("targets", ParserEntity, EntityFlagOnlyPlayers,
-				ArgumentNode("pos", ParserBlockPos, nil).Executable(),
+				ArgumentNode("pos", ParserBlockPos, nil, ArgumentNode("angle", ParserFloat, nil).Executable()).Executable(),
 			).Executable(),
 		},
 		Execute: func(ctx *Context) error {
@@ -465,7 +491,24 @@ func cmdSpawnpoint(players PlayerLookup, server ServerControl) *Command {
 			} else {
 				x, y, z = target.Position()
 			}
-			if err := server.SetSpawnPoint(target.EntityID(), int(x), int(y), int(z)); err != nil {
+			angle := float32(0)
+			if ctx.ArgCount() > argOffset+3 {
+				parsed, err := strconv.ParseFloat(ctx.Arg(argOffset+3), 32)
+				if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+					ctx.ReplyError("Invalid spawn angle")
+					return nil
+				}
+				angle = float32(math.Mod(math.Mod(parsed+180, 360)+360, 360) - 180)
+			}
+			apply := func() error {
+				if control, ok := server.(interface {
+					SetSpawnPointAngle(int32, int, int, int, float32) error
+				}); ok {
+					return control.SetSpawnPointAngle(target.EntityID(), int(math.Floor(x)), int(math.Floor(y)), int(math.Floor(z)), angle)
+				}
+				return server.SetSpawnPoint(target.EntityID(), int(math.Floor(x)), int(math.Floor(y)), int(math.Floor(z)))
+			}
+			if err := apply(); err != nil {
 				ctx.ReplyError("Failed: %v", err)
 				return nil
 			}

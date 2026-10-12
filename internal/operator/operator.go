@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/vitismc/vitis/internal/protocol"
+	"github.com/vitismc/vitis/internal/storage"
 )
 
 // Operator represents a server operator entry.
@@ -72,7 +73,7 @@ func (l *List) Save() error {
 		return err
 	}
 
-	return os.WriteFile(l.filePath, data, 0644)
+	return storage.WriteFileAtomic(l.filePath, data, 0644)
 }
 
 // Add adds or updates an operator entry and saves to disk.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vitismc/vitis/internal/protocol"
+	"github.com/vitismc/vitis/internal/storage"
 )
 
 // BanEntry represents a single ban record.
@@ -87,7 +88,7 @@ func (bl *BanList) Save() error {
 		return err
 	}
 
-	return os.WriteFile(bl.filePath, data, 0644)
+	return storage.WriteFileAtomic(bl.filePath, data, 0644)
 }
 
 // Ban adds a player ban and saves to disk.
@@ -271,7 +272,7 @@ func (ibl *IPBanList) Save() error {
 		return err
 	}
 
-	return os.WriteFile(ibl.filePath, data, 0644)
+	return storage.WriteFileAtomic(ibl.filePath, data, 0644)
 }
 
 // Ban adds an IP ban and saves to disk.

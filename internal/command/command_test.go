@@ -50,6 +50,9 @@ type mockServer struct {
 	ops        map[string]int
 	kicked     []string
 	broadcasts []string
+	reloaded   bool
+	speed      float64
+	speedID    int32
 }
 
 func newMockServer() *mockServer {
@@ -92,6 +95,37 @@ func (m *mockServer) SetXPLevel(_ int32, _ int32) error                      { r
 func (m *mockServer) SummonMob(_ string, _, _, _ float64) error              { return nil }
 func (m *mockServer) ApplyEffect(_ int32, _ string, _ int32, _ int32) error  { return nil }
 func (m *mockServer) ClearEffects(_ int32, _ string) error                   { return nil }
+func (m *mockServer) ReloadResources() error                                 { m.reloaded = true; return nil }
+func (m *mockServer) SetPlayerSpeed(id int32, speed float64) error {
+	m.speedID, m.speed = id, speed
+	return nil
+}
+
+// TestSpeedAcceptsFractionsAndReset validates command input and reset handling.
+func TestSpeedAcceptsFractionsAndReset(t *testing.T) {
+	server := newMockServer()
+	sender := &mockSender{level: 2}
+	cmd := cmdSpeed(server)
+	for _, tc := range []struct {
+		arg  string
+		want float64
+	}{{"2.1124", 2.1124}, {"reset", 0}} {
+		if err := cmd.Execute(&Context{Sender: sender, Args: []string{tc.arg}}); err != nil {
+			t.Fatal(err)
+		}
+		if server.speedID != sender.EntityID() || server.speed != tc.want {
+			t.Fatalf("speed after %q = %g for entity %d", tc.arg, server.speed, server.speedID)
+		}
+	}
+	for _, invalid := range []string{"NaN", "Inf", "0", "-1", "201", "not-a-number"} {
+		if err := cmd.Execute(&Context{Sender: sender, Args: []string{invalid}}); err != nil {
+			t.Fatal(err)
+		}
+		if server.speed != 0 {
+			t.Fatalf("invalid speed %q changed player speed", invalid)
+		}
+	}
+}
 
 func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry()
@@ -193,8 +227,8 @@ func TestBuiltinHelp(t *testing.T) {
 	lookup := &mockLookup{players: map[string]*mockSender{}}
 	RegisterBuiltinCommands(r, lookup, server)
 
-	if r.Count() != 30 {
-		t.Fatalf("expected 30 commands, got %d", r.Count())
+	if r.Count() != 32 {
+		t.Fatalf("expected 32 commands, got %d", r.Count())
 	}
 
 	sender := &mockSender{name: "Player", level: 4}
@@ -205,6 +239,23 @@ func TestBuiltinHelp(t *testing.T) {
 	}
 	if !strings.Contains(sender.messages[0], "Available Commands") {
 		t.Fatalf("unexpected help output: %s", sender.messages[0])
+	}
+}
+
+// TestReloadCommand delegates atomic resource reload to the server.
+func TestReloadCommand(t *testing.T) {
+	registry := NewRegistry()
+	server := newMockServer()
+	RegisterBuiltinCommands(registry, &mockLookup{players: map[string]*mockSender{}}, server)
+	sender := &mockSender{name: "Operator", level: 2}
+	if err := registry.Dispatch(sender, "reload"); err != nil {
+		t.Fatal(err)
+	}
+	if !server.reloaded {
+		t.Fatal("reload was not delegated")
+	}
+	if len(sender.messages) != 2 || !strings.Contains(sender.messages[1], "reloaded") {
+		t.Fatalf("messages = %v", sender.messages)
 	}
 }
 
