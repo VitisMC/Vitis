@@ -109,3 +109,35 @@ func TestSchedulerAsyncTask(t *testing.T) {
 		t.Fatal("timed out waiting for async task execution")
 	}
 }
+
+func TestSchedulerReportsSynchronousTaskPanic(t *testing.T) {
+	panics := make(chan any, 1)
+	s, err := NewScheduler(SchedulerConfig{
+		IngressCapacity: 128,
+		WheelSize:       64,
+		PanicHandler: func(value any, stack []byte) {
+			if len(stack) == 0 {
+				t.Error("panic stack is empty")
+			}
+			panics <- value
+		},
+	})
+	if err != nil {
+		t.Fatalf("new scheduler failed: %v", err)
+	}
+	defer func() { _ = s.Stop(context.Background(), true) }()
+
+	if _, err := s.RunTask(func() { panic("test panic") }); err != nil {
+		t.Fatalf("schedule task: %v", err)
+	}
+	s.Tick(1)
+
+	select {
+	case value := <-panics:
+		if value != "test panic" {
+			t.Fatalf("panic value = %v", value)
+		}
+	default:
+		t.Fatal("panic handler was not called")
+	}
+}

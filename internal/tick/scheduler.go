@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -82,6 +83,7 @@ type DefaultScheduler struct {
 
 	asyncWorkerPool *network.WorkerPool
 	ownsWorkerPool  bool
+	panicHandler    func(any, []byte)
 }
 
 // NewScheduler creates a scheduler optimized for single-consumer tick execution.
@@ -123,6 +125,7 @@ func NewScheduler(cfg SchedulerConfig) (*DefaultScheduler, error) {
 		wheelSize:       uint64(cfg.WheelSize),
 		asyncWorkerPool: workerPool,
 		ownsWorkerPool:  ownsPool,
+		panicHandler:    cfg.PanicHandler,
 	}
 	s.taskPool.New = func() any {
 		return &taskEntry{}
@@ -457,7 +460,9 @@ func (s *DefaultScheduler) completeEntry(entry *taskEntry) {
 
 func (s *DefaultScheduler) safeRun(fn func()) {
 	defer func() {
-		_ = recover()
+		if recovered := recover(); recovered != nil && s.panicHandler != nil {
+			s.panicHandler(recovered, debug.Stack())
+		}
 	}()
 	fn()
 }

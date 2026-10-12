@@ -2,30 +2,53 @@ package world
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
+	"sync"
 	"sync/atomic"
 
 	"github.com/vitismc/vitis/internal/block"
 	"github.com/vitismc/vitis/internal/block/behavior"
+	blockentitystate "github.com/vitismc/vitis/internal/block/entity"
 	"github.com/vitismc/vitis/internal/block/fluid"
 	"github.com/vitismc/vitis/internal/effect"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/ai"
+	"github.com/vitismc/vitis/internal/entity/metadata"
 	"github.com/vitismc/vitis/internal/entity/physics"
 	"github.com/vitismc/vitis/internal/entity/projectile"
+	"github.com/vitismc/vitis/internal/equipment"
 	"github.com/vitismc/vitis/internal/experience"
 	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/item"
+	"github.com/vitismc/vitis/internal/logger"
+	"github.com/vitismc/vitis/internal/loot"
+	"github.com/vitismc/vitis/internal/metrics"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
+	"github.com/vitismc/vitis/internal/world/blockentity"
 	"github.com/vitismc/vitis/internal/world/chunk"
+	"github.com/vitismc/vitis/internal/world/level"
 	"github.com/vitismc/vitis/internal/world/persistence"
 	"github.com/vitismc/vitis/internal/world/spawning"
 	"github.com/vitismc/vitis/internal/world/streaming"
 	"github.com/vitismc/vitis/internal/world/tick"
 	"github.com/vitismc/vitis/internal/world/weather"
+	"github.com/vitismc/vitis/internal/world/worldgen/random"
 )
+
+// chunkBatchRateSource is implemented by sessions that accept chunk batch feedback.
+type chunkBatchRateSource interface {
+	ChunkBatchRate() (float32, bool)
+	ChunkBatchAcknowledgements() uint64
+}
+
+// clientViewDistanceSource is implemented by sessions that expose client settings.
+type clientViewDistanceSource interface {
+	ClientViewDistance() (int32, bool)
+}
 
 const (
 	defaultSchedulerQueueCapacity   = 8192
@@ -33,22 +56,33 @@ const (
 	defaultChunkCompletionsPerTick  = 256
 	defaultChunkUnloadBatchPerTick  = 64
 	defaultWorldChunkStorageInitial = 2048
-	defaultChunksPerTick            = 4
+	defaultChunksPerTick            = 32
 )
 
 // Config defines world construction settings.
 type Config struct {
 	ID uint64
 
-	Name string
+	Name      string
+	Dimension string
 
-	ChunkManager *chunk.Manager
-	Generator    chunk.Generator
-	ChunkStore   *persistence.ChunkStore
+	ChunkManager     *chunk.Manager
+	Generator        chunk.Generator
+	ChunkStore       *persistence.ChunkStore
+	ChunkActivity    *metrics.ChunkActivity
+	EntityIDSequence *atomic.Int32
+	LootRuntime      *loot.Runtime
+	SpawningRuntime  *spawning.Runtime
+	ReadSeaLevel     func() (int, bool)
 
-	WorldDir string
-	Seed     int64
-	BiomeID  int32
+	WorldDir               string
+	PregenerationStatePath string
+	Seed                   int64
+	BiomeID                int32
+	Difficulty             int32
+	InitialWorldAge        int64
+	InitialTimeOfDay       int64
+	Metadata               *level.Level
 
 	SchedulerQueueCapacity int
 	SchedulerDrainPerTick  int
@@ -67,40 +101,82 @@ type Config struct {
 	ChunkUnloadQueueSize  int
 
 	ChunkStreamChunksPerTick int
+	ChunkStreamViewDistance  int32
+	SimulationDistance       int32
+	AutosaveIntervalTicks    int
+	AutosaveBatchPerTick     int
+	AutosaveQueueCapacity    int
 }
 
 // World stores world-owned simulation state and chunk subsystem entry points.
 type World struct {
-	id   uint64
-	name string
+	id           uint64
+	name         string
+	dimension    string
+	seed         int64
+	readSeaLevel func() (int, bool)
+	worldDir     string
 
-	chunks     *chunk.Manager
-	chunkStore *persistence.ChunkStore
-	streaming  *streaming.Manager
+	chunks             *chunk.Manager
+	chunkStore         *persistence.ChunkStore
+	chunkActivity      *metrics.ChunkActivity
+	streaming          *streaming.Manager
+	activity           *chunk.ActivityTracker
+	simulationDistance int32
+	playerTicketOwners map[uint64]struct{}
 
-	scheduler     *Scheduler
-	tickScheduler *tick.Scheduler
-	entities      *entity.Manager
-	tracker       *entity.Tracker
-	fallingBlocks *entity.FallingBlockManager
-	items         *entity.ItemEntityManager
-	xpOrbs        *entity.XPOrbManager
-	tnts          *entity.TNTManager
-	projectiles   *projectile.Manager
-	weather       *weather.Weather
-	mobs          *entity.MobManager
-	mobBrains     *ai.BrainRegistry
-	spawner       *spawning.Spawner
+	scheduler        *Scheduler
+	tickScheduler    *tick.Scheduler
+	entities         *entity.Manager
+	tracker          *entity.Tracker
+	fallingBlocks    *entity.FallingBlockManager
+	items            *entity.ItemEntityManager
+	itemPickup       func(*entity.Player, inventory.Slot) int32
+	playerDeath      func(*entity.Player)
+	furnaceUpdate    func(x, y, z int32, slots []inventory.Slot, properties [4]int16)
+	xpOrbs           *entity.XPOrbManager
+	tnts             *entity.TNTManager
+	projectiles      *projectile.Manager
+	weather          *weather.Weather
+	mobs             *entity.MobManager
+	mobBrains        *ai.BrainRegistry
+	spawner          *spawning.Spawner
+	lootRuntime      *loot.Runtime
+	equipmentRuntime *equipment.Runtime
+	mobPickupCursor  int32
+	mobPickupItems   map[int64]int32
+	blockEntities    *blockentity.Store
 
 	tick atomic.Uint64
 
-	worldAge  int64
-	timeOfDay int64
+	worldAge      atomic.Int64
+	timeOfDay     atomic.Int64
+	difficulty    atomic.Int32
+	daylightCycle atomic.Bool
+	fireTick      atomic.Bool
 
 	schedulerDrainPerTick    int
 	chunkCompletionsPerTick  int
 	chunkUnloadBatchPerTick  int
 	chunkStreamChunksPerTick int
+	chunkStreamViewDistance  int32
+	autosave                 *chunkAutosave
+	randomTicks              *random.Legacy
+	randomTickPosition       int32
+	lightChanges             map[int64]struct{}
+	entityChunks             map[*chunk.Chunk]*persistentEntityChunk
+	pregen                   *pregeneration
+	metadataMu               sync.RWMutex
+	metadata                 *level.Level
+	playerTick               func(uint64)
+	entitySpawnState         func(*entity.Player, *entity.Entity)
+	playerInventory          func(*entity.Player) *inventory.WindowManager
+	neighborUpdates          []neighborUpdate
+	neighborCursor           int
+	neighborCount            int
+	neighborWork             int
+	neighborBorders          map[int64]int
+	neighborBorderCursor     int64
 }
 
 // New creates a world with self-contained internal defaults.
@@ -108,17 +184,21 @@ func New(config Config) (*World, error) {
 	if config.Name == "" {
 		return nil, fmt.Errorf("create world: empty world name")
 	}
+	if config.SimulationDistance < 0 || config.SimulationDistance > 96 {
+		return nil, fmt.Errorf("create world: simulation distance must be between 0 and 96")
+	}
 
 	chunkManager := config.ChunkManager
 	if chunkManager == nil {
 		generator := config.Generator
 		if generator == nil {
-			terrainGen := chunk.NewTerrainGenerator(config.Seed, config.BiomeID)
-			if config.ChunkStore != nil {
-				generator = chunk.NewPersistentGenerator(config.ChunkStore, terrainGen, config.BiomeID)
-			} else {
-				generator = terrainGen
-			}
+			generator = chunk.NewTerrainGenerator(config.Seed, config.BiomeID)
+		}
+		if config.ChunkActivity != nil {
+			generator = chunk.ObservedGenerator{Generator: generator, Record: config.ChunkActivity.RecordGeneration}
+		}
+		if config.ChunkStore != nil {
+			generator = chunk.NewPersistentGenerator(config.ChunkStore, generator, config.BiomeID)
 		}
 
 		loader := chunk.NewLoader(chunk.LoaderConfig{
@@ -167,13 +247,22 @@ func New(config Config) (*World, error) {
 	if chunkStreamPerTick <= 0 {
 		chunkStreamPerTick = defaultChunksPerTick
 	}
+	chunkStreamViewDistance := config.ChunkStreamViewDistance
+	if chunkStreamViewDistance <= 0 {
+		chunkStreamViewDistance = 10
+	}
 
-	entMgr := entity.NewManager()
+	entMgr := entity.NewManagerWithIDSequence(config.EntityIDSequence)
 	w := &World{
 		id:                       config.ID,
 		name:                     config.Name,
+		dimension:                config.Dimension,
+		seed:                     config.Seed,
+		readSeaLevel:             config.ReadSeaLevel,
+		worldDir:                 config.WorldDir,
 		chunks:                   chunkManager,
 		chunkStore:               config.ChunkStore,
+		chunkActivity:            config.ChunkActivity,
 		streaming:                streaming.NewManager(),
 		scheduler:                NewScheduler(schedulerCapacity),
 		tickScheduler:            tick.NewScheduler(),
@@ -189,11 +278,99 @@ func New(config Config) (*World, error) {
 		chunkCompletionsPerTick:  chunkCompletions,
 		chunkUnloadBatchPerTick:  chunkUnloadBatch,
 		chunkStreamChunksPerTick: chunkStreamPerTick,
+		chunkStreamViewDistance:  chunkStreamViewDistance,
 	}
+	w.blockEntities = blockentity.NewStore(w.chunks.GetChunk)
+	w.tracker.SetSpawnStateHandler(w.sendEntitySpawnState)
+	w.blockEntities.SetLootRuntime(config.LootRuntime)
+	w.worldAge.Store(config.InitialWorldAge)
+	w.SetTimeOfDay(config.InitialTimeOfDay)
+	w.difficulty.Store(clampDifficulty(config.Difficulty))
+	w.daylightCycle.Store(true)
+	w.fireTick.Store(true)
+	w.initMetadata(config.Metadata)
+	w.chunks.EnsureSaveHandler(makeChunkSaveFunc(config.ChunkStore))
+	w.initActivity(config.SimulationDistance)
+	w.initRandomTicks(config.Seed)
 	w.mobs = entity.NewMobManager(entMgr, entMgr.AllocateID)
+	w.lootRuntime = config.LootRuntime
+	w.mobs.SetDeathLootHandler(w.mobDeathLoot)
 	w.mobBrains = ai.NewBrainRegistry()
-	w.spawner = spawning.NewSpawner(spawning.DefaultOverworldSpawns, 20)
+	w.mobs.SetSpawnHandler(w.mobBrains.RegisterMob)
+	if config.SpawningRuntime != nil {
+		w.spawner = spawning.NewSpawner(nil, 20)
+		w.spawner.SetRuntime(config.SpawningRuntime)
+	}
+	if config.ChunkStore != nil {
+		w.autosave = newChunkAutosave(config.ChunkStore, config.AutosaveIntervalTicks, config.AutosaveBatchPerTick, config.AutosaveQueueCapacity)
+		w.chunks.SetUnloadPreparer(func(c *chunk.Chunk) (bool, error) {
+			_, err := w.autosave.enqueue(c)
+			if err != nil {
+				logger.Error("unload chunk snapshot failed", "world", w.name, "x", c.X(), "z", c.Z(), "error", err)
+			}
+			return false, err
+		})
+	}
+	w.pregen = newPregeneration(w, config.PregenerationStatePath)
+	w.chunks.SetLoadObserver(w.pregen.onLoad)
 	return w, nil
+}
+
+func clampDifficulty(difficulty int32) int32 {
+	if difficulty < 0 || difficulty > 3 {
+		return 2
+	}
+	return difficulty
+}
+
+// Difficulty returns the authoritative world difficulty ID.
+func (w *World) Difficulty() int32 {
+	if w == nil {
+		return 2
+	}
+	return w.difficulty.Load()
+}
+
+// Seed returns the seed used by this world's generator and weather.
+func (w *World) Seed() int64 {
+	if w == nil {
+		return 0
+	}
+	return w.seed
+}
+
+// SetDifficulty changes difficulty and notifies all tracked players.
+func (w *World) SetDifficulty(difficulty int32) {
+	if w == nil || difficulty < 0 || difficulty > 3 {
+		return
+	}
+	w.difficulty.Store(difficulty)
+	packet := &playpacket.Difficulty{DifficultyLevel: byte(difficulty), Locked: false}
+	for _, player := range w.tracker.Players() {
+		if !player.Removed() && player.Session() != nil {
+			_ = player.Session().Send(packet)
+		}
+	}
+}
+
+// SetDaylightCycle enables or freezes the day clock.
+func (w *World) SetDaylightCycle(enabled bool) { w.daylightCycle.Store(enabled) }
+
+// DaylightCycle reports whether clients should advance their local day clock.
+func (w *World) DaylightCycle() bool { return w.daylightCycle.Load() }
+
+// SetWeatherCycle enables or disables natural weather changes.
+func (w *World) SetWeatherCycle(enabled bool) { w.weather.SetCycleEnabled(enabled) }
+
+// SetFireTick enables or disables scheduled fire updates.
+func (w *World) SetFireTick(enabled bool) { w.fireTick.Store(enabled) }
+
+// BlockEntities returns the world-owned block entity store.
+func (w *World) BlockEntities() *blockentity.Store {
+	if w == nil {
+		return nil
+	}
+	return w.blockEntities
 }
 
 // ID returns stable world identifier.
@@ -212,6 +389,14 @@ func (w *World) Name() string {
 	return w.name
 }
 
+// Dimension returns the namespaced dimension identifier.
+func (w *World) Dimension() string {
+	if w == nil {
+		return ""
+	}
+	return w.dimension
+}
+
 // Tick advances world simulation by one tick.
 func (w *World) Tick() {
 	if w == nil {
@@ -219,30 +404,58 @@ func (w *World) Tick() {
 	}
 
 	newTick := w.tick.Add(1)
+	w.neighborWork = 0
 	w.chunks.SetTick(newTick)
 
-	w.worldAge++
-	w.timeOfDay++
-	if w.timeOfDay >= 24000 {
-		w.timeOfDay = 0
+	w.worldAge.Add(1)
+	if w.daylightCycle.Load() {
+		w.timeOfDay.Add(1)
 	}
 
 	w.tickWeather()
 	w.scheduler.Drain(w.schedulerDrainPerTick)
+	w.updateActivity()
+	w.tickChunkInhabitation()
+	if w.playerTick != nil {
+		w.playerTick(newTick)
+	}
+	w.processNeighborUpdates()
 	w.processScheduledTicks()
+	w.tickRandomBlocks()
+	w.tickBlockEntities()
 	w.tickFallingBlocks()
 	w.tickItems()
 	w.tickXPOrbs()
 	w.tickTNT()
 	w.tickProjectiles()
 	w.tickMobs()
-	w.chunks.PumpLoadRequests()
+	w.processNeighborUpdates()
+	players := w.tracker.Players()
+	loadCenters := make([]chunk.LoadPriorityCenter, 0, len(players))
+	for _, player := range players {
+		if !player.Removed() {
+			loadCenters = append(loadCenters, chunk.LoadPriorityCenter{X: player.ChunkX(), Z: player.ChunkZ()})
+		}
+	}
+	w.chunks.SetLoadPriorityCenters(loadCenters)
 	w.chunks.ApplyLoadCompletions(w.chunkCompletionsPerTick)
+	w.processChunkNeighborChecks()
+	w.processNeighborUpdates()
+	w.pregen.tick()
+	w.chunks.PumpLoadRequests()
 	w.chunks.UpdateActiveChunks()
 	w.tickStreaming()
 	w.tickPlayers()
 	w.entities.Tick(w.tick.Load())
-	w.tracker.Tick(w.entities)
+	w.tracker.TickWithChunkFilter(w.entities, func(playerID, chunkX, chunkZ int32) bool {
+		streamer, ok := w.streaming.GetStreamer(playerID)
+		return ok && streamer.View().IsLoaded(streaming.ChunkPos{X: chunkX, Z: chunkZ})
+	})
+	w.tickLighting()
+	w.logEntitySnapshotError(w.refreshEntitySnapshots())
+	if w.autosave != nil {
+		w.autosave.tick(w)
+	}
 	w.chunks.ProcessUnloads(w.chunkUnloadBatchPerTick)
 
 	if w.tick.Load()%20 == 0 {
@@ -302,6 +515,14 @@ func (w *World) Scheduler() *Scheduler {
 	return w.scheduler
 }
 
+// Submit queues one mutation for execution by the world tick.
+func (w *World) Submit(task func()) bool {
+	if w == nil || w.scheduler == nil {
+		return false
+	}
+	return w.scheduler.Schedule(task)
+}
+
 // EntityManager returns the world's entity manager.
 func (w *World) EntityManager() *entity.Manager {
 	if w == nil {
@@ -327,11 +548,11 @@ func (w *World) EntityTracker() *entity.Tracker {
 }
 
 // AddEntity adds an entity to the world's entity manager.
-func (w *World) AddEntity(e *entity.Entity) {
+func (w *World) AddEntity(e *entity.Entity) bool {
 	if w == nil || e == nil {
-		return
+		return false
 	}
-	w.entities.Add(e)
+	return w.entities.Add(e)
 }
 
 // RemoveEntity marks an entity for removal from the world.
@@ -355,26 +576,81 @@ func (w *World) AddPlayer(p *entity.Player) {
 	if w == nil || p == nil {
 		return
 	}
-	w.entities.Add(p.Entity)
+	if !w.entities.Add(p.Entity) {
+		return
+	}
+	w.bindPlayerArmor(p)
 	w.tracker.AddPlayer(p)
+	w.playerMemoryJoined()
 
-	s := w.streaming.AddPlayer(p.ID(), streaming.StreamerConfig{
+	streamConfig := streaming.StreamerConfig{
 		ChunksPerTick: w.chunkStreamChunksPerTick,
 		ViewDistance:  p.ViewDistance(),
 		Provider:      w.chunks,
 		Sender:        p.Session(),
-	})
+	}
+	if w.chunkActivity != nil {
+		streamConfig.OnChunkSent = w.chunkActivity.RecordSent
+		streamConfig.OnChunkAcknowledged = w.chunkActivity.RecordFullPath
+	}
+	s := w.streaming.AddPlayer(p.ID(), streamConfig)
 	s.InitialLoad(p.ChunkX(), p.ChunkZ())
+}
+
+// ResendPlayerChunks resets the streamer's client cache after respawn.
+// The caller must run on the world tick.
+func (w *World) ResendPlayerChunks(playerID int32, chunkX, chunkZ int32) {
+	if w == nil || w.streaming == nil {
+		return
+	}
+	if stream, ok := w.streaming.GetStreamer(playerID); ok {
+		stream.ForceResend()
+		stream.InitialLoad(chunkX, chunkZ)
+	}
 }
 
 // RemovePlayer removes a player from the world and tracking.
 func (w *World) RemovePlayer(p *entity.Player) {
-	if w == nil || p == nil {
-		return
+	if w.DetachPlayer(p) {
+		p.Remove()
 	}
+}
+
+// DetachPlayer releases world membership without destroying a transferring player.
+// The caller must run on the common world tick goroutine.
+func (w *World) DetachPlayer(p *entity.Player) bool {
+	if w == nil || p == nil {
+		return false
+	}
+	if registered := w.entities.Get(p.ID()); registered != p.Entity {
+		if registered != nil {
+			return false
+		}
+		tracked := false
+		for _, existing := range w.tracker.Players() {
+			tracked = tracked || existing == p
+		}
+		if !tracked {
+			return false
+		}
+	}
+	p.Living().SetArmorDamageHandler(nil)
 	w.streaming.RemovePlayer(p.ID(), p.Session())
-	w.entities.Remove(p.ID())
+	w.entities.Evict(p.ID())
 	w.tracker.RemovePlayer(p.ID())
+	for _, observer := range w.tracker.Players() {
+		if _, tracked := observer.TrackedEntities()[p.ID()]; tracked {
+			delete(observer.TrackedEntities(), p.ID())
+			observer.SendDespawnEntities([]int32{p.ID()})
+		}
+	}
+	p.ResetTracking()
+	owner := uint64(uint32(p.ID()))
+	w.RemoveChunkTicket(chunk.TicketPlayer, owner)
+	w.RemoveChunkTicket(chunk.TicketView, owner)
+	delete(w.playerTicketOwners, owner)
+	w.playerMemoryLeft()
+	return true
 }
 
 // Scheduler is a bounded world-thread task ingress queue.
@@ -390,12 +666,18 @@ func NewScheduler(queueCapacity int) *Scheduler {
 	return &Scheduler{queue: make(chan func(), queueCapacity)}
 }
 
-// Schedule enqueues one world-thread task and blocks when ingress queue is full.
-func (s *Scheduler) Schedule(task func()) {
+// Schedule enqueues one world-thread task without blocking the caller.
+// It returns false when the bounded ingress queue cannot accept the task.
+func (s *Scheduler) Schedule(task func()) bool {
 	if s == nil || task == nil {
-		return
+		return false
 	}
-	s.queue <- task
+	select {
+	case s.queue <- task:
+		return true
+	default:
+		return false
+	}
 }
 
 // Drain executes up to max currently queued tasks.
@@ -456,6 +738,13 @@ func (w *World) tickStreaming() {
 	w.streaming.Tick(func(playerID int32) (int32, int32, bool) {
 		for _, p := range players {
 			if p.ID() == playerID {
+				viewDistance := w.clientViewDistanceFor(p)
+				p.SetViewDistance(viewDistance)
+				w.streaming.SetPlayerViewDistance(playerID, viewDistance)
+				if streamer, ok := w.streaming.GetStreamer(playerID); ok {
+					streamer.SetChunksPerTick(w.chunkStreamChunksPerTick)
+					w.applyChunkBatchFeedback(streamer, p)
+				}
 				return p.ChunkX(), p.ChunkZ(), true
 			}
 		}
@@ -467,20 +756,80 @@ func (w *World) tickStreaming() {
 	})
 }
 
+// applyChunkBatchFeedback forwards validated client delivery feedback to a streamer.
+func (w *World) applyChunkBatchFeedback(streamer *streaming.Streamer, player *entity.Player) {
+	if streamer == nil || player == nil || player.Session() == nil {
+		return
+	}
+	source, ok := player.Session().(chunkBatchRateSource)
+	if !ok {
+		return
+	}
+	rate, ok := source.ChunkBatchRate()
+	if !ok || math.IsNaN(float64(rate)) || math.IsInf(float64(rate), 0) {
+		return
+	}
+	streamer.UpdateClientFeedback(rate, source.ChunkBatchAcknowledgements())
+}
+
+// clientViewDistanceFor caps a client's render distance to the world configuration.
+func (w *World) clientViewDistanceFor(player *entity.Player) int32 {
+	distance := int32(w.chunkStreamViewDistance)
+	if player == nil || player.Session() == nil {
+		return distance
+	}
+
+	source, ok := player.Session().(clientViewDistanceSource)
+	if !ok {
+		return distance
+	}
+	requested, ok := source.ClientViewDistance()
+	if !ok || requested < 2 {
+		return distance
+	}
+	if requested < distance {
+		return requested
+	}
+	return distance
+}
+
+// chunkStreamRateFor caps client feedback to the configured per-player send budget.
+func (w *World) chunkStreamRateFor(player *entity.Player) int {
+	rate := w.chunkStreamChunksPerTick
+	if player == nil || player.Session() == nil {
+		return rate
+	}
+
+	source, ok := player.Session().(chunkBatchRateSource)
+	if !ok {
+		return rate
+	}
+	requested, ok := source.ChunkBatchRate()
+	if !ok || math.IsNaN(float64(requested)) || math.IsInf(float64(requested), 0) || requested < 0 {
+		return rate
+	}
+
+	clientRate := int(math.Ceil(float64(requested)))
+	if clientRate < rate {
+		return clientRate
+	}
+	return rate
+}
+
 // WorldAge returns the total age of the world in ticks.
 func (w *World) WorldAge() int64 {
 	if w == nil {
 		return 0
 	}
-	return w.worldAge
+	return w.worldAge.Load()
 }
 
-// TimeOfDay returns the current time of day (0-23999).
+// TimeOfDay returns the full accumulated daytime.
 func (w *World) TimeOfDay() int64 {
 	if w == nil {
 		return 0
 	}
-	return w.timeOfDay
+	return w.timeOfDay.Load()
 }
 
 // SetTimeOfDay sets the current time of day.
@@ -488,10 +837,7 @@ func (w *World) SetTimeOfDay(t int64) {
 	if w == nil {
 		return
 	}
-	w.timeOfDay = t % 24000
-	if w.timeOfDay < 0 {
-		w.timeOfDay += 24000
-	}
+	w.timeOfDay.Store(t)
 }
 
 func (w *World) tickPlayers() {
@@ -500,11 +846,19 @@ func (w *World) tickPlayers() {
 		if p.Removed() {
 			continue
 		}
+		p.TickClientLoadTimeout()
+		if !p.HasClientLoaded() {
+			continue
+		}
 		living := p.Living()
+		oldHealth, oldFood, wasDead := living.Health(), living.FoodLevel(), living.IsDead()
 		living.TickLiving()
-		living.TickHunger()
+		living.TickHungerWithRules(w.Difficulty(), w.GameRule("naturalRegeneration") == "true")
 
 		diff := living.TickEffects()
+		if properties := living.Attributes().DirtyProperties(); len(properties) != 0 {
+			w.broadcastTrackedPacket(p.ID(), &playpacket.EntityUpdateAttributes{EntityID: p.ID(), Properties: properties})
+		}
 		sess := p.Session()
 		if sess != nil {
 			for _, id := range diff.Removed {
@@ -522,35 +876,27 @@ func (w *World) tickPlayers() {
 			}
 			actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
 			if actual > 0 && sess != nil {
-				_ = sess.Send(&playpacket.UpdateHealth{
-					Health:         living.Health(),
-					Food:           living.FoodLevel(),
-					FoodSaturation: living.FoodSaturation(),
-				})
 				_ = sess.Send(&playpacket.HurtAnimation{
 					EntityID: p.ID(),
 					Yaw:      0,
 				})
-				if living.IsDead() {
-					name := p.Username()
-					msg := formatDeathMessage(src.Type, name, "")
-					_ = sess.Send(&playpacket.DeathCombatEvent{
-						PlayerID: p.ID(),
-						Message:  msg,
-					})
-				}
 			}
 		}
-
-		if w.tick.Load()%20 == 0 && !living.IsDead() {
-			if sess == nil {
-				continue
-			}
+		if sess != nil && (oldHealth != living.Health() || oldFood != living.FoodLevel() || w.tick.Load()%20 == 0) {
 			_ = sess.Send(&playpacket.UpdateHealth{
 				Health:         living.Health(),
 				Food:           living.FoodLevel(),
 				FoodSaturation: living.FoodSaturation(),
 			})
+		}
+		if !wasDead && living.IsDead() && sess != nil {
+			_ = sess.Send(&playpacket.DeathCombatEvent{PlayerID: p.ID(), Message: p.Username() + " died"})
+		}
+		if living.IsDead() && !living.DeathHandled() {
+			living.MarkDeathHandled()
+			if w.playerDeath != nil {
+				w.playerDeath(p)
+			}
 		}
 	}
 }
@@ -576,7 +922,7 @@ func (w *World) broadcastTime() {
 		if sess == nil {
 			continue
 		}
-		_ = sess.Send(&playpacket.UpdateTime{WorldAge: w.worldAge, TimeOfDay: w.timeOfDay, TickDayTime: true})
+		_ = sess.Send(&playpacket.UpdateTime{WorldAge: w.worldAge.Load(), TimeOfDay: w.timeOfDay.Load(), TickDayTime: w.daylightCycle.Load()})
 	}
 }
 
@@ -633,11 +979,15 @@ func (w *World) SetWeather(state weather.State, duration int32) {
 }
 
 // SaveAllDirty persists all in-memory dirty chunks to disk.
-func (w *World) SaveAllDirty() int {
+func (w *World) SaveAllDirty() (int, error) {
 	if w == nil || w.chunks == nil {
-		return 0
+		return 0, nil
 	}
-	return w.chunks.SaveAllDirty()
+	w.processNeighborUpdates()
+	w.markScheduledTickSnapshots()
+	entityErr := w.refreshEntitySnapshots()
+	saved, err := w.chunks.SaveAllDirty()
+	return saved, errors.Join(entityErr, err)
 }
 
 // Close saves dirty chunks and releases world-owned async resources.
@@ -645,12 +995,50 @@ func (w *World) Close(ctx context.Context) error {
 	if w == nil {
 		return nil
 	}
-	w.SaveAllDirty()
-	return w.chunks.Close(ctx)
+	w.processNeighborUpdates()
+	var checkpointErr error
+	if w.autosave != nil {
+		w.autosave.close()
+	}
+	w.markScheduledTickSnapshots()
+	if w.pregen != nil {
+		checkpointErr = w.pregen.stopGenerationRelease(ctx)
+		w.pregen.mu.Lock()
+		if w.pregen.state == "running" {
+			w.pregen.stopClockLocked()
+			w.pregen.state = "paused"
+		}
+		if w.pregen.state == "paused" {
+			checkpointErr = errors.Join(checkpointErr, w.pregen.saveLocked())
+		}
+		w.pregen.mu.Unlock()
+	}
+	_, saveErr := w.SaveAllDirty()
+	closeErr := w.chunks.Close(ctx)
+	if w.chunkStore != nil {
+		closeErr = errors.Join(closeErr, w.chunkStore.Close())
+	}
+	var metadataErr error
+	if w.worldDir != "" {
+		metadata := w.MetadataSnapshot()
+		var err error
+		if metadata == nil {
+			metadata, err = level.Open(w.worldDir)
+		}
+		if err != nil {
+			metadataErr = err
+		} else {
+			metadata.Time = w.WorldAge()
+			metadata.DayTime = w.TimeOfDay()
+			metadata.Difficulty = int8(w.Difficulty())
+			metadataErr = metadata.Save(w.worldDir)
+		}
+	}
+	return errors.Join(checkpointErr, saveErr, closeErr, metadataErr)
 }
 
 func (w *World) processScheduledTicks() {
-	ticks := w.tickScheduler.Drain(w.tick.Load(), w.schedulerDrainPerTick)
+	ticks := w.tickScheduler.DrainEligible(w.tick.Load(), w.schedulerDrainPerTick, w.IsBlockTicking)
 	for _, t := range ticks {
 		switch t.Type {
 		case tick.TickTypeBlock:
@@ -664,6 +1052,21 @@ func (w *World) processScheduledTicks() {
 func (w *World) processBlockTick(t *tick.ScheduledTick) {
 	stateID := w.getBlockAt(t.X, t.Y, t.Z)
 	if stateID <= 0 {
+		return
+	}
+	if block.NameFromState(stateID) != block.NameFromState(t.SubID) {
+		return
+	}
+	w.checkNeighborShape(neighborUpdate{x: t.X, y: t.Y, z: t.Z}, stateID, true)
+	if w.getBlockAt(t.X, t.Y, t.Z) != stateID {
+		return
+	}
+	behavior.GetByState(stateID).OnNeighborUpdate(&behavior.Context{X: t.X, Y: t.Y, Z: t.Z, StateID: stateID})
+	if w.getBlockAt(t.X, t.Y, t.Z) != stateID {
+		return
+	}
+	if name := block.NameFromState(stateID); name == "minecraft:fire" || name == "minecraft:soul_fire" {
+		w.tickFire(t.X, t.Y, t.Z, stateID)
 		return
 	}
 
@@ -687,7 +1090,7 @@ func (w *World) processBlockTick(t *tick.ScheduledTick) {
 		w.spawnFallingBlock(t.X, t.Y, t.Z, result.BlockStateID)
 	}
 
-	if result.SetBlock && result.NewBlockState > 0 {
+	if result.SetBlock && result.NewBlockState >= 0 {
 		w.setBlockAt(t.X, t.Y, t.Z, result.NewBlockState)
 		w.broadcastBlockUpdate(t.X, t.Y, t.Z, result.NewBlockState)
 	}
@@ -709,13 +1112,18 @@ func (w *World) spawnFallingBlock(x, y, z int, stateID int32) {
 	pos := entity.Vec3{X: float64(x) + 0.5, Y: float64(y), Z: float64(z) + 0.5}
 
 	fb := entity.NewFallingBlock(id, uuid, pos, stateID)
-	w.entities.Add(fb.Entity)
+	if !w.entities.Add(fb.Entity) {
+		return
+	}
 	w.fallingBlocks.Add(fb)
 }
 
 func (w *World) tickFallingBlocks() {
 	var toRemove []int32
 	for id, fb := range w.fallingBlocks.All() {
+		if !entity.IsTickingAt(w, fb.Position()) {
+			continue
+		}
 		fb.Tick(func(x, y, z float64) bool {
 			bx, by, bz := int(math.Floor(x)), int(math.Floor(y)), int(math.Floor(z))
 			state := w.getBlockAt(bx, by, bz)
@@ -748,12 +1156,11 @@ func (w *World) GetBlockStateAt(x, y, z int) int32 {
 	return w.getBlockAt(x, y, z)
 }
 
+// getBlockAt preserves an unavailable sentinel for unloaded columns and air beyond build height.
 func (w *World) getBlockAt(x, y, z int) int32 {
-	cx := int32(math.Floor(float64(x) / 16))
-	cz := int32(math.Floor(float64(z) / 16))
-	c, ok := w.chunks.GetChunk(cx, cz)
-	if !ok || c == nil {
-		return 0
+	c, ok := w.chunks.PeekLoaded(int32(x>>4), int32(z>>4))
+	if !ok {
+		return -1
 	}
 	return c.GetBlock(x, y, z)
 }
@@ -765,7 +1172,11 @@ func (w *World) setBlockAt(x, y, z int, stateID int32) {
 	if !ok || c == nil {
 		return
 	}
+	if y < c.Data().MinY() || y > c.Data().MaxY() || c.GetBlock(x, y, z) == stateID {
+		return
+	}
 	c.SetBlock(x, y, z, stateID)
+	w.NotifyNeighbors(x, y, z)
 }
 
 func (w *World) broadcastBlockUpdate(x, y, z int, stateID int32) {
@@ -827,7 +1238,6 @@ func (w *World) processFluidTick(t *tick.ScheduledTick) {
 	if hasInteraction {
 		w.setBlockAt(t.X, t.Y, t.Z, resultState)
 		w.broadcastBlockUpdate(t.X, t.Y, t.Z, resultState)
-		w.notifyNeighbors(t.X, t.Y, t.Z)
 		return
 	}
 
@@ -841,7 +1251,6 @@ func (w *World) processFluidTick(t *tick.ScheduledTick) {
 			w.broadcastBlockUpdate(t.X, t.Y, t.Z, newState)
 			w.scheduleFluidTick(t.X, t.Y, t.Z, config.FlowSpeed)
 		}
-		w.notifyNeighbors(t.X, t.Y, t.Z)
 	}
 
 	flowResult := fluid.ComputeFlow(t.X, t.Y, t.Z, *config, w.getBlockAt)
@@ -851,7 +1260,6 @@ func (w *World) processFluidTick(t *tick.ScheduledTick) {
 			w.setBlockAt(pos[0], pos[1], pos[2], state)
 			w.broadcastBlockUpdate(pos[0], pos[1], pos[2], state)
 			w.scheduleFluidTick(pos[0], pos[1], pos[2], config.FlowSpeed)
-			w.notifyNeighbors(pos[0], pos[1], pos[2])
 		}
 	}
 }
@@ -875,6 +1283,73 @@ func (w *World) ItemManager() *entity.ItemEntityManager {
 	return w.items
 }
 
+// SetItemPickupHandler installs the inventory transfer performed on the world tick.
+func (w *World) SetItemPickupHandler(handler func(*entity.Player, inventory.Slot) int32) {
+	w.itemPickup = handler
+}
+
+// SetPlayerDeathHandler installs one-time inventory and experience drops.
+func (w *World) SetPlayerDeathHandler(handler func(*entity.Player)) {
+	w.playerDeath = handler
+}
+
+// SetFurnaceUpdateHandler installs the client update callback on the world tick.
+func (w *World) SetFurnaceUpdateHandler(handler func(x, y, z int32, slots []inventory.Slot, properties [4]int16)) {
+	w.furnaceUpdate = handler
+}
+
+func (w *World) tickBlockEntities() {
+	w.chunks.VisitLoaded(func(owner *chunk.Chunk) {
+		if !w.IsBlockTicking(owner.X(), owner.Z()) {
+			return
+		}
+		data := owner.Data()
+		if data == nil {
+			return
+		}
+		for _, blockEntity := range data.BlockEntities {
+			if blockEntity == nil {
+				continue
+			}
+			name := blockEntity.TypeName()
+			if name != "minecraft:furnace" && name != "minecraft:blast_furnace" && name != "minecraft:smoker" {
+				continue
+			}
+			x, y, z := blockEntity.Position()
+			furnace, ok := blockEntity.(*blockentitystate.FurnaceLikeBlockEntity)
+			if !ok {
+				furnace = w.blockEntities.Furnace(int(x), int(y), int(z), name)
+			}
+			if furnace == nil || !furnace.Tick() {
+				continue
+			}
+			state := w.getBlockAt(int(x), int(y), int(z))
+			if block.NameFromState(state) == name {
+				properties := block.PropertiesFromState(state)
+				lit := "false"
+				if furnace.IsBurning() {
+					lit = "true"
+				}
+				if properties != nil && properties["lit"] != lit {
+					properties["lit"] = lit
+					if next := block.StateID(name, properties); next >= 0 {
+						w.setBlockAt(int(x), int(y), int(z), next)
+						w.broadcastBlockUpdate(int(x), int(y), int(z), next)
+					}
+				}
+			}
+			owner.MarkDirty()
+			if w.furnaceUpdate != nil {
+				properties := [4]int16{}
+				for i := range properties {
+					properties[i] = furnace.GetProperty(i)
+				}
+				w.furnaceUpdate(x, y, z, furnace.Container().Slots(), properties)
+			}
+		}
+	})
+}
+
 // XPOrbManager returns the world's XP orb manager.
 func (w *World) XPOrbManager() *entity.XPOrbManager {
 	if w == nil {
@@ -896,7 +1371,9 @@ func (w *World) SpawnItemEntity(item *entity.ItemEntity) {
 	if w == nil || item == nil {
 		return
 	}
-	w.entities.Add(item.Entity)
+	if !w.entities.Add(item.Entity) {
+		return
+	}
 	w.items.Add(item)
 }
 
@@ -905,7 +1382,9 @@ func (w *World) SpawnXPOrb(orb *entity.XPOrb) {
 	if w == nil || orb == nil {
 		return
 	}
-	w.entities.Add(orb.Entity)
+	if !w.entities.Add(orb.Entity) {
+		return
+	}
 	w.xpOrbs.Add(orb)
 }
 
@@ -914,14 +1393,79 @@ func (w *World) SpawnTNT(tnt *entity.TNTEntity) {
 	if w == nil || tnt == nil {
 		return
 	}
-	w.entities.Add(tnt.Entity)
+	if !w.entities.Add(tnt.Entity) {
+		return
+	}
 	w.tnts.Add(tnt)
+}
+
+// IgniteTNT replaces a loaded TNT block with a primed entity.
+// The caller must run on the world tick.
+func (w *World) IgniteTNT(x, y, z int, ownerID int32) bool {
+	if w == nil || block.NameFromState(w.getBlockAt(x, y, z)) != "minecraft:tnt" {
+		return false
+	}
+	w.setBlockAt(x, y, z, 0)
+	w.broadcastBlockUpdate(x, y, z, 0)
+	id := w.entities.AllocateID()
+	tnt := entity.NewTNTEntity(id, protocol.GenerateUUID(), entity.Vec3{X: float64(x) + 0.5, Y: float64(y), Z: float64(z) + 0.5}, ownerID)
+	w.SpawnTNT(tnt)
+	return w.tnts.Get(id) != nil
 }
 
 func (w *World) tickItems() {
 	removed := w.items.TickAll(w)
 	for _, id := range removed {
 		w.broadcastRemoveEntity(id)
+		w.entities.Remove(id)
+	}
+	for _, dropped := range w.items.All() {
+		if dropped.Dirty()&entity.DirtyItemStack != 0 && !dropped.Removed() && entity.IsTickingAt(w, dropped.Position()) {
+			w.broadcastItemStack(dropped)
+		}
+	}
+	if w.itemPickup == nil {
+		return
+	}
+	for id, dropped := range w.items.All() {
+		if !entity.IsTickingAt(w, dropped.Position()) {
+			continue
+		}
+		if !dropped.CanPickup() {
+			continue
+		}
+		for _, player := range w.tracker.Players() {
+			if player.Removed() || player.IsDead() || !dropped.IsInRange(player.Position(), 1.5) {
+				continue
+			}
+			stack := dropped.Stack()
+			count := w.itemPickup(player, stack)
+			if count <= 0 || count > stack.ItemCount {
+				continue
+			}
+			for _, observer := range w.tracker.Players() {
+				if !observer.Removed() && observer.Session() != nil {
+					_ = observer.Session().Send(&playpacket.CollectItem{CollectedEntityID: id, CollectorEntityID: player.ID(), PickupItemCount: count})
+				}
+			}
+			stack.ItemCount -= count
+			if stack.Empty() {
+				w.items.Remove(id)
+				w.entities.Remove(id)
+				w.broadcastRemoveEntity(id)
+			} else {
+				dropped.SetStack(stack)
+				data := metadata.New()
+				data.SetSlot(metadata.IndexItemEntityItem, stack)
+				packet := &playpacket.SetEntityMetadata{EntityID: id, Metadata: data.Encode()}
+				for _, observer := range w.tracker.Players() {
+					if !observer.Removed() && observer.Session() != nil {
+						_ = observer.Session().Send(packet)
+					}
+				}
+			}
+			break
+		}
 	}
 }
 
@@ -932,7 +1476,7 @@ func (w *World) tickXPOrbs() {
 		var bestID int32 = -1
 		var bestPos entity.Vec3
 		for _, p := range players {
-			if p.Removed() {
+			if p.Removed() || p.IsDead() || p.Living().GameMode() == 3 || !p.HasClientLoaded() {
 				continue
 			}
 			pp := p.Position()
@@ -955,6 +1499,7 @@ func (w *World) tickXPOrbs() {
 	removed := w.xpOrbs.TickAll(w, findPlayer)
 	for _, id := range removed {
 		w.broadcastRemoveEntity(id)
+		w.entities.Remove(id)
 	}
 
 	w.pickupXPOrbs()
@@ -968,11 +1513,11 @@ func (w *World) pickupXPOrbs() {
 
 	var pickedUp []int32
 	for id, orb := range w.xpOrbs.All() {
-		if orb.Removed() {
+		if orb.Removed() || !entity.IsTickingAt(w, orb.Position()) {
 			continue
 		}
 		for _, p := range players {
-			if p.Removed() {
+			if p.Removed() || !p.CanPickupXP() || !p.HasClientLoaded() {
 				continue
 			}
 			if !orb.IsInPickupRange(p.Position()) {
@@ -980,7 +1525,10 @@ func (w *World) pickupXPOrbs() {
 			}
 
 			living := p.Living()
-			result := experience.AddXP(living.XPLevel(), living.XPTotal(), orb.XPValue())
+			xp := w.repairWithXP(p, orb.TakeOne())
+			w.broadcastTrackedPacket(id, &playpacket.CollectItem{CollectedEntityID: id, CollectorEntityID: p.ID(), PickupItemCount: 1})
+			p.DelayXPPickup()
+			result := experience.AddXP(living.XPLevel(), living.XPTotal(), xp)
 			living.SetXP(result.Level, result.Total, result.Bar)
 
 			sess := p.Session()
@@ -992,8 +1540,9 @@ func (w *World) pickupXPOrbs() {
 				})
 			}
 
-			orb.Remove()
-			pickedUp = append(pickedUp, id)
+			if orb.Removed() {
+				pickedUp = append(pickedUp, id)
+			}
 			break
 		}
 	}
@@ -1010,6 +1559,7 @@ func (w *World) tickTNT() {
 
 	for _, id := range removed {
 		w.broadcastRemoveEntity(id)
+		w.entities.Remove(id)
 	}
 
 	for _, id := range exploded {
@@ -1026,6 +1576,16 @@ func (w *World) tickTNT() {
 
 // doExplosion performs a full explosion: destroys blocks, damages entities, broadcasts packet.
 func (w *World) doExplosion(x, y, z, power float64) {
+	w.doExplosionWithBlocks(x, y, z, power, true)
+}
+
+// doExplosionWithBlocks applies entity effects while optionally preserving blocks.
+func (w *World) doExplosionWithBlocks(x, y, z, power float64, destroyBlocks bool) {
+	w.doExplosionWithSource(x, y, z, power, destroyBlocks, nil)
+}
+
+// doExplosionWithSource preserves a structured cause across all entity effects.
+func (w *World) doExplosionWithSource(x, y, z, power float64, destroyBlocks bool, cause *entity.DamageSource) {
 	finder := func(box physics.AABB) []entity.ExplosionTarget {
 		var targets []entity.ExplosionTarget
 		for _, p := range w.tracker.Players() {
@@ -1070,17 +1630,17 @@ func (w *World) doExplosion(x, y, z, power float64) {
 
 	exp := entity.ComputeExplosion(w, x, y, z, power, finder)
 
-	const tntMinState int32 = 2137
-	const tntMaxState int32 = 2138
-
 	for _, bp := range exp.AffectedBlocks {
+		if !destroyBlocks {
+			continue
+		}
 		state := w.GetBlockStateAt(bp[0], bp[1], bp[2])
 		w.setBlockAt(bp[0], bp[1], bp[2], 0)
 		w.broadcastBlockUpdate(bp[0], bp[1], bp[2], 0)
 
-		if state >= tntMinState && state <= tntMaxState {
+		if block.NameFromState(state) == "minecraft:tnt" {
 			eid := w.entities.AllocateID()
-			uuid := protocol.UUID{uint64(eid), uint64(eid) ^ 0xBEEF}
+			uuid := protocol.GenerateUUID()
 			fuse := int32(10 + rand.Intn(15))
 			tnt := entity.NewTNTEntityWithFuse(eid, uuid,
 				entity.Vec3{X: float64(bp[0]) + 0.5, Y: float64(bp[1]), Z: float64(bp[2]) + 0.5},
@@ -1091,25 +1651,42 @@ func (w *World) doExplosion(x, y, z, power float64) {
 	}
 
 	for _, eff := range exp.AffectedEntities {
-		w.applyExplosionDamage(eff)
+		w.applyExplosionDamageSource(eff, cause)
 	}
 
 	w.broadcastExplosion(exp)
 }
 
 func (w *World) applyExplosionDamage(eff entity.ExplosionEntityEffect) {
+	w.applyExplosionDamageSource(eff, nil)
+}
+
+// applyExplosionDamageSource applies armor, attribution and authoritative knockback.
+func (w *World) applyExplosionDamageSource(eff entity.ExplosionEntityEffect, cause *entity.DamageSource) {
 	dmg := float32(eff.Damage)
 	if dmg <= 0 {
 		return
 	}
 	src := entity.NewDamageSource(entity.DamageTypeExplosion, dmg)
+	if cause != nil {
+		copied := *cause
+		copied.Amount = dmg
+		src = &copied
+	}
 
 	for _, p := range w.tracker.Players() {
 		if p.ID() != eff.EntityID || p.Removed() || p.IsDead() {
 			continue
 		}
 		living := p.Living()
-		actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		actual := living.ApplyDamage(w.playerDifficultyDamage(src), living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		if actual > 0 {
+			velocity := p.Velocity()
+			velocity.X += eff.KnockX
+			velocity.Y += eff.KnockY
+			velocity.Z += eff.KnockZ
+			p.SetVelocity(velocity)
+		}
 		sess := p.Session()
 		if sess == nil {
 			return
@@ -1143,7 +1720,15 @@ func (w *World) applyExplosionDamage(eff entity.ExplosionEntityEffect) {
 	if w.mobs != nil {
 		mob := w.mobs.Get(eff.EntityID)
 		if mob != nil && !mob.IsDead() {
-			mob.Damage(dmg, "explosion")
+			if mob.ApplyDamage(src, mob.ArmorDefense(), mob.ArmorToughness(), mob.ArmorEnchProtection()) <= 0 {
+				return
+			}
+			velocity := mob.Velocity()
+			resistance := 1 - mob.KnockbackResistance()
+			velocity.X += eff.KnockX * resistance
+			velocity.Y += eff.KnockY * resistance
+			velocity.Z += eff.KnockZ * resistance
+			mob.SetVelocity(velocity)
 			hurtPkt := &playpacket.HurtAnimation{EntityID: mob.ID(), Yaw: 0}
 			for _, p := range w.tracker.Players() {
 				if p.Removed() {
@@ -1158,12 +1743,6 @@ func (w *World) applyExplosionDamage(eff entity.ExplosionEntityEffect) {
 }
 
 func (w *World) broadcastExplosion(exp *entity.Explosion) {
-	records := make([]byte, 0, len(exp.AffectedBlocks)*3)
-	cx, cy, cz := int(math.Floor(exp.X)), int(math.Floor(exp.Y)), int(math.Floor(exp.Z))
-	for _, bp := range exp.AffectedBlocks {
-		records = append(records, byte(bp[0]-cx), byte(bp[1]-cy), byte(bp[2]-cz))
-	}
-
 	for _, p := range w.tracker.Players() {
 		if p.Removed() {
 			continue
@@ -1186,18 +1765,14 @@ func (w *World) broadcastExplosion(exp *entity.Explosion) {
 		}
 
 		_ = sess.Send(&playpacket.Explosion{
-			X:                exp.X,
-			Y:                exp.Y,
-			Z:                exp.Z,
-			Strength:         float32(exp.Power),
-			RecordCount:      int32(len(exp.AffectedBlocks)),
-			Records:          records,
-			PlayerMotionX:    motX,
-			PlayerMotionY:    motY,
-			PlayerMotionZ:    motZ,
-			HasPlayerMotion:  hasMotion,
-			BlockInteraction: 1,
-			SoundName:        "minecraft:entity.generic.explode",
+			X:               exp.X,
+			Y:               exp.Y,
+			Z:               exp.Z,
+			PlayerMotionX:   motX,
+			PlayerMotionY:   motY,
+			PlayerMotionZ:   motZ,
+			HasPlayerMotion: hasMotion,
+			Large:           exp.Power >= 2,
 		})
 	}
 }
@@ -1215,7 +1790,9 @@ func (w *World) SpawnArrow(a *projectile.Arrow) {
 	if w == nil || a == nil {
 		return
 	}
-	w.entities.Add(a.Entity)
+	if !w.entities.Add(a.Entity) {
+		return
+	}
 	w.projectiles.AddArrow(a)
 }
 
@@ -1224,7 +1801,9 @@ func (w *World) SpawnThrown(t *projectile.ThrownEntity) {
 	if w == nil || t == nil {
 		return
 	}
-	w.entities.Add(t.Entity)
+	if !w.entities.Add(t.Entity) {
+		return
+	}
 	w.projectiles.AddThrown(t)
 }
 
@@ -1233,7 +1812,9 @@ func (w *World) SpawnTrident(t *projectile.Trident) {
 	if w == nil || t == nil {
 		return
 	}
-	w.entities.Add(t.Entity)
+	if !w.entities.Add(t.Entity) {
+		return
+	}
 	w.projectiles.AddTrident(t)
 }
 
@@ -1255,6 +1836,7 @@ func (w *World) tickProjectiles() {
 			dmg = 0.5
 		}
 		src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, dmg, arrow.OwnerID())
+		src.DirectID, src.DirectType = arrow.ID(), "minecraft:arrow"
 		w.applyProjectileDamage(hit.HitResult.EntityID, src, arrow.OwnerID())
 		arrow.Entity.Remove()
 	}
@@ -1291,6 +1873,7 @@ func (w *World) tickProjectiles() {
 		}
 		dmg := float32(tr.ComputeHitDamage())
 		src := entity.NewAttackDamageSource(entity.DamageTypeProjectile, dmg, tr.OwnerID())
+		src.DirectID, src.DirectType = tr.ID(), "minecraft:trident"
 		w.applyProjectileDamage(hit.HitResult.EntityID, src, tr.OwnerID())
 	}
 
@@ -1298,17 +1881,43 @@ func (w *World) tickProjectiles() {
 		w.broadcastRemoveEntity(id)
 		w.entities.Remove(id)
 	}
+	w.projectiles.FinalizeRemovals(result.RemovedIDs)
+	w.syncArrowStates()
 }
 
 // applyProjectileDamage applies damage from a projectile to a target entity.
 func (w *World) applyProjectileDamage(targetID int32, src *entity.DamageSource, ownerID int32) {
+	if src == nil {
+		return
+	}
+	for _, player := range w.tracker.Players() {
+		if player.ID() == ownerID && !player.Removed() {
+			src.PlayerCredit = true
+			src.AttackerType = "minecraft:player"
+			if w.playerInventory != nil {
+				if windows := w.playerInventory(player); windows != nil {
+					src.Weapon = windows.HeldItem().Clone()
+				}
+			}
+			break
+		}
+	}
+	if attacker := w.mobs.Get(ownerID); attacker != nil {
+		src.AttackerType = "minecraft:" + attacker.TypeName()
+	}
 	// Check if target is a player
 	for _, p := range w.tracker.Players() {
 		if p.ID() != targetID || p.Removed() || p.IsDead() {
 			continue
 		}
 		living := p.Living()
-		actual := living.ApplyDamage(src, living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		if w.projectileBlocked(p, src) {
+			return
+		}
+		actual := living.ApplyDamage(w.playerDifficultyDamage(src), living.ArmorDefense(), living.ArmorToughness(), living.ArmorEnchProtection())
+		if actual > 0 {
+			w.applyArrowHitEffects(src, living)
+		}
 		sess := p.Session()
 		if sess == nil {
 			return
@@ -1352,17 +1961,13 @@ func (w *World) applyProjectileDamage(targetID int32, src *entity.DamageSource, 
 	// Check if target is a mob
 	if w.mobs != nil {
 		mob := w.mobs.Get(targetID)
-		if mob != nil && !mob.IsDead() {
-			mob.Damage(src.Amount, src.Type.SourceName())
-			hurtPkt := &playpacket.HurtAnimation{EntityID: mob.ID(), Yaw: 0}
-			for _, p := range w.tracker.Players() {
-				if p.Removed() {
-					continue
-				}
-				if s := p.Session(); s != nil {
-					_ = s.Send(hurtPkt)
-				}
+		if mob != nil && !mob.Removed() && !mob.IsDead() && entity.IsTickingAt(w, mob.Position()) {
+			if mob.ApplyDamage(src, mob.ArmorDefense(), mob.ArmorToughness(), mob.ArmorEnchProtection()) <= 0 {
+				return
 			}
+			w.applyArrowHitEffects(src, mob.LivingEntity)
+			hurtPkt := &playpacket.HurtAnimation{EntityID: mob.ID(), Yaw: 0}
+			w.broadcastTrackedPacket(mob.ID(), hurtPkt)
 		}
 	}
 }
@@ -1493,8 +2098,11 @@ func (w *World) tickMobs() {
 		requests := w.spawner.Tick(w.mobs, playerPositions, w)
 		for _, req := range requests {
 			mob := w.mobs.SpawnMob(req.TypeName, entity.Vec3{X: req.X, Y: req.Y, Z: req.Z})
-			if mob != nil && w.mobBrains != nil {
-				w.mobBrains.RegisterMob(mob)
+			if mob != nil && req.SlimeSize > 0 {
+				mob.SetSlimeSize(req.SlimeSize, true)
+			}
+			if mob != nil {
+				w.initializeMobPickup(mob)
 			}
 		}
 	}
@@ -1504,14 +2112,23 @@ func (w *World) tickMobs() {
 		w.mobBrains.TickAll(w.mobs.Mobs(), players, w.tick.Load(), w)
 	}
 
+	w.pickupMobEquipment()
 	drops := w.mobs.Tick(w)
+	w.syncMobStates()
 	for _, d := range drops {
-		if d.ItemID > 0 && d.Count > 0 {
+		pos := entity.Vec3{X: d.X, Y: d.Y, Z: d.Z}
+		if d.XP > 0 {
+			w.AwardExperience(pos, d.XP)
+		}
+		stack := d.Stack
+		if stack.Empty() && d.ItemID > 0 && d.Count > 0 {
+			stack = inventory.NewSlot(d.ItemID, d.Count)
+		}
+		if !stack.Empty() && stack.ItemID > 0 {
 			eid := w.entities.AllocateID()
-			uuid := protocol.UUID{uint64(eid), uint64(eid) ^ 0xDEAD}
-			stack := inventory.NewSlot(d.ItemID, d.Count)
+			uuid := protocol.GenerateUUID()
 			ie := entity.NewItemEntity(eid, uuid,
-				entity.Vec3{X: d.X + 0.5, Y: d.Y + 0.5, Z: d.Z + 0.5},
+				pos,
 				stack,
 			)
 			w.SpawnItemEntity(ie)
@@ -1531,7 +2148,7 @@ func (w *World) buildSpawnPlayerList() []spawning.PlayerPos {
 	}
 	result := make([]spawning.PlayerPos, 0, len(trackedPlayers))
 	for _, p := range trackedPlayers {
-		if p.Removed() {
+		if p.Removed() || p.IsDead() || !p.HasClientLoaded() || p.Living().GameMode() == 3 {
 			continue
 		}
 		pos := p.Position()
@@ -1547,7 +2164,7 @@ func (w *World) buildAIPlayerList() []ai.PlayerInfo {
 	}
 	result := make([]ai.PlayerInfo, 0, len(trackedPlayers))
 	for _, p := range trackedPlayers {
-		if p.Removed() {
+		if p.Removed() || p.IsDead() || !p.HasClientLoaded() {
 			continue
 		}
 		result = append(result, ai.PlayerInfo{
@@ -1555,6 +2172,12 @@ func (w *World) buildAIPlayerList() []ai.PlayerInfo {
 			Pos:      p.Position(),
 			GameMode: p.Living().GameMode(),
 		})
+		if w.playerInventory != nil {
+			if windows := w.playerInventory(p); windows != nil {
+				result[len(result)-1].HeldItem = item.NameByID(windows.HeldItem().ItemID)
+				result[len(result)-1].OffhandItem = item.NameByID(windows.Inventory().Get(inventory.OffhandSlot).ItemID)
+			}
+		}
 	}
 	return result
 }
@@ -1577,51 +2200,37 @@ func (w *World) SpawnMob(typeName string, pos entity.Vec3) *entity.MobEntity {
 	if w == nil || w.mobs == nil {
 		return nil
 	}
-	mob := w.mobs.SpawnMob(typeName, pos)
-	if mob != nil && w.mobBrains != nil {
-		w.mobBrains.RegisterMob(mob)
-	}
-	return mob
+	return w.mobs.SpawnMob(typeName, pos)
 }
 
 func makeChunkSaveFunc(store *persistence.ChunkStore) chunk.ChunkSaveFunc {
 	if store == nil {
 		return nil
 	}
-	return func(c *chunk.Chunk) {
-		if c == nil || c.GameData() == nil {
-			return
+	return func(c *chunk.Chunk) error {
+		if c == nil || c.Data() == nil {
+			return nil
 		}
-		data, err := chunk.EncodeChunkNBT(c.GameData())
+		entities, err := c.EntityNBT()
 		if err != nil {
-			return
+			return fmt.Errorf("snapshot entities (%d,%d): %w", c.X(), c.Z(), err)
 		}
-		_ = store.WriteChunkNBT(int(c.X()), int(c.Z()), data)
+		data, err := chunk.EncodeChunkNBT(c)
+		if err != nil {
+			return fmt.Errorf("encode chunk (%d,%d): %w", c.X(), c.Z(), err)
+		}
+		if err := store.WriteChunkNBT(int(c.X()), int(c.Z()), data); err != nil {
+			return fmt.Errorf("write chunk (%d,%d): %w", c.X(), c.Z(), err)
+		}
+		if entities != nil {
+			if err := store.WriteEntityNBT(int(c.X()), int(c.Z()), entities); err != nil {
+				return fmt.Errorf("write entities (%d,%d): %w", c.X(), c.Z(), err)
+			}
+		}
+		return nil
 	}
 }
 
 func (w *World) notifyNeighbors(x, y, z int) {
-	offsets := [][3]int{{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}}
-	for _, off := range offsets {
-		nx, ny, nz := x+off[0], y+off[1], z+off[2]
-		state := w.getBlockAt(nx, ny, nz)
-		if state <= 0 {
-			continue
-		}
-
-		b := behavior.GetByState(state)
-		if b.ScheduleOnNeighborUpdate() {
-			delay := b.TickDelay()
-			if delay > 0 {
-				w.ScheduleBlockTick(nx, ny, nz, delay, tick.PriorityNormal)
-			}
-		}
-
-		if fluid.IsFluid(state) {
-			config := fluid.GetFluidConfig(state)
-			if config != nil {
-				w.scheduleFluidTick(nx, ny, nz, config.FlowSpeed)
-			}
-		}
-	}
+	w.NotifyNeighbors(x, y, z)
 }

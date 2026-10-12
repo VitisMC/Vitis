@@ -14,15 +14,18 @@ import (
 type Manager struct {
 	mu sync.RWMutex
 
-	worldsByName map[string]*World
-	ordered      []*World
+	worldsByName      map[string]*World
+	worldsByDimension map[string]*World
+	ordered           []*World
 
 	nextWorldID atomic.Uint64
+	entityIDs   atomic.Int32
+	tickHandler func()
 }
 
 // NewManager creates an empty world manager.
 func NewManager() *Manager {
-	return &Manager{worldsByName: make(map[string]*World)}
+	return &Manager{worldsByName: make(map[string]*World), worldsByDimension: make(map[string]*World)}
 }
 
 // Create creates and registers a new world with defaults.
@@ -45,9 +48,17 @@ func (m *Manager) CreateWithConfig(config Config) (*World, error) {
 	if _, exists := m.worldsByName[config.Name]; exists {
 		return nil, fmt.Errorf("create world name=%q: already exists", config.Name)
 	}
+	if config.Dimension != "" {
+		if _, exists := m.worldsByDimension[config.Dimension]; exists {
+			return nil, fmt.Errorf("create world dimension=%q: already exists", config.Dimension)
+		}
+	}
 
 	if config.ID == 0 {
 		config.ID = m.nextWorldID.Add(1)
+	}
+	if config.EntityIDSequence == nil {
+		config.EntityIDSequence = &m.entityIDs
 	}
 
 	world, err := New(config)
@@ -56,8 +67,22 @@ func (m *Manager) CreateWithConfig(config Config) (*World, error) {
 	}
 
 	m.worldsByName[config.Name] = world
+	if config.Dimension != "" {
+		m.worldsByDimension[config.Dimension] = world
+	}
 	m.ordered = append(m.ordered, world)
 	return world, nil
+}
+
+// GetByDimension returns one world by namespaced dimension identifier.
+func (m *Manager) GetByDimension(dimension string) (*World, bool) {
+	if m == nil {
+		return nil, false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	world, ok := m.worldsByDimension[dimension]
+	return world, ok
 }
 
 // Get returns one world by name.
@@ -84,6 +109,9 @@ func (m *Manager) Remove(name string) bool {
 		return false
 	}
 	delete(m.worldsByName, name)
+	if world.dimension != "" {
+		delete(m.worldsByDimension, world.dimension)
+	}
 
 	for index := range m.ordered {
 		if m.ordered[index] == world {
@@ -97,10 +125,21 @@ func (m *Manager) Remove(name string) bool {
 	return true
 }
 
-// Tick advances manager-level work.
+// SetTickHandler installs global game work before any world advances.
+// This method and Tick must only be called on the common tick goroutine.
+func (m *Manager) SetTickHandler(handler func()) {
+	if m != nil {
+		m.tickHandler = handler
+	}
+}
+
+// Tick advances manager-level work before the individual world ticks.
 func (m *Manager) Tick() {
 	if m == nil {
 		return
+	}
+	if m.tickHandler != nil {
+		m.tickHandler()
 	}
 }
 

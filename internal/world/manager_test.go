@@ -2,9 +2,39 @@ package world
 
 import (
 	"fmt"
+	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/protocol"
 	"sync"
 	"testing"
 )
+
+// TestManagerSharesEntityIDsAcrossDimensions prevents collisions after a player transfer.
+func TestManagerSharesEntityIDsAcrossDimensions(t *testing.T) {
+	m := NewManager()
+	first, err := m.CreateWithConfig(Config{Name: "overworld", Dimension: "minecraft:overworld"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := m.CreateWithConfig(Config{Name: "nether", Dimension: "minecraft:the_nether"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := m.Close(nil); err != nil {
+			t.Error(err)
+		}
+	}()
+	one, two := first.entities.AllocateID(), second.entities.AllocateID()
+	if one <= 0 || two <= one {
+		t.Fatal("worlds reused protocol entity IDs")
+	}
+	if !second.entities.Add(entity.NewEntity(100, protocol.UUID{1, 2}, entity.EntityTypeMob, entity.Vec3{}, entity.Vec2{})) {
+		t.Fatal("explicit entity registration failed")
+	}
+	if id := first.entities.AllocateID(); id <= 100 {
+		t.Fatalf("allocated ID %d collides with registered state", id)
+	}
+}
 
 func TestManagerConcurrentCreateAndGet(t *testing.T) {
 	manager := NewManager()
