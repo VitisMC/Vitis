@@ -1,96 +1,54 @@
-# Architecture Overview
+# Architecture and lifecycle
 
-Vitis is structured as a layered system where each layer has clear responsibilities and minimal coupling to other layers.
+[Русский](../rus/architecture.md) · [Documentation](README.md)
 
-## Layers
+Vitis is organized into Go packages. The entrypoint creates the server systems and connects their handlers.
 
-### 1. Network Layer (`internal/network/`)
+## Responsibilities
 
-The lowest layer. Handles raw TCP connections, byte framing, and I/O worker pools.
+| Subsystem | Responsible for | Interaction |
+| --- | --- | --- |
+| [Server startup](../../cmd/vitis/main.go) | Configuration, access lists, resources, session callbacks and shutdown | Creates and connects the systems |
+| [Network](../../internal/network/) | Connections, framing, timeouts, queues, encryption and compression | Delivers data in connection order |
+| [Protocol](../../internal/protocol/) | Packet types, bounded reads, NBT encoding and codec registration | Converts network data into typed packets |
+| [Session](../../internal/session/) | Protocol states, authentication, player admission and actions | Validates client actions and passes them to game systems |
+| [World](../../internal/world/) | Ticks, dimensions, chunks, simulation and saving | Applies world changes and background results |
+| [Entity](../../internal/entity/) and mechanics | Entity state, combat, inventory, crafting and loot | Applies game rules |
+| [Datapack](../../internal/datapack/) and [registry](../../internal/registry/) | Resources, IDs, tags and client configuration data | Loads game resources and separately synchronizes protocol registries |
 
-- **Listener** — accepts incoming TCP connections with configurable max connection limit
-- **Conn** — per-connection read/write loops with deadline management
-- **Pipeline** — extensible inbound handler chain (frame decode → session dispatch)
-- **BufferPool** — `sync.Pool`-based buffer recycling to minimize GC pressure
-- **WorkerPool** — bounded goroutine pool for packet processing
+## Main data flow
 
-### 2. Protocol Layer (`internal/protocol/`)
-
-Implements the Minecraft 1.21.4 wire protocol.
-
-- **Buffer** — zero-copy read/write buffer for protocol types (VarInt, VarLong, String, UUID, NBT, etc.)
-- **Registry** — version-aware and state-aware packet ID → constructor mapping
-- **Decoder/Encoder** — frame → packet decoding and packet → frame encoding
-- **States** — Handshake, Status, Login, Configuration, Play packet registrations
-- **Crypto** — RSA key generation, CFB8 stream cipher for online-mode encryption
-
-### 3. Session Layer (`internal/session/`)
-
-Manages the lifecycle of a connected player from handshake through play.
-
-- **Session** — state machine (handshake → login → configuration → play)
-- **PacketRouter** — copy-on-write handler dispatch by (state, packet ID)
-- **Manager** — thread-safe session tracking with ID and connection lookup
-- **Handlers** — status, login (with online-mode auth), configuration (registry sync), play (gameplay)
-
-### 4. World Layer (`internal/world/`)
-
-Owns all world state. Mutations happen exclusively on the world tick goroutine.
-
-- **World** — central world state: chunks, players, entities, time, border
-- **Manager** — multi-world container (currently single world)
-- **Chunk system** (`chunk/`) — async load/generate with bounded worker pool, results applied on tick
-- **Streaming** (`streaming/`) — per-player chunk streaming with Manhattan-distance priority queue
-- **Terrain** (`terrain/`) — simplex noise generator and flat generator
-- **Region** (`region/`) — Anvil .mca file read/write
-- **Level** (`level/`) — level.dat and player data NBT persistence
-
-### 5. Entity Layer (`internal/entity/`)
-
-Entity types with physics simulation.
-
-- **Player** — extends LivingEntity with session binding, view distance
-- **LivingEntity** — health, food, XP, damage, respawn
-- **Physics** (`physics/`) — AABB collision, gravity, step-up, block collision scanning
-- **Item/XPOrb/TNT** — entity types with specific tick behavior
-- **Projectiles** (`projectile/`) — arrows, thrown items with ray-cast hit detection
-- **Vehicles** (`vehicle/`) — boats, minecarts with passenger management
-
-### 6. Registry Layer (`internal/registry/`)
-
-Pre-built Minecraft registry data for client synchronization.
-
-- 78+ builtin registries from `registries.json`
-- 12 config registries from datapacks (NBT-encoded)
-- Tag system for biome/enchantment grouping
-- Zero-allocation ID ↔ name lookups
-
-### 7. Data Generation (`internal/data/`)
-
-59 code generators that convert Minecraft data files into type-safe Go code.
-
-- Input: PrismarineJS JSON, `registries.json`, misode/mcmeta datapacks, decompiled server JAR
-- Output: `internal/data/generated/` — compile-time verified IDs and constants
-
-## Threading Model
-
-```
-Main goroutine       → bootstrap, signal handling, shutdown
-Tick loop goroutine  → world.Tick() at 20 TPS
-  └─ chunk workers   → async chunk load/generate (bounded pool)
-Network I/O workers  → read loops per connection
-Packet worker pool   → decode + dispatch (bounded pool)
-Per-session write    → async outbound queue per connection
-Config watcher       → file change detection for hot-reload
-Console reader       → stdin command dispatch
+```mermaid
+flowchart LR
+  TCP[Connection] --> Frame[Framing and transport]
+  Frame --> Codec[Protocol decoder]
+  Codec --> Session[Session phase and action validation]
+  Session --> Queue[World mutation queue]
+  Queue --> Tick[World tick]
+  Tick --> Send[Client packet queue]
+  Tick --> Snapshot[Chunk snapshot]
+  Snapshot --> Save[Background persistence]
+  Save --> Tick
 ```
 
-## Data Flow
+Status, login and configuration are handled within the session before a player joins the world. Their responses are sent directly without using the world queue.
 
-```
-Client TCP → Conn read loop → frame decode → Pipeline
-  → Session.processInboundFrame → Decoder → PacketRouter → Handler
-  → Handler mutates state / schedules world action
-  → World.Tick() applies mutations
-  → Send packet → Session outbound queue → Encoder → Conn write loop → Client TCP
-```
+## Concurrency and ownership
+
+Incoming packets on one connection are processed in order, including state changes and enabling encryption or compression. A bounded shared worker pool handles connections in parallel.
+
+`World.Submit(func()) bool` queues a world task. It returns `false` when the queue is full; callers must handle rejection. Keep tasks short. Disk IO, authentication and resource compilation run outside the tick.
+
+Background workers load and generate chunks; the world applies completed results during ticks. Streaming reads ready chunks. Saving uses data snapshots; resource reload publishes an immutable compiled snapshot.
+
+Some state uses locks and atomics; player lifecycle operations are coordinated separately. Before calling a method from another goroutine, inspect its synchronization, callers and tests.
+
+## Startup and shutdown
+
+Startup creates missing configuration and access files, validates YAML and configures logging. It then validates the existing world and makes a backup if needed, prepares vanilla resources without Java and loads datapacks. After creating dimensions and starting ticks, it connects registries, sessions and game handlers, then starts network services and background tasks.
+
+SIGINT, SIGTERM or `stop` starts shutdown. The server cancels background tasks, stops network services, closes connections, waits for player lifecycle work, stops ticks and finishes saving worlds. All stages share a deadline. See [operations](operations.md) and [storage](storage.md).
+
+## Working on a subsystem
+
+See [protocol](protocol.md) for network changes, [world](world.md) for chunks and simulation, and [gameplay](gameplay.md) for game handlers. Feature additions are covered in [extension guides](extending.md), data preparation in [generators](generators/README.md), and limitations in [project status](status.md).
