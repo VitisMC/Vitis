@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  binaries:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {goos: linux, goarch: amd64, runner: ubuntu-latest}
+          - {goos: linux, goarch: arm64, runner: ubuntu-latest}
+          - {goos: windows, goarch: amd64, runner: windows-latest}
+          - {goos: darwin, goarch: amd64, runner: macos-latest}
+          - {goos: darwin, goarch: arm64, runner: macos-latest}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: minecraft-test-resources-1.21.4
+          path: .mcdata/1.21.4/
+      - name: Test preparation on the host platform
+        run: go test ./internal/data/vanilla ./cmd/vitis -count=1
+      - name: Build binary
+        shell: bash
+        env:
+          CGO_ENABLED: '0'
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          vitis_executable=vitis
+          if [ "$GOOS" = windows ]; then vitis_executable=vitis.exe; fi
+          go build -trimpath -o "dist/$vitis_executable" ./cmd/vitis
+      - name: Archive Unix binary
+        if: matrix.goos != 'windows'
+        shell: bash
+        env:
+          VITIS_TARGET: ${{ matrix.goos }}-${{ matrix.goarch }}
+        run: |
+          chmod 755 dist/vitis
+          tar -czf "vitis-$VITIS_TARGET.tar.gz" -C dist vitis
+      - name: Archive Windows binary
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/vitis.exe -DestinationPath vitis-windows-amd64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vitis-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            vitis-*.tar.gz
+            vitis-*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vitis-*
+          merge-multiple: true
+          path: dist
+      - name: Create checksums
+        working-directory: dist
+        run: sha256sum vitis-* > SHA256SUMS
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VITIS_RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$VITIS_RELEASE_TAG" dist/* --verify-tag --draft --title "$VITIS_RELEASE_TAG" --generate-notes
+          gh release edit "$VITIS_RELEASE_TAG" --draft=false
