@@ -1,154 +1,95 @@
-# Генераторы данных Vitis
+# Ресурсы и генераторы кода
 
-Система кодогенерации, преобразующая файлы данных Minecraft в исходный код Go для совместимости с протоколом.
+[English](../../eng/generators/README.md) · [Документация](../README.md)
 
-## Обзор
+## Запуск сервера и генерация данных
 
-- **Типобезопасность** — проверка ID и констант на этапе компиляции
-- **Производительность** — поиск без аллокаций через сгенерированные карты
-- **Поддерживаемость** — единый источник истины для каждого типа данных
+| Задача | Команда / инструмент | Требования |
+| --- | --- | --- |
+| Запуск сервера | `./vitis` / `.\vitis.exe` | Бинарник; Интернет для скачивания отсутствующих ресурсов |
+| Перегенерация данных на Linux | `make generate` | Go 1.23+, JDK 21, Git, Make, Bash 4+ и утилиты GNU |
+| Перегенерация данных на Windows | `pwsh -NoProfile -File .\scripts\windows\update_version.ps1` | Go 1.23+, JDK 21, Git, PowerShell 7.2+ и совместимый C-компилятор |
+| Только отчёты разработчика | `go run ./cmd/vitis-data` | Go, совместимая Java и проверенный официальный JAR сервера |
 
-Все генераторы расположены в `internal/data/generator/<имя>/main.go`, результат — в `internal/data/generated/<имя>/`.
+При обычном запуске сервер подготавливает `<world>/vanilla/1.21.4/` без Java: проверяет и копирует `.mcdata/1.21.4/vanilla`, если тот существует, иначе извлекает ресурсы из официального JAR. Данные и отчёты генераторов хранятся отдельно в `.mcdata/<version>/`. Для сборки и тестирования Go-кода из Git полная перегенерация не нужна.
 
-## Быстрый старт
+## Генерация после клонирования
+
+Установите зависимости и убедитесь, что `java` и `javac` из **JDK 21** доступны в PATH. Из корня репозитория:
+
+Linux (Bash):
 
 ```bash
-# Обновить всё для конкретной версии (рекомендуется)
-./scripts/update_version.sh 1.21.4
-
-# Или запустить конкретный генератор
-go run internal/data/generator/block/main.go -version 1.21.4
+make generate
+# Явная версия (по умолчанию 1.21.4):
+make generate MC_VERSION=1.21.4
 ```
 
-## Генераторы (59 штук)
+`MC_VERSION` выбирает версию входных данных для всего процесса. Её можно задать через окружение; значение в командной строке имеет приоритет. По умолчанию используется 1.21.4. Для другой версии нужно адаптировать генераторы и сервер; см. [обновление версии](version-upgrade.md). Сборка, запуск и тесты используют текущий код и таблицы, независимо от `MC_VERSION`.
 
-### Из JSON-файлов PrismarineJS
+Команда скачивает данные, переименовывает классы по таблицам Mojang, декомпилирует Java, создаёт отчёты, запускает Go-генераторы и `make verify`. Завершение отмечается сообщением `data generation completed for <version>`. Проверьте изменения сгенерированного кода и эталонных данных тестов.
 
-| Генератор | Вход | Описание |
-|-----------|------|----------|
-| `block` | `blocks.json` | Типы блоков, состояния, свойства (1095 блоков, 27866 состояний) |
-| `item` | `items.json` | Типы предметов, размеры стеков (1385 предметов) |
-| `entity` | `entities.json` | Типы сущностей, размеры (149 сущностей) |
-| `sound` | `sounds.json` | ID звуковых событий (1651 звук) |
-| `particle` | `particles.json` | ID типов частиц (112 частиц) |
-| `effect` | `effects.json` | Определения эффектов зелий (39 эффектов) |
-| `biome` | `biomes.json` | Определения биомов (65 биомов) |
-| `spawn_egg` | `items.json` | Яйца призыва (81 яйцо) |
-| `packet` | `protocol.json` | Packet ID для всех состояний протокола |
-| `recipes` | `recipes.json` | Рецепты крафта (1557 рецептов) |
-| `translation` | `language.json` | Ключи переводов (7000 переводов) |
-| `collision_shapes` | `blockCollisionShapes.json` + `blocks.json` | AABB коллизий блоков (4989 фигур) |
+Bash-скрипт проверяет `curl`, `jq`, `sha1sum`, `sha256sum`, `java`, `javac`, `go`, `find`, `sort`, `xargs`, `awk`, `sed`, `cmp`, `cp`, `make`, `git` и стандартные утилиты оболочки. Нужны GNU `sort -z`, `find -print0`, `xargs -0` и утилиты контрольных сумм. На macOS установите Bash 4+ и утилиты GNU, добавив их команды в PATH. Gradle и ручная подготовка исходников не требуются.
 
-### Из `registries.json` (генератор данных серверного JAR)
+## Генерация на Windows
 
-| Генератор | Ключ регистра | Описание |
-|-----------|--------------|----------|
-| `attribute` | `minecraft:attribute` | Типы атрибутов (31) |
-| `game_event` | `minecraft:game_event` | Игровые события (60) |
-| `fluid` | `minecraft:fluid` | Типы жидкостей (5) |
-| `potion` | `minecraft:potion` | Типы зелий (46) |
-| `screen` | `minecraft:menu` | Типы экранов/меню |
-| `data_component` | `minecraft:data_component_type` | Типы компонентов данных |
-| `block_entity` | `minecraft:block_entity_type` | Типы блок-сущностей |
-| `villager_profession` | `minecraft:villager_profession` | Профессии жителей |
-| `villager_type` | `minecraft:villager_type` | Типы жителей |
-| `cat_variant` | `minecraft:cat_variant` | Варианты кошек |
-| `frog_variant` | `minecraft:frog_variant` | Варианты лягушек |
-| `message_type` | `minecraft:message_type` | Типы сообщений |
-| `registry` | все регистры | Полная система регистров (80 регистров + конфиг NBT + теги) |
-| `tag` | все теги | Маппинги тег→ID для 13 регистров |
+Нужны Windows amd64, PowerShell **7.2+**, Go 1.23+, **JDK 21**, Git и C-компилятор для обязательного обнаружения гонок Go. Скрипт работает напрямую в PowerShell, без WSL, Bash, Make, curl, jq и утилит GNU:
 
-### Из датапаков misode/mcmeta
-
-| Генератор | Директория | Описание |
-|-----------|-----------|----------|
-| `damage_type` | `datapacks/damage_type` | Определения типов урона (49) |
-| `dimension` | `datapacks/dimension_type` | Определения типов измерений (4) |
-| `enchantment` | `datapacks/enchantment` | Определения зачарований (42) |
-| `jukebox_song` | `datapacks/jukebox_song` | Песни музыкального автомата (19) |
-| `painting_variant` | `datapacks/painting_variant` | Варианты картин (50) |
-| `wolf_variant` | `datapacks/wolf_variant` | Варианты волков (9) |
-| `instrument` | `datapacks/instrument` | Инструменты (8) |
-| `trim_pattern` | `datapacks/trim_pattern` | Паттерны отделки брони (18) |
-| `trim_material` | `datapacks/trim_material` | Материалы отделки брони (11) |
-| `banner_pattern` | `datapacks/banner_pattern` | Паттерны знамён (43) |
-| `structures` | `datapacks/worldgen/structure` | Определения структур |
-| `noise_parameter` | `datapacks/worldgen/noise` | Параметры шума |
-| `configured_features` | `datapacks/worldgen/configured_feature` | Настроенные объекты |
-| `placed_features` | `datapacks/worldgen/placed_feature` | Размещённые объекты |
-| `chunk_gen_settings` | `datapacks/worldgen/noise_settings` | Настройки генерации чанков |
-
-### Из декомпилированного серверного JAR
-
-| Генератор | Источник | Описание |
-|-----------|---------|----------|
-| `chunk_status` | `ChunkStatus.java` | Статусы чанков (12) |
-| `entity_pose` | `Pose.java` | Позы сущностей (18) |
-| `entity_status` | `EntityEvent.java` | Статусные события сущностей (59) |
-| `meta_data_type` | `EntityDataSerializers.java` | Типы сериализаторов метаданных (31) |
-| `sound_category` | `SoundSource.java` | Категории звуков (10) |
-| `world_event` | `LevelEvent.java` | Мировые события (82) |
-| `scoreboard_slot` | `DisplaySlot.java` | Слоты отображения таблицы (19) |
-| `game_rules` | `GameRules.java` | Игровые правила (53) |
-| `tracked_data` | `Entity*.java` | Отслеживаемые данные сущностей (212) |
-| `composter` | `ComposterBlock.java` | Компостируемые предметы (108) |
-| `flower_pot` | `FlowerPotBlock.java` | Блоки цветочных горшков (2) |
-| `fuels` | `AbstractFurnaceBlockEntity.java` | Топливо для печи (41) |
-| `smelting` | `*Recipe.java` | Рецепты готовки (113) |
-| `status_effect` | `MobEffect.java` | Статусные эффекты (23) |
-| `potion_brewing` | `PotionBrewing.java` | Рецепты зельеварения (41) |
-
-### Генераторы заглушек/ремапов
-
-| Генератор | Описание |
-|-----------|----------|
-| `block_state_remap` | Ремап ID состояний блоков (миграция версий) |
-| `entity_id_remap` | Ремап ID сущностей (миграция версий) |
-| `item_id_remap` | Ремап ID предметов (миграция версий) |
-| `recipe_remainder` | Остатки рецептов |
-
-## Документация
-
-- [Руководство по обновлению версии](version-upgrade.md) — Обновление до новой версии Minecraft
-- [Источники данных](data-sources.md) — Откуда берутся файлы данных
-
-## Структура директорий
-
+```powershell
+pwsh -NoProfile -File .\scripts\windows\update_version.ps1 -Version 1.21.4
 ```
-.mcdata/
-└── 1.21.4/
-    ├── registries.json          # Сгенерирован из серверного JAR (все 80 регистров)
-    ├── blocks.json              # PrismarineJS
-    ├── items.json               # PrismarineJS
-    ├── entities.json            # PrismarineJS
-    ├── protocol.json            # PrismarineJS
-    ├── sounds.json              # PrismarineJS
-    ├── particles.json           # PrismarineJS
-    ├── effects.json             # PrismarineJS
-    ├── biomes.json              # PrismarineJS
-    ├── language.json            # PrismarineJS
-    ├── blockCollisionShapes.json # PrismarineJS
-    ├── datapacks/               # misode/mcmeta (данные конфиг-регистров)
-    │   ├── damage_type/
-    │   ├── dimension_type/
-    │   ├── enchantment/
-    │   ├── worldgen/biome/
-    │   ├── worldgen/structure/
-    │   ├── worldgen/noise/
-    │   └── ...
-    └── tags/                    # misode/mcmeta (определения тегов)
-        ├── block/
-        ├── item/
-        ├── entity_type/
-        └── ...
 
-internal/data/
-├── generator/                   # Кодогенераторы (59)
-│   ├── block/main.go
-│   ├── item/main.go
-│   └── ...
-└── generated/                   # Сгенерированный Go-код (НЕ РЕДАКТИРОВАТЬ)
-    ├── block/blocks.go
-    ├── item/items.go
-    └── ...
+Без `-Version` используется `MC_VERSION` из окружения или 1.21.4. Оба скрипта используют одинаковые пути, входные данные, порядок генераторов, проверки кеша и восстановление. Общее [описание генерации](../../../scripts/generation_manifest.json) задаёт версии и хеши инструментов, список генераторов и выходных файлов. Файлы контрольных сумм и сведения о входных данных записываются с переводами строк LF. Отличие версии JDK или файлов делает кеш непригодным для повторного использования. После генерации [verify.ps1](../../../scripts/windows/verify.ps1) выполняет обязательные проверки.
+
+Обнаружение гонок требует `CGO_ENABLED=1`; на Windows — C-компилятора с библиотеками mingw-w64 версии **8+**. Скрипт проверяет зависимости до скачивания. См. [требования Go](https://go.dev/doc/articles/race_detector#Requirements). Windows PowerShell 5.1 не поддерживается; используйте `pwsh`.
+
+## Файлы и этапы
+
+| Путь | Назначение |
+| --- | --- |
+| `.mc-decompiled/downloads/<version>/` | Проверенные JAR сервера и таблицы имён Mojang |
+| `.mc-decompiled/downloads/tools/` | MinecraftDecompiler 3.3.2 и Vineflower 1.9.3 с закреплёнными SHA-256 |
+| `.mc-decompiled/<version>-remapped.jar` | JAR с переименованными классами для Java-экспортёров |
+| `.mc-decompiled/<version>-decompiled/` | Java-исходники для генераторов |
+| `.mc-decompiled/<version>.sources.lock`, `.sources.sha256` | Версии, входные данные и контрольные суммы подготовленных файлов |
+| `.mcdata/<version>/` | Официальные ресурсы и отчёты, данные PrismarineJS, дополнительные копии, версии источников и контрольные суммы |
+| `internal/data/generated/` и файлы генерации мира | Сгенерированные Go-таблицы, вычислители и эталонные данные тестов |
+| `<world>/vanilla/<version>/` | Ресурсы работающего сервера |
+
+[Скрипт подготовки](../../../scripts/linux/update_version.sh) проверяет официальные хеши и размеры, скачивает закреплённые инструменты и создаёт исходники во временных каталогах. Один набор инструментов используется для разбора Java и запуска экспортёров. Кеш применяется только при совпадении входных данных, версий инструментов и всех контрольных сумм. Старый каталог без этих сведений пересоздаётся.
+
+Данные PrismarineJS берутся из закреплённого коммита. Пути наследуемых файлов определяются по его `dataPaths.json`. Если есть `source.lock`, коммит берётся из него; при первой генерации 1.21.4 используется значение, закреплённое в скрипте. Официальный генератор создаёт отчёты, а встроенные ресурсы JAR дополняют отсутствующие файлы.
+
+Генераторы запускаются в заданном порядке. Однофайловые программы с тегом сборки `ignore` запускаются по имени файла; многофайловый генератор мира — пакетом с ресурсами выбранной версии. При добавлении генератора обновите списки команд и выходных файлов.
+
+## Отдельные генераторы
+
+При уже подготовленных входных данных, Linux (Bash):
+
+```bash
+go run internal/data/generator/registry/main.go -version 1.21.4
+go run ./internal/data/generator/worldgen -version 1.21.4
 ```
+
+Windows (PowerShell 7.2+):
+
+```powershell
+go run internal/data/generator/registry/main.go -version 1.21.4
+go run ./internal/data/generator/worldgen -version 1.21.4
+```
+
+Генераторы, `vitis-data` и `vitis-worldgen-compare` принимают `-version`. Генератор мира читает `.mcdata/<version>/vanilla/data/minecraft/worldgen`, инструмент сравнения — `.mcdata/<version>/vanilla`; `-resources` задаёт другой путь. У `vitis-data` версия определяет стандартные пути JAR и результата, которые можно заменить через `-jar` и `-output`. Прямой вызов на Linux: `scripts/linux/update_version.sh <version>`. Отдельные Go-команды используют флаг `-version`, а не `MC_VERSION`.
+
+Режим `vitis-data -unpack -version 1.21.4 -jar <verified-jar> -output <new-directory>` извлекает вложенный JAR и библиотеки для скрипта подготовки, проверяя их содержимое и размеры. Обычный режим создаёт отчёты.
+
+## Ошибки и восстановление
+
+Перед заменой файлов скрипт сохраняет сгенерированный код, эталонные данные тестов, данные выбранной версии и заменяемые Java-файлы. Ошибка команды или проверки, SIGINT либо SIGTERM останавливает активные процессы и восстанавливает исходное состояние. Незакоммиченные изменения возвращаются; файлы, которых до запуска не было, удаляются. Скачанные файлы устанавливаются только после проверки контрольных сумм.
+
+Исправьте первую ошибку и повторите команду. Сбой переименования классов или декомпиляции не заменяет готовые Java-файлы. `.mcdata/.generate-lock` запрещает одновременные запуски. Не редактируйте выходные файлы во время генерации.
+
+После SIGKILL или сбоя машины автоматическое восстановление невозможно. Перед удалением оставшейся блокировки проверьте `.generation-backup.*`. Скрипт сохраняет копии других запусков; при ошибке восстановления сообщает путь к своей копии.
+
+Источники: [восстановление файлов](../../../scripts/linux/generation_transaction.sh), [подготовка ресурсов сервера](../../../internal/data/vanilla/prepare.go), [проверка и копирование](../../../internal/data/vanilla/local.go), [отчёты разработчика](../../../internal/data/vanilla/generate.go), [Java-экспортёр](../../../internal/data/generator/block/worldgen/README.md).
+
+См. также: [источники данных](data-sources.md), [обновление версии](version-upgrade.md), [тестирование](../testing.md).
