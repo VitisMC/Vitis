@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  minecraft-resources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download verified Minecraft server
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import urllib.request
+
+          def fetch(url):
+              """Read a Mojang resource with a bounded timeout."""
+              with urllib.request.urlopen(url, timeout=120) as response:
+                  return response.read()
+
+          manifest = json.loads(fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'))
+          version = next(entry for entry in manifest['versions'] if entry['id'] == '1.21.4')
+          metadata = fetch(version['url'])
+          if hashlib.sha1(metadata).hexdigest() != version['sha1']:
+              raise SystemExit('Minecraft metadata checksum mismatch')
+          server = json.loads(metadata)['downloads']['server']
+          data = fetch(server['url'])
+          if len(data) != server['size'] or hashlib.sha1(data).hexdigest() != server['sha1']:
+              raise SystemExit('Minecraft server checksum mismatch')
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'minecraft-server.jar').write_bytes(data)
+          PY
+      - name: Prepare test resources
+        run: |
+          go run ./cmd/vitis-data -version 1.21.4 -jar "$RUNNER_TEMP/minecraft-server.jar" -output .mcdata/1.21.4/vanilla
+          mkdir -p .mcdata/1.21.4/loot_tables
+          cp -a .mcdata/1.21.4/vanilla/data/minecraft/loot_table/. .mcdata/1.21.4/loot_tables/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-test-resources-1.21.4
+          path: .mcdata/1.21.4/
+          include-hidden-files: true
+          retention-days: 1
+
+  correctness:
+    needs: minecraft-resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: minecraft-test-resources-1.21.4
+          path: .mcdata/1.21.4/
+      - run: make docs-check
+      - run: go test ./... -count=1
+      - name: Check tracked metadata generation
+        run: go test ./internal/data/generator/tracked_data/main.go ./internal/data/generator/tracked_data/main_test.go -count=1
+      - run: go vet ./...
+      - run: go test -race ./... -count=1
+      - run: make fuzz-smoke
+
+  windows-tooling:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check native PowerShell tooling
+        shell: pwsh
+        run: go test ./scripts -run 'TestPowerShell|TestGenerationManifest' -count=1

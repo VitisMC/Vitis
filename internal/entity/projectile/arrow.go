@@ -2,9 +2,14 @@ package projectile
 
 import (
 	genentity "github.com/vitismc/vitis/internal/data/generated/entity"
+	"github.com/vitismc/vitis/internal/effect"
 	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/entity/physics"
+	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/protocol"
+	"math"
+	"math/rand"
 )
 
 const (
@@ -18,12 +23,17 @@ const (
 // Arrow represents an arrow entity in the world.
 type Arrow struct {
 	*Base
-	damage      float64
-	piercing    int32
-	pickup      int32
-	critical    bool
-	knockback   int32
-	potionColor int32
+	damage        float64
+	piercing      int32
+	pickup        int32
+	critical      bool
+	knockback     int32
+	potionColor   int32
+	pickupItem    inventory.ItemStack
+	hitEffects    []effect.Instance
+	metadataDirty bool
+	inGroundTicks int32
+	potionExpired bool
 }
 
 // NewArrow creates an arrow shot from the given position/velocity.
@@ -31,9 +41,11 @@ func NewArrow(id int32, uuid protocol.UUID, pos, vel entity.Vec3, ownerID int32,
 	b := NewBase(id, uuid, entity.EntityType(genentity.EntityArrow), pos, vel, ownerID, ownerUUID, physics.GravityArrow, physics.DragArrow)
 	b.Entity.SetProtocolInfo(genentity.EntityArrow, ownerID)
 	return &Arrow{
-		Base:   b,
-		damage: ArrowBaseDamage,
-		pickup: ArrowPickupAllowed,
+		Base:        b,
+		damage:      ArrowBaseDamage,
+		pickup:      ArrowPickupAllowed,
+		potionColor: -1,
+		pickupItem:  inventory.NewSlot(item.IDByName("minecraft:arrow"), 1),
 	}
 }
 
@@ -67,11 +79,14 @@ func (a *Arrow) Knockback() int32 { return a.knockback }
 // SetKnockback sets extra knockback.
 func (a *Arrow) SetKnockback(k int32) { a.knockback = k }
 
-// PotionColor returns the potion color for tipped arrows, or 0 for normal arrows.
+// PotionColor returns the potion particle color, or -1 for an ordinary arrow.
 func (a *Arrow) PotionColor() int32 { return a.potionColor }
 
 // SetPotionColor sets the tipped arrow potion color.
-func (a *Arrow) SetPotionColor(c int32) { a.potionColor = c }
+func (a *Arrow) SetPotionColor(c int32) {
+	a.potionColor = c
+	a.metadataDirty = true
+}
 
 // ProtocolType returns the protocol entity type ID.
 func (a *Arrow) ProtocolType() int32 {
@@ -90,18 +105,16 @@ func (a *Arrow) SpawnData() int32 {
 func (a *Arrow) Tick(world physics.BlockAccess, finder EntityFinder) {
 	dims := physics.ArrowDimensions()
 	a.Base.Tick(world, finder, dims)
+	a.tickPotionDecay()
 }
 
 // ComputeHitDamage returns the damage to deal, accounting for velocity and critical.
 func (a *Arrow) ComputeHitDamage() float64 {
 	vel := a.Entity.Velocity()
-	speed := vel.X*vel.X + vel.Y*vel.Y + vel.Z*vel.Z
-	if speed < 0.01 {
-		speed = 0.01
-	}
-	dmg := a.damage * speed
+	speed := math.Sqrt(vel.X*vel.X + vel.Y*vel.Y + vel.Z*vel.Z)
+	dmg := math.Ceil(math.Max(0, math.Min(math.MaxInt32, a.damage*speed)))
 	if a.critical {
-		dmg += dmg / 2
+		dmg = math.Min(math.MaxInt32, dmg+float64(rand.Intn(int(dmg)/2+2)))
 	}
 	return dmg
 }

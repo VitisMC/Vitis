@@ -1,9 +1,13 @@
 package play
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
+
+const maxCookiePayloadLength = 5120
 
 // ClientboundCookieRequest is sent by the server to request a cookie from the client during play.
 type ClientboundCookieRequest struct {
@@ -42,7 +46,7 @@ func (p *ServerboundCookieResponse) ID() int32 {
 
 func (p *ServerboundCookieResponse) Decode(buf *protocol.Buffer) error {
 	var err error
-	if p.Key, err = buf.ReadString(); err != nil {
+	if p.Key, err = buf.ReadStringLimit(32767); err != nil {
 		return err
 	}
 	if p.HasData, err = buf.ReadBool(); err != nil {
@@ -52,6 +56,9 @@ func (p *ServerboundCookieResponse) Decode(buf *protocol.Buffer) error {
 		length, err := buf.ReadVarInt()
 		if err != nil {
 			return err
+		}
+		if length < 0 || length > maxCookiePayloadLength {
+			return fmt.Errorf("cookie payload length out of range: %d", length)
 		}
 		p.Data, err = buf.ReadBytes(int(length))
 		return err

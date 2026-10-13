@@ -17,8 +17,7 @@ func (p *SetCursorItem) ID() int32 {
 }
 func (p *SetCursorItem) Decode(_ *protocol.Buffer) error { return nil }
 func (p *SetCursorItem) Encode(buf *protocol.Buffer) error {
-	inventory.EncodeSlot(buf, p.SlotData)
-	return nil
+	return inventory.EncodeItemStack(buf, p.SlotData)
 }
 
 // SetPlayerInventorySlot updates a single slot in the player inventory.
@@ -34,8 +33,7 @@ func (p *SetPlayerInventorySlot) ID() int32 {
 func (p *SetPlayerInventorySlot) Decode(_ *protocol.Buffer) error { return nil }
 func (p *SetPlayerInventorySlot) Encode(buf *protocol.Buffer) error {
 	buf.WriteVarInt(p.SlotIdx)
-	inventory.EncodeSlot(buf, p.SlotData)
-	return nil
+	return inventory.EncodeItemStack(buf, p.SlotData)
 }
 
 // ClientboundHeldItemSlot tells the client which hotbar slot is selected.

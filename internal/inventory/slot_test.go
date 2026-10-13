@@ -1,107 +1,272 @@
 package inventory
 
-import "testing"
+import (
+	"testing"
 
-func TestEmptySlot(t *testing.T) {
-	s := EmptySlot()
-	if !s.Empty() {
-		t.Fatal("expected empty")
+	datacomponent "github.com/vitismc/vitis/internal/data/generated/data_component"
+	"github.com/vitismc/vitis/internal/nbt"
+	"github.com/vitismc/vitis/internal/protocol"
+)
+
+func TestDecodeSlotAcceptsTypedComponentPatch(t *testing.T) {
+	buf := protocol.NewBuffer(32)
+	buf.WriteVarInt(1)
+	buf.WriteVarInt(1)
+	buf.WriteVarInt(1)
+	buf.WriteVarInt(0)
+	buf.WriteVarInt(datacomponent.ComponentDamage)
+	buf.WriteVarInt(42)
+
+	stack, err := DecodeSlot(buf)
+	if err != nil {
+		t.Fatalf("DecodeSlot: %v", err)
+	}
+	if stack.Damage != 42 || stack.ComponentsAdd != 1 || len(stack.ComponentPatch.Added) != 1 {
+		t.Fatalf("decoded stack = %#v", stack)
 	}
 }
 
-func TestSlotNotEmpty(t *testing.T) {
-	s := NewSlot(1, 64)
-	if s.Empty() {
-		t.Fatal("expected not empty")
+func TestDecodeSlotWithoutComponentsReadsSimpleStack(t *testing.T) {
+	buf := protocol.NewBuffer(16)
+	buf.WriteVarInt(3)
+	buf.WriteVarInt(17)
+	buf.WriteVarInt(0)
+	buf.WriteVarInt(0)
+
+	stack, err := DecodeSlot(buf)
+	if err != nil {
+		t.Fatalf("decode slot: %v", err)
+	}
+	if stack.ItemCount != 3 || stack.ItemID != 17 {
+		t.Fatalf("stack = %#v", stack)
 	}
 }
 
-func TestPlayerInventory(t *testing.T) {
-	inv := NewPlayerInventory()
-	if inv.Size() != PlayerInventorySize {
-		t.Fatalf("size = %d, want %d", inv.Size(), PlayerInventorySize)
+func TestEncodeSlotNeverWritesUnsupportedComponentPayload(t *testing.T) {
+	buf := protocol.NewBuffer(32)
+	EncodeSlot(buf, Slot{
+		ItemCount:     1,
+		ItemID:        5,
+		ComponentsAdd: 1,
+		ComponentsRem: 1,
+		RawComponents: []byte{0x7f, 0x00},
+	})
+	EncodeSlot(buf, NewSlot(6, 2))
+
+	first, err := DecodeSlot(buf)
+	if err != nil {
+		t.Fatalf("decode first slot: %v", err)
 	}
-	if !inv.Get(0).Empty() {
-		t.Fatal("slot 0 should be empty")
+	if first.ItemID != 5 || first.ComponentsAdd != 0 || first.ComponentsRem != 0 {
+		t.Fatalf("first slot = %#v", first)
+	}
+	second, err := DecodeSlot(buf)
+	if err != nil {
+		t.Fatalf("decode second slot: %v", err)
+	}
+	if second.ItemID != 6 || second.ItemCount != 2 {
+		t.Fatalf("second slot = %#v", second)
 	}
 }
 
-func TestSetGet(t *testing.T) {
-	inv := NewPlayerInventory()
-	inv.Set(HotbarStart, NewSlot(10, 32))
-	got := inv.Get(HotbarStart)
-	if got.ItemID != 10 || got.ItemCount != 32 {
-		t.Fatalf("got %+v, want {10, 32}", got)
+func TestContainerDoesNotExposeMutableSlotFields(t *testing.T) {
+	container := NewContainer(1)
+	container.Set(0, Slot{
+		ItemCount:     1,
+		ItemID:        4,
+		RawComponents: []byte{1, 2},
+		Enchantments:  map[int32]int32{3: 4},
+	})
+
+	got := container.Get(0)
+	got.RawComponents[0] = 99
+	got.Enchantments[3] = 99
+	got.SetEnchant(5, 6)
+
+	stored := container.Get(0)
+	if stored.RawComponents[0] != 1 {
+		t.Fatalf("stored raw components mutated: %v", stored.RawComponents)
+	}
+	if stored.EnchantLevel(3) != 4 || stored.EnchantLevel(5) != 0 {
+		t.Fatalf("stored enchantments mutated: %v", stored.Enchantments)
+	}
+
+	snapshot := container.Slots()
+	snapshot[0].RawComponents[1] = 99
+	snapshot[0].Enchantments[3] = 99
+	stored = container.Get(0)
+	if stored.RawComponents[1] != 2 || stored.EnchantLevel(3) != 4 {
+		t.Fatalf("slots snapshot mutated storage: %#v", stored)
 	}
 }
 
-func TestHotbarSlot(t *testing.T) {
-	inv := NewPlayerInventory()
-	inv.SetHotbarSlot(0, NewSlot(5, 1))
-	got := inv.HotbarSlot(0)
-	if got.ItemID != 5 {
-		t.Fatalf("hotbar 0 = %+v, want itemID=5", got)
+func TestWindowCursorDoesNotExposeMutableSlotFields(t *testing.T) {
+	wm := NewWindowManager()
+	wm.SetCursorItem(Slot{ItemCount: 1, ItemID: 4, Enchantments: map[int32]int32{3: 4}})
+
+	cursor := wm.CursorItem()
+	cursor.SetEnchant(3, 99)
+	cursor.SetEnchant(5, 6)
+
+	stored := wm.CursorItem()
+	if stored.EnchantLevel(3) != 4 || stored.EnchantLevel(5) != 0 {
+		t.Fatalf("cursor state was mutated externally: %#v", stored)
 	}
 }
 
-func TestClearAll(t *testing.T) {
-	inv := NewPlayerInventory()
-	inv.Set(10, NewSlot(1, 1))
-	inv.ClearAll()
-	if !inv.Get(10).Empty() {
-		t.Fatal("expected empty after ClearAll")
+func TestItemStackComponentPatchRoundTrip(t *testing.T) {
+	stack := ItemStack{
+		ItemCount: 1,
+		ItemID:    5,
+		ComponentPatch: ComponentPatch{
+			Added: []DataComponent{
+				{TypeID: datacomponent.ComponentDamage, Value: VarIntComponent(7)},
+				{TypeID: datacomponent.ComponentUnbreakable, Value: BoolComponent(true)},
+				{TypeID: datacomponent.ComponentEnchantments, Value: EnchantmentsComponent{
+					Levels: map[int32]int32{2: 3}, ShowInTooltip: true,
+				}},
+			},
+			Removed: []int32{datacomponent.ComponentCustomName},
+		},
+	}
+	buf := protocol.NewBuffer(128)
+	EncodeSlot(buf, stack)
+	decoded, err := DecodeSlot(buf)
+	if err != nil {
+		t.Fatalf("DecodeSlot: %v", err)
+	}
+	if decoded.Damage != 7 || decoded.EnchantLevel(2) != 3 {
+		t.Fatalf("derived stack fields = %#v", decoded)
+	}
+
+	reencoded := protocol.NewBuffer(128)
+	EncodeSlot(reencoded, decoded)
+	if string(reencoded.Bytes()) != string(buf.Bytes()) {
+		t.Fatalf("wire round-trip mismatch:\n got %x\nwant %x", reencoded.Bytes(), buf.Bytes())
 	}
 }
 
-func TestOutOfBounds(t *testing.T) {
-	inv := NewPlayerInventory()
-	s := inv.Get(-1)
-	if !s.Empty() {
-		t.Fatal("out of bounds should return empty")
-	}
-	s = inv.Get(100)
-	if !s.Empty() {
-		t.Fatal("out of bounds should return empty")
-	}
-	inv.Set(-1, NewSlot(1, 1))
-	inv.Set(100, NewSlot(1, 1))
-}
-
-func TestSwapSlots(t *testing.T) {
-	inv := NewPlayerInventory()
-	inv.Set(0, NewSlot(1, 10))
-	inv.Set(1, NewSlot(2, 20))
-	inv.SwapSlots(0, 1)
-	if inv.Get(0).ItemID != 2 || inv.Get(1).ItemID != 1 {
-		t.Fatal("swap failed")
+func TestDecodeComponentPatchRejectsDuplicateTypes(t *testing.T) {
+	buf := protocol.NewBuffer(32)
+	buf.WriteVarInt(1)
+	buf.WriteVarInt(1)
+	buf.WriteVarInt(datacomponent.ComponentDamage)
+	buf.WriteVarInt(1)
+	buf.WriteVarInt(datacomponent.ComponentDamage)
+	if _, err := DecodeComponentPatch(buf); err == nil {
+		t.Fatal("duplicate component type was accepted")
 	}
 }
 
-func TestFindFirst(t *testing.T) {
-	inv := NewPlayerInventory()
-	inv.Set(5, NewSlot(42, 1))
-	idx := inv.FindFirst(func(s Slot) bool { return s.ItemID == 42 })
-	if idx != 5 {
-		t.Fatalf("expected 5, got %d", idx)
+func TestContainerInsertMergesBeforeUsingEmptySlots(t *testing.T) {
+	container := NewContainer(4)
+	container.Set(0, NewSlot(5, 60))
+
+	remainder, changed := container.Insert(NewSlot(5, 10), 64, []int{0, 1, 2})
+	if !remainder.Empty() {
+		t.Fatalf("remainder = %#v", remainder)
 	}
-	idx = inv.FindFirst(func(s Slot) bool { return s.ItemID == 999 })
-	if idx != -1 {
-		t.Fatalf("expected -1, got %d", idx)
+	if len(changed) != 2 || changed[0] != 0 || changed[1] != 1 {
+		t.Fatalf("changed slots = %v", changed)
+	}
+	if got := container.Get(0).ItemCount; got != 64 {
+		t.Fatalf("slot 0 count = %d, want 64", got)
+	}
+	if got := container.Get(1).ItemCount; got != 6 {
+		t.Fatalf("slot 1 count = %d, want 6", got)
 	}
 }
 
-func TestSlots(t *testing.T) {
-	inv := NewPlayerInventory()
-	inv.Set(0, NewSlot(1, 1))
-	slots := inv.Slots()
-	if len(slots) != PlayerInventorySize {
-		t.Fatalf("expected %d slots, got %d", PlayerInventorySize, len(slots))
+func TestContainerInsertPreservesComponentIdentity(t *testing.T) {
+	container := NewContainer(2)
+	first := NewSlot(5, 1)
+	first.ComponentPatch.Removed = []int32{datacomponent.ComponentCustomName}
+	second := NewSlot(5, 1)
+	second.ComponentPatch.Removed = []int32{datacomponent.ComponentLore}
+	container.Set(0, first)
+
+	remainder, changed := container.Insert(second, 64, []int{0, 1})
+	if !remainder.Empty() || len(changed) != 1 || changed[0] != 1 {
+		t.Fatalf("remainder=%#v changed=%v", remainder, changed)
 	}
-	if slots[0].ItemID != 1 {
-		t.Fatal("snapshot should contain set item")
+	if got := container.Get(0).ItemCount; got != 1 {
+		t.Fatalf("different component patches merged, slot 0 count = %d", got)
 	}
-	inv.Set(0, EmptySlot())
-	if slots[0].ItemID != 1 {
-		t.Fatal("snapshot should be independent of container")
+}
+
+func TestContainerInsertReturnsRemainderWhenFull(t *testing.T) {
+	container := NewContainer(1)
+	container.Set(0, NewSlot(5, 63))
+
+	remainder, changed := container.Insert(NewSlot(5, 3), 64, nil)
+	if remainder.ItemCount != 2 || len(changed) != 1 || changed[0] != 0 {
+		t.Fatalf("remainder=%#v changed=%v", remainder, changed)
+	}
+}
+
+func TestChatLoreAndFireworksComponentsRoundTrip(t *testing.T) {
+	textNBT := []byte{nbt.TagString, 0, 4, 't', 'e', 's', 't'}
+	stack := ItemStack{
+		ItemCount: 1,
+		ItemID:    5,
+		ComponentPatch: ComponentPatch{Added: []DataComponent{
+			{TypeID: datacomponent.ComponentCustomName, Value: RawNBTComponent{Data: textNBT}},
+			{TypeID: datacomponent.ComponentLore, Value: LoreComponent{{Data: textNBT}}},
+			{TypeID: datacomponent.ComponentFireworks, Value: FireworksComponent{
+				FlightDuration: 2,
+				Explosions: []FireworkExplosionComponent{{
+					Shape: 1, Colors: []int32{0x112233}, FadeColors: []int32{0x445566}, Trail: true,
+				}},
+			}},
+		}},
+	}
+	encoded := protocol.NewBuffer(256)
+	EncodeSlot(encoded, stack)
+	decoded, err := DecodeSlot(encoded)
+	if err != nil {
+		t.Fatalf("DecodeSlot: %v", err)
+	}
+	if len(decoded.ComponentPatch.Added) != 3 {
+		t.Fatalf("component count = %d", len(decoded.ComponentPatch.Added))
+	}
+	reencoded := protocol.NewBuffer(256)
+	EncodeSlot(reencoded, decoded)
+	if string(reencoded.Bytes()) != string(encoded.Bytes()) {
+		t.Fatalf("wire round-trip mismatch:\n got %x\nwant %x", reencoded.Bytes(), encoded.Bytes())
+	}
+}
+
+func TestEncodeItemStackRejectsMismatchedComponentValue(t *testing.T) {
+	buf := protocol.NewBuffer(32)
+	err := EncodeItemStack(buf, ItemStack{
+		ItemCount: 1,
+		ItemID:    5,
+		ComponentPatch: ComponentPatch{Added: []DataComponent{{
+			TypeID: datacomponent.ComponentDamage,
+			Value:  BoolComponent(true),
+		}}},
+	})
+	if err == nil {
+		t.Fatal("mismatched component value was encoded")
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("partial item stack was written: %x", buf.Bytes())
+	}
+}
+
+func TestLegacyDamageAndEnchantmentsAreEncodedAsComponents(t *testing.T) {
+	stack := NewSlot(5, 1)
+	stack.Damage = 4
+	stack.SetEnchant(2, 3)
+	buf := protocol.NewBuffer(64)
+	if err := EncodeItemStack(buf, stack); err != nil {
+		t.Fatalf("EncodeItemStack: %v", err)
+	}
+	decoded, err := DecodeItemStack(buf)
+	if err != nil {
+		t.Fatalf("DecodeItemStack: %v", err)
+	}
+	if decoded.Damage != 4 || decoded.EnchantLevel(2) != 3 {
+		t.Fatalf("decoded stack = %#v", decoded)
 	}
 }

@@ -1,6 +1,8 @@
 package ai
 
-// Goal represents a single AI behavior that can be started, ticked, and stopped.
+import "sort"
+
+// Goal represents one tick-owned AI behavior.
 type Goal interface {
 	CanStart(ctx *Context) bool
 	Start(ctx *Context)
@@ -9,83 +11,101 @@ type Goal interface {
 	Stop(ctx *Context)
 }
 
+// goalControls describes mutually exclusive AI resources.
+type goalControls uint8
+
+const (
+	controlMove goalControls = 1 << iota
+	controlLook
+	controlJump
+)
+
+// goalEntry stores a behavior's priority and execution state.
 type goalEntry struct {
 	goal     Goal
 	priority int
+	running  bool
 }
 
-// GoalSelector manages a priority-ordered list of goals for a mob.
-// Lower priority values are more important (checked first).
-type GoalSelector struct {
-	entries        []goalEntry
-	active         Goal
-	activePriority int
-}
+// GoalSelector executes compatible behaviors in stable priority order.
+type GoalSelector struct{ entries []goalEntry }
 
-// NewGoalSelector creates an empty goal selector.
-func NewGoalSelector() *GoalSelector {
-	return &GoalSelector{
-		activePriority: -1,
-	}
-}
+// NewGoalSelector creates an empty selector.
+func NewGoalSelector() *GoalSelector { return &GoalSelector{} }
 
-// AddGoal registers a goal with the given priority.
+// AddGoal registers a behavior with lower numeric priorities taking precedence.
 func (gs *GoalSelector) AddGoal(priority int, goal Goal) {
+	if goal == nil {
+		return
+	}
 	gs.entries = append(gs.entries, goalEntry{goal: goal, priority: priority})
+	sort.SliceStable(gs.entries, func(i, j int) bool { return gs.entries[i].priority < gs.entries[j].priority })
 }
 
-// Active returns the currently active goal, or nil.
+// Active returns the highest-priority running behavior for compatibility.
 func (gs *GoalSelector) Active() Goal {
-	return gs.active
-}
-
-// Tick evaluates goals and ticks the active one.
-func (gs *GoalSelector) Tick(ctx *Context) {
-	best := gs.findBestGoal(ctx)
-
-	if best != gs.active {
-		if gs.active != nil {
-			gs.active.Stop(ctx)
-		}
-		gs.active = best
-		if gs.active != nil {
-			gs.active.Start(ctx)
-		}
-	}
-
-	if gs.active != nil {
-		if gs.active.CanContinue(ctx) {
-			gs.active.Tick(ctx)
-		} else {
-			gs.active.Stop(ctx)
-			gs.active = nil
-			gs.activePriority = -1
-		}
-	}
-}
-
-func (gs *GoalSelector) findBestGoal(ctx *Context) Goal {
-	var bestGoal Goal
-	bestPriority := int(^uint(0) >> 1)
-
-	if gs.active != nil && gs.active.CanContinue(ctx) {
-		bestGoal = gs.active
-		bestPriority = gs.activePriority
-	}
-
 	for _, entry := range gs.entries {
-		if entry.priority >= bestPriority {
-			continue
-		}
-		if entry.goal == gs.active {
-			continue
-		}
-		if entry.goal.CanStart(ctx) {
-			bestGoal = entry.goal
-			bestPriority = entry.priority
+		if entry.running {
+			return entry.goal
 		}
 	}
+	return nil
+}
 
-	gs.activePriority = bestPriority
-	return bestGoal
+// controls identifies the resources consumed by existing behavior types.
+func controls(goal Goal) goalControls {
+	switch goal.(type) {
+	case *BurnInSunlightGoal:
+		return 0
+	case *SwimGoal:
+		return controlJump
+	case *SlimeHopGoal:
+		return controlMove | controlLook | controlJump
+	case *LookAtPlayerGoal:
+		return controlLook
+	default:
+		return controlMove | controlLook
+	}
+}
+
+// Tick stops expired goals, admits compatible goals, and executes them once.
+func (gs *GoalSelector) Tick(ctx *Context) {
+	for i := range gs.entries {
+		entry := &gs.entries[i]
+		if entry.running && !entry.goal.CanContinue(ctx) {
+			entry.goal.Stop(ctx)
+			entry.running = false
+		}
+	}
+	for i := range gs.entries {
+		candidate := &gs.entries[i]
+		if candidate.running {
+			continue
+		}
+		blocked := false
+		for j := range gs.entries {
+			other := &gs.entries[j]
+			if other.running && other.priority <= candidate.priority && controls(other.goal)&controls(candidate.goal) != 0 {
+				blocked = true
+				break
+			}
+		}
+		if blocked || !candidate.goal.CanStart(ctx) {
+			continue
+		}
+		for j := range gs.entries {
+			other := &gs.entries[j]
+			if other.running && controls(other.goal)&controls(candidate.goal) != 0 {
+				other.goal.Stop(ctx)
+				other.running = false
+			}
+		}
+		candidate.goal.Start(ctx)
+		candidate.running = true
+	}
+	for i := range gs.entries {
+		if gs.entries[i].running && !ctx.Mob.IsDead() && !ctx.Mob.Removed() {
+			gs.entries[i].goal.Tick(ctx)
+		}
+	}
 }

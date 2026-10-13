@@ -2,6 +2,7 @@ package entity
 
 import (
 	genbe "github.com/vitismc/vitis/internal/data/generated/block_entity"
+	"github.com/vitismc/vitis/internal/nbt"
 )
 
 type BlockEntity interface {
@@ -76,7 +77,68 @@ func (b *BaseBlockEntity) ReadNBT(data map[string]any) {
 }
 
 func (b *BaseBlockEntity) ChunkDataNBT() []byte {
-	return nil
+	root := nbt.NewCompound().
+		PutString("id", b.typeName).
+		PutInt("x", b.x).
+		PutInt("y", b.y).
+		PutInt("z", b.z)
+	encoder := nbt.NewEncoder(128)
+	if err := encoder.WriteRootCompound(root); err != nil {
+		return nil
+	}
+	return encoder.Bytes()
+}
+
+// RawBlockEntity preserves a block entity's complete NBT while exposing its
+// protocol identity and position through BlockEntity.
+type RawBlockEntity struct {
+	*BaseBlockEntity
+	raw *nbt.Compound
+}
+
+// NewRawBlockEntity creates a lossless block entity from chunk NBT.
+func NewRawBlockEntity(raw *nbt.Compound) *RawBlockEntity {
+	if raw == nil {
+		return nil
+	}
+	typeName, ok := raw.GetString("id")
+	if !ok || typeName == "" {
+		return nil
+	}
+	x, xOK := raw.GetInt("x")
+	y, yOK := raw.GetInt("y")
+	z, zOK := raw.GetInt("z")
+	if !xOK || !yOK || !zOK {
+		return nil
+	}
+	return &RawBlockEntity{
+		BaseBlockEntity: NewBaseBlockEntity(typeName, x, y, z),
+		raw:             raw.Clone(),
+	}
+}
+
+// PersistentNBT returns a lossless copy of the block entity NBT.
+func (b *RawBlockEntity) PersistentNBT() *nbt.Compound {
+	if b == nil || b.raw == nil {
+		return nil
+	}
+	root := b.raw.Clone()
+	x, y, z := b.Position()
+	root.PutString("id", b.TypeName()).PutInt("x", x).PutInt("y", y).PutInt("z", z)
+	return root
+}
+
+// ChunkDataNBT returns unnamed network NBT for chunk and block-entity packets.
+func (b *RawBlockEntity) ChunkDataNBT() []byte {
+	root := b.PersistentNBT()
+	if root == nil {
+		return nil
+	}
+	encoder := nbt.NewEncoder(256)
+	if err := encoder.WriteRootCompound(root); err != nil {
+		return nil
+	}
+	return encoder.Bytes()
 }
 
 func HasBlockEntity(blockName string) bool {

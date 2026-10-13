@@ -1,7 +1,10 @@
 package entity
 
 import (
+	"math"
+
 	"github.com/vitismc/vitis/internal/effect"
+	"github.com/vitismc/vitis/internal/inventory"
 )
 
 // LivingEntity extends Entity with health, damage, and combat state.
@@ -16,16 +19,24 @@ type LivingEntity struct {
 	hurtCooldown int32
 	deathTime    int32
 	dead         bool
+	deathHandled bool
 
 	fallDistance float64
 
-	lastDamageSource string
-	lastDamageAmount float32
-	lastDamageType   DamageType
-	lastAttackerID   int32
+	lastDamageSource       string
+	lastDamageAmount       float32
+	lastDamageType         DamageType
+	lastDamageRegistryName string
+	lastDamageIsDirect     bool
+	lastAttackerID         int32
+	playerCreditTicks      int32
+	deathWeapon            inventory.ItemStack
+	lastAttackerType       string
+	lastDirectType         string
 
-	airSupply int32
-	fireTicks int32
+	airSupply  int32
+	fireTicks  int32
+	fireImmune bool
 
 	foodLevel      int32
 	foodSaturation float32
@@ -40,15 +51,22 @@ type LivingEntity struct {
 
 	attackCooldown int32
 
-	armorDefense   float64
-	armorToughness float64
-	armorEnchProt  float64
+	armorDefense        float64
+	armorToughness      float64
+	armorEnchProt       float64
+	armorFireProt       float64
+	armorBlastProt      float64
+	armorProjectileProt float64
+	armorFallProt       float64
+	armorDamageHandler  func(*DamageSource, float32)
 
 	blocking       bool
 	shieldCooldown int32
 
-	attributes *AttributeContainer
-	effects    *effect.Manager
+	attributes                *AttributeContainer
+	effects                   *effect.Manager
+	effectMovementLevels      [2]int32
+	effectMovementInitialized bool
 }
 
 // NewLivingEntity creates a living entity with default health values.
@@ -91,6 +109,32 @@ func (l *LivingEntity) SetArmorStats(defense, toughness, enchProt float64) {
 	l.armorEnchProt = enchProt
 }
 
+// SetArmorDamageHandler binds tick-owned equipment wear to accepted damage events.
+func (l *LivingEntity) SetArmorDamageHandler(handler func(*DamageSource, float32)) {
+	l.armorDamageHandler = handler
+}
+
+// SetArmorDamageProtection caches enchantments that apply only to specific damage types.
+func (l *LivingEntity) SetArmorDamageProtection(fire, blast, projectile, fall float64) {
+	l.armorFireProt, l.armorBlastProt, l.armorProjectileProt, l.armorFallProt = fire, blast, projectile, fall
+}
+
+// damageEnchantmentBonus selects protection for the current structured damage source.
+func (l *LivingEntity) damageEnchantmentBonus(source DamageType) float64 {
+	switch {
+	case source.IsFire():
+		return l.armorFireProt
+	case source.IsExplosion():
+		return l.armorBlastProt
+	case source.IsProjectile():
+		return l.armorProjectileProt
+	case source == DamageTypeFall:
+		return l.armorFallProt
+	default:
+		return 0
+	}
+}
+
 // IsBlocking returns true if the entity is actively blocking with a shield.
 func (l *LivingEntity) IsBlocking() bool { return l.blocking }
 
@@ -118,6 +162,13 @@ func (l *LivingEntity) SetHealth(h float32) {
 		h = l.maxHealth
 	}
 	l.health = h
+	l.Entity.dirty |= DirtyLivingState
+	if h == 0 {
+		l.dead = true
+		if l.deathTime == 0 {
+			l.deathTime = 1
+		}
+	}
 }
 
 // MaxHealth returns maximum health.
@@ -166,40 +217,25 @@ func (l *LivingEntity) SetFallDistance(d float64) { l.fallDistance = d }
 // Damage applies damage to the entity after absorption and cooldown checks.
 // Returns the actual damage dealt. Sets dead=true if health reaches zero.
 func (l *LivingEntity) Damage(amount float32, source string) float32 {
-	if l.dead || amount <= 0 {
-		return 0
+	kind := damageTypeFromSource(source)
+	actual := l.ApplyDamage(NewDamageSource(kind, amount), 0, 0, 0)
+	if actual > 0 {
+		l.lastDamageSource = source
 	}
-	if l.hurtCooldown > 0 {
-		return 0
-	}
-
-	actual := amount
-	if l.absorption > 0 {
-		absorbed := l.absorption
-		if absorbed > actual {
-			absorbed = actual
-		}
-		l.absorption -= absorbed
-		actual -= absorbed
-	}
-
-	l.health -= actual
-	if l.health <= 0 {
-		l.health = 0
-		l.dead = true
-		l.deathTime = 1
-	}
-
-	l.hurtTime = 10
-	l.hurtCooldown = 10
-	l.lastDamageSource = source
-	l.lastDamageAmount = amount
-
 	return actual
 }
 
+// DeathHandled reports whether one-time death drops have been processed.
+func (l *LivingEntity) DeathHandled() bool { return l.deathHandled }
+
+// MarkDeathHandled prevents duplicate drops while the death screen is open.
+func (l *LivingEntity) MarkDeathHandled() { l.deathHandled = true }
+
 // TickLiving advances living entity state by one tick.
 func (l *LivingEntity) TickLiving() {
+	if l.playerCreditTicks > 0 && !l.dead {
+		l.playerCreditTicks--
+	}
 	if l.hurtTime > 0 {
 		l.hurtTime--
 	}
@@ -220,10 +256,20 @@ func (l *LivingEntity) TickLiving() {
 	}
 }
 
-// Respawn resets health, food, and death state.
+// Respawn resets health, food, experience, effects, and death state.
 func (l *LivingEntity) Respawn() {
+	l.RespawnWithKeepExperience(false)
+}
+
+// RespawnWithKeepExperience preserves XP only when keepInventory is enabled.
+func (l *LivingEntity) RespawnWithKeepExperience(keepExperience bool) {
+	l.playerCreditTicks = 0
+	l.deathWeapon = inventory.ItemStack{}
+	l.lastAttackerType = ""
+	l.lastDirectType = ""
 	l.health = l.maxHealth
 	l.dead = false
+	l.deathHandled = false
 	l.deathTime = 0
 	l.hurtTime = 0
 	l.hurtCooldown = 0
@@ -233,6 +279,12 @@ func (l *LivingEntity) Respawn() {
 	l.foodSaturation = 5.0
 	l.foodExhaustion = 0
 	l.foodTickTimer = 0
+	if !keepExperience {
+		l.xpLevel = 0
+		l.xpTotal = 0
+		l.xpBar = 0
+	}
+	l.effects.Clear()
 }
 
 // FoodLevel returns current food level (0-20).
@@ -267,8 +319,25 @@ func (l *LivingEntity) SetFoodSaturation(s float32) {
 // FoodExhaustion returns accumulated exhaustion.
 func (l *LivingEntity) FoodExhaustion() float32 { return l.foodExhaustion }
 
+// SetFoodExhaustion restores a persisted exhaustion value.
+func (l *LivingEntity) SetFoodExhaustion(value float32) {
+	if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) || value < 0 {
+		value = 0
+	}
+	if value > 4 {
+		value = 4
+	}
+	l.foodExhaustion = value
+}
+
 // AddExhaustion adds to the exhaustion counter. When >= 4, decreases saturation or food.
 func (l *LivingEntity) AddExhaustion(amount float32) {
+	if math.IsNaN(float64(amount)) || math.IsInf(float64(amount), 0) || amount <= 0 {
+		return
+	}
+	if amount > 40 {
+		amount = 40
+	}
 	l.foodExhaustion += amount
 	for l.foodExhaustion >= 4.0 {
 		l.foodExhaustion -= 4.0
@@ -283,15 +352,42 @@ func (l *LivingEntity) AddExhaustion(amount float32) {
 	}
 }
 
-// TickHunger performs one hunger tick: natural regen at >=18 food, starvation at 0 food.
+// TickHunger performs one normal-difficulty hunger tick.
 func (l *LivingEntity) TickHunger() {
+	l.TickHungerWithDifficulty(2)
+}
+
+// TickHungerWithDifficulty applies natural regeneration and difficulty-capped starvation.
+func (l *LivingEntity) TickHungerWithDifficulty(difficulty int32) {
+	l.TickHungerWithRules(difficulty, true)
+}
+
+// TickHungerWithRules applies regeneration and starvation under current rules.
+func (l *LivingEntity) TickHungerWithRules(difficulty int32, naturalRegeneration bool) {
 	if l.dead || l.gameMode == 1 || l.gameMode == 3 {
+		return
+	}
+	if difficulty == 0 {
+		if l.foodLevel < 20 && l.foodTickTimer%10 == 0 {
+			l.foodLevel++
+		}
+		if naturalRegeneration && l.health < l.maxHealth && l.foodTickTimer%20 == 0 {
+			l.health = min(l.maxHealth, l.health+1)
+		}
+		l.foodTickTimer++
 		return
 	}
 
 	l.foodTickTimer++
 
-	if l.foodLevel >= 18 && l.health < l.maxHealth {
+	if naturalRegeneration && l.foodLevel == 20 && l.foodSaturation > 0 && l.health < l.maxHealth {
+		if l.foodTickTimer >= 10 {
+			l.foodTickTimer = 0
+			amount := min(l.foodSaturation, float32(6))
+			l.health = min(l.maxHealth, l.health+amount/6)
+			l.AddExhaustion(amount)
+		}
+	} else if naturalRegeneration && l.foodLevel >= 18 && l.health < l.maxHealth {
 		if l.foodTickTimer >= 80 {
 			l.foodTickTimer = 0
 			l.health += 1.0
@@ -303,8 +399,14 @@ func (l *LivingEntity) TickHunger() {
 	} else if l.foodLevel <= 0 {
 		if l.foodTickTimer >= 80 {
 			l.foodTickTimer = 0
-			if l.health > 1.0 {
-				l.health -= 1.0
+			floor := float32(1)
+			if difficulty == 1 {
+				floor = 10
+			} else if difficulty >= 3 {
+				floor = 0
+			}
+			if l.health > floor {
+				l.Damage(1, "starve")
 			}
 		}
 	} else {
@@ -349,16 +451,17 @@ func (l *LivingEntity) TickEffects() effect.Diff {
 	if l.effects == nil {
 		return effect.Diff{}
 	}
+	l.SyncEffectMovement()
 	diff := l.effects.Tick()
+	l.SyncEffectMovement()
 	for _, action := range diff.Actions {
 		if action.Heal > 0 && !l.dead {
-			l.health += action.Heal
-			if l.health > l.maxHealth {
-				l.health = l.maxHealth
-			}
+			l.SetHealth(min(l.health+action.Heal, l.maxHealth))
 		}
 		if action.Damage > 0 {
-			l.Damage(action.Damage, action.DamageSource)
+			if action.DamageSource != "poison" || l.health > 1 {
+				l.Damage(action.Damage, action.DamageSource)
+			}
 		}
 		if action.Exhaustion > 0 {
 			l.AddExhaustion(action.Exhaustion)

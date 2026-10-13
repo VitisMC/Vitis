@@ -22,14 +22,17 @@ func ComputeDiff(oldCenter, newCenter ChunkPos, viewDistance int32, loaded map[C
 		}
 	}
 
-	minX := newCenter.X - viewDistance
-	maxX := newCenter.X + viewDistance
-	minZ := newCenter.Z - viewDistance
-	maxZ := newCenter.Z + viewDistance
+	minX := newCenter.X - viewDistance - 1
+	maxX := newCenter.X + viewDistance + 1
+	minZ := newCenter.Z - viewDistance - 1
+	maxZ := newCenter.Z + viewDistance + 1
 
 	for x := minX; x <= maxX; x++ {
 		for z := minZ; z <= maxZ; z++ {
 			pos := ChunkPos{X: x, Z: z}
+			if !inRange(pos, newCenter, viewDistance) {
+				continue
+			}
 			if _, alreadyLoaded := loaded[pos]; alreadyLoaded {
 				continue
 			}
@@ -45,10 +48,10 @@ func ComputeDiff(oldCenter, newCenter ChunkPos, viewDistance int32, loaded map[C
 
 // ComputeFullLoad returns all chunk positions within view distance that are not yet loaded.
 func ComputeFullLoad(center ChunkPos, viewDistance int32, loaded map[ChunkPos]struct{}) []ChunkPos {
-	minX := center.X - viewDistance
-	maxX := center.X + viewDistance
-	minZ := center.Z - viewDistance
-	maxZ := center.Z + viewDistance
+	minX := center.X - viewDistance - 1
+	maxX := center.X + viewDistance + 1
+	minZ := center.Z - viewDistance - 1
+	maxZ := center.Z + viewDistance + 1
 
 	count := int((2*viewDistance + 1) * (2*viewDistance + 1))
 	result := make([]ChunkPos, 0, count)
@@ -56,6 +59,9 @@ func ComputeFullLoad(center ChunkPos, viewDistance int32, loaded map[ChunkPos]st
 	for x := minX; x <= maxX; x++ {
 		for z := minZ; z <= maxZ; z++ {
 			pos := ChunkPos{X: x, Z: z}
+			if !inRange(pos, center, viewDistance) {
+				continue
+			}
 			if _, ok := loaded[pos]; !ok {
 				result = append(result, pos)
 			}
@@ -65,6 +71,17 @@ func ComputeFullLoad(center ChunkPos, viewDistance int32, loaded map[ChunkPos]st
 }
 
 func inRange(pos, center ChunkPos, viewDistance int32) bool {
+	if viewDistance <= 1 {
+		dx := pos.X - center.X
+		if dx < 0 {
+			dx = -dx
+		}
+		dz := pos.Z - center.Z
+		if dz < 0 {
+			dz = -dz
+		}
+		return dx <= viewDistance && dz <= viewDistance
+	}
 	dx := pos.X - center.X
 	if dx < 0 {
 		dx = -dx
@@ -73,5 +90,14 @@ func inRange(pos, center ChunkPos, viewDistance int32) bool {
 	if dz < 0 {
 		dz = -dz
 	}
-	return dx <= viewDistance && dz <= viewDistance
+	dx = max32(0, dx-2)
+	dz = max32(0, dz-2)
+	return int64(dx)*int64(dx)+int64(dz)*int64(dz) < int64(viewDistance)*int64(viewDistance)
+}
+
+func max32(a, b int32) int32 {
+	if a > b {
+		return a
+	}
+	return b
 }

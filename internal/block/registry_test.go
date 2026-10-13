@@ -70,11 +70,15 @@ func TestBlockIDFromState(t *testing.T) {
 }
 
 func TestIsAir(t *testing.T) {
-	if !IsAir(0) {
-		t.Fatal("state 0 should be air")
+	for _, name := range []string{"minecraft:air", "minecraft:cave_air", "minecraft:void_air"} {
+		if state := DefaultStateID(name); state < 0 || !IsAir(state) {
+			t.Fatalf("%s must be recognized as air", name)
+		}
 	}
-	if IsAir(1) {
-		t.Fatal("state 1 should not be air")
+	for _, state := range []int32{-1, 1, 1 << 30} {
+		if IsAir(state) {
+			t.Fatalf("state %d must not be recognized as air", state)
+		}
 	}
 }
 

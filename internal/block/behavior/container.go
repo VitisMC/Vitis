@@ -2,6 +2,7 @@ package behavior
 
 import (
 	"github.com/vitismc/vitis/internal/block"
+	"github.com/vitismc/vitis/internal/data/generated/screen"
 )
 
 // ContainerBehavior opens an inventory screen when a container block is used.
@@ -97,10 +98,12 @@ func init() {
 	barrelBehavior := &ContainerBehavior{WindowType: 2, Title: "Barrel", SlotCount: 27}
 	dispenserBehavior := &ContainerBehavior{WindowType: 6, Title: "Dispenser", SlotCount: 9}
 	dropperBehavior := &ContainerBehavior{WindowType: 6, Title: "Dropper", SlotCount: 9}
-	hopperBehavior := &ContainerBehavior{WindowType: 15, Title: "Hopper", SlotCount: 5}
-	shulkerBehavior := &ContainerBehavior{WindowType: 2, Title: "Shulker Box", SlotCount: 27}
+	hopperBehavior := &ContainerBehavior{WindowType: 16, Title: "Hopper", SlotCount: 5}
+	shulkerBehavior := &ContainerBehavior{WindowType: 20, Title: "Shulker Box", SlotCount: 27}
 
 	containerMap := map[string]*ContainerBehavior{
+		"minecraft:crafting_table":         {WindowType: 12, Title: "Crafting", SlotCount: 10},
+		"minecraft:stonecutter":            {WindowType: screen.ScreenStonecutter, Title: "Stonecutter", SlotCount: 2},
 		"minecraft:chest":                  chestBehavior,
 		"minecraft:trapped_chest":          chestBehavior,
 		"minecraft:barrel":                 barrelBehavior,

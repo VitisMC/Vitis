@@ -4,7 +4,9 @@ import (
 	"math"
 
 	"github.com/vitismc/vitis/internal/block"
+	effectdata "github.com/vitismc/vitis/internal/data/generated/effect"
 	"github.com/vitismc/vitis/internal/equipment"
+	"github.com/vitismc/vitis/internal/inventory"
 )
 
 // DamageType classifies the source of damage.
@@ -38,9 +40,9 @@ const (
 // BypassesArmor returns true if this damage type ignores armor protection.
 func (t DamageType) BypassesArmor() bool {
 	switch t {
-	case DamageTypeFall, DamageTypeDrowning, DamageTypeSuffocation,
+	case DamageTypeGeneric, DamageTypeFall, DamageTypeDrowning, DamageTypeSuffocation,
 		DamageTypeVoid, DamageTypeStarvation, DamageTypeMagic,
-		DamageTypeFireTick, DamageTypeFreezing, DamageTypeWitherEffect:
+		DamageTypeFireTick, DamageTypeFreezing, DamageTypeFlyIntoWall, DamageTypeWitherEffect:
 		return true
 	}
 	return false
@@ -145,17 +147,76 @@ func (t DamageType) SourceName() string {
 		return "player_sweep"
 	case DamageTypeCactus:
 		return "cactus"
+	case DamageTypeThorns:
+		return "thorns"
+	case DamageTypeFlyIntoWall:
+		return "fly_into_wall"
+	case DamageTypeWitherEffect:
+		return "wither"
+	case DamageTypeSweetBerryBush:
+		return "sweet_berry_bush"
 	default:
 		return "generic"
 	}
 }
 
+// RegistryName returns the vanilla damage type used by registry predicates.
+func (t DamageType) RegistryName() string {
+	names := [...]string{"generic", "player_attack", "mob_attack", "arrow", "fall", "in_fire", "lava", "drown", "in_wall", "out_of_world", "starve", "explosion", "magic", "on_fire", "freeze", "lightning_bolt", "player_attack", "thorns", "cactus", "fly_into_wall", "wither", "sweet_berry_bush"}
+	if t < 0 || int(t) >= len(names) {
+		return "minecraft:generic"
+	}
+	return "minecraft:" + names[t]
+}
+
+// damageTypeFromSource resolves legacy identifiers and effect-specific aliases.
+func damageTypeFromSource(source string) DamageType {
+	if source == "poison" || source == "instant_damage" {
+		return DamageTypeMagic
+	}
+	for candidate := DamageTypeGeneric; candidate <= DamageTypeSweetBerryBush; candidate++ {
+		if candidate.SourceName() == source {
+			return candidate
+		}
+	}
+	return DamageTypeGeneric
+}
+
 // DamageSource describes a single damage event.
 type DamageSource struct {
-	Type       DamageType
-	Amount     float32
-	AttackerID int32
-	DirectID   int32
+	Type         DamageType
+	Amount       float32
+	AttackerID   int32
+	DirectID     int32
+	PlayerCredit bool
+	AttackerType string
+	DirectType   string
+	Weapon       inventory.ItemStack
+}
+
+// RegistryName resolves projectile and explosion variants from the direct source.
+func (s *DamageSource) RegistryName() string {
+	if s.Type == DamageTypeExplosion && s.AttackerType == "minecraft:player" {
+		return "minecraft:player_explosion"
+	}
+	if s.Type == DamageTypeProjectile {
+		switch s.DirectType {
+		case "minecraft:trident", "minecraft:wither_skull", "minecraft:wind_charge":
+			return s.DirectType
+		case "minecraft:llama_spit":
+			return "minecraft:spit"
+		case "minecraft:snowball", "minecraft:egg":
+			return "minecraft:thrown"
+		case "minecraft:firework_rocket":
+			return "minecraft:fireworks"
+		case "minecraft:fireball", "minecraft:small_fireball":
+			if s.AttackerType == "" {
+				return "minecraft:unattributed_fireball"
+			}
+			return "minecraft:fireball"
+		}
+	}
+	return s.Type.RegistryName()
 }
 
 // NewDamageSource creates a simple damage source.
@@ -173,24 +234,46 @@ func NewAttackDamageSource(dtype DamageType, amount float32, attackerID int32) *
 // enchProtection is the combined enchantment protection factor (0-20).
 // Returns the actual damage dealt after all reductions.
 func (l *LivingEntity) ApplyDamage(src *DamageSource, armorDefense, armorToughness, enchProtection float64) float32 {
-	if l.dead || src == nil || src.Amount <= 0 {
+	if l.dead || src == nil || src.Type < DamageTypeGeneric || src.Type > DamageTypeSweetBerryBush || src.Amount <= 0 || math.IsNaN(float64(src.Amount)) || math.IsInf(float64(src.Amount), 0) {
 		return 0
 	}
-	if !src.Type.BypassesInvulnerability() && l.hurtCooldown > 0 {
+	if l.Entity.Type() == EntityTypePlayer && (l.gameMode == 3 || l.gameMode == 1 && src.Type != DamageTypeVoid) {
 		return 0
 	}
-
+	if src.Type.IsFire() && (l.fireImmune || l.effects.Has(effectdata.EffectFireResistance)) {
+		return 0
+	}
 	amount := src.Amount
-
-	if !src.Type.BypassesArmor() && armorDefense > 0 {
-		amount = float32(equipment.CalculateDamageReduction(float64(amount), armorDefense, armorToughness))
+	if !src.Type.BypassesInvulnerability() && l.hurtCooldown > 10 {
+		if amount <= l.lastDamageAmount {
+			return 0
+		}
+		amount -= l.lastDamageAmount
 	}
 
+	if !src.Type.BypassesArmor() {
+		if l.armorDamageHandler != nil {
+			l.armorDamageHandler(src, amount)
+			// A broken piece no longer protects against the hit that broke it.
+			armorDefense, armorToughness, enchProtection = l.armorDefense, l.armorToughness, l.armorEnchProt
+		}
+		if armorDefense > 0 {
+			amount = float32(equipment.CalculateDamageReduction(float64(amount), armorDefense, armorToughness))
+		}
+	}
+
+	enchProtection += l.damageEnchantmentBonus(src.Type)
 	if enchProtection > 20 {
 		enchProtection = 20
 	}
-	if enchProtection > 0 && !src.Type.BypassesArmor() {
+	if enchProtection > 0 && src.Type != DamageTypeVoid {
 		amount *= float32(1.0 - enchProtection/25.0)
+	}
+	if src.Type != DamageTypeVoid {
+		if resistance := l.effects.Get(effectdata.EffectResistance); resistance != nil {
+			reduction := min(float32(1), float32(resistance.Amplifier+1)*0.2)
+			amount *= 1 - reduction
+		}
 	}
 
 	if amount <= 0 {
@@ -215,11 +298,28 @@ func (l *LivingEntity) ApplyDamage(src *DamageSource, armorDefense, armorToughne
 	}
 
 	l.hurtTime = 10
-	l.hurtCooldown = 10
+	if src.Type.BypassesInvulnerability() || l.hurtCooldown <= 10 {
+		l.hurtCooldown = 20
+	}
 	l.lastDamageSource = src.Type.SourceName()
 	l.lastDamageAmount = src.Amount
 	l.lastDamageType = src.Type
+	l.lastDamageRegistryName = src.RegistryName()
+	l.lastDamageIsDirect = src.DirectID == src.AttackerID
 	l.lastAttackerID = src.AttackerID
+	l.Entity.dirty |= DirtyLivingState
+	l.lastAttackerType = src.AttackerType
+	l.lastDirectType = src.DirectType
+	if l.lastDirectType == "" && src.DirectID == src.AttackerID {
+		l.lastDirectType = src.AttackerType
+	}
+	l.deathWeapon = src.Weapon.Clone()
+	if src.Type == DamageTypePlayerAttack || src.PlayerCredit {
+		l.playerCreditTicks = 100
+	}
+	if l.dead {
+		l.deathHandled = false
+	}
 
 	return actual
 }
@@ -227,8 +327,36 @@ func (l *LivingEntity) ApplyDamage(src *DamageSource, armorDefense, armorToughne
 // LastDamageType returns the type of the last damage taken.
 func (l *LivingEntity) LastDamageType() DamageType { return l.lastDamageType }
 
+// LastDamageRegistryName returns the persisted registry identity of the last accepted hit.
+func (l *LivingEntity) LastDamageRegistryName() string {
+	if l.lastDamageRegistryName == "" {
+		return l.lastDamageType.RegistryName()
+	}
+	return l.lastDamageRegistryName
+}
+
+// LastDamageIsDirect reports whether the direct and causing entities of the last hit were identical.
+func (l *LivingEntity) LastDamageIsDirect() bool {
+	if l.lastDamageRegistryName == "" {
+		return !l.lastDamageType.IsProjectile() && l.lastAttackerType == l.lastDirectType
+	}
+	return l.lastDamageIsDirect
+}
+
 // LastAttackerID returns the entity ID of the last attacker (-1 if none).
 func (l *LivingEntity) LastAttackerID() int32 { return l.lastAttackerID }
+
+// HasPlayerKillCredit reports whether a recent player hit qualifies death rewards.
+func (l *LivingEntity) HasPlayerKillCredit() bool { return l.playerCreditTicks > 0 }
+
+// DeathWeapon returns the detached weapon captured with the last accepted hit.
+func (l *LivingEntity) DeathWeapon() inventory.ItemStack { return l.deathWeapon.Clone() }
+
+// LastAttackerType returns the canonical entity type of the last damaging attacker.
+func (l *LivingEntity) LastAttackerType() string { return l.lastAttackerType }
+
+// LastDirectAttackerType returns the canonical type of the direct damage entity.
+func (l *LivingEntity) LastDirectAttackerType() string { return l.lastDirectType }
 
 // AirSupply returns remaining air ticks (max 300 = 15 seconds).
 func (l *LivingEntity) AirSupply() int32 { return l.airSupply }
@@ -249,8 +377,11 @@ func (l *LivingEntity) FireTicks() int32 { return l.fireTicks }
 
 // SetFireTicks sets the fire tick counter.
 func (l *LivingEntity) SetFireTicks(v int32) {
-	if v < 0 {
+	if v < 0 || l.fireImmune {
 		v = 0
+	}
+	if (l.fireTicks > 0) != (v > 0) {
+		l.Entity.dirty |= DirtyLivingState
 	}
 	l.fireTicks = v
 }
@@ -259,6 +390,12 @@ func (l *LivingEntity) SetFireTicks(v int32) {
 // blockAt returns the block state ID at absolute world coordinates.
 // Returns a list of damage sources to apply (caller handles packets).
 func (l *LivingEntity) TickEnvironment(blockAt func(x, y, z int) int32) []*DamageSource {
+	wasOnFire := l.fireTicks > 0
+	defer func() {
+		if wasOnFire != (l.fireTicks > 0) {
+			l.Entity.dirty |= DirtyLivingState
+		}
+	}()
 	if l.dead || l.gameMode == 1 || l.gameMode == 3 {
 		l.fireTicks = 0
 		l.airSupply = 300
@@ -279,12 +416,15 @@ func (l *LivingEntity) TickEnvironment(blockAt func(x, y, z int) int32) []*Damag
 		damages = append(damages, NewDamageSource(DamageTypeVoid, 4.0))
 	}
 
-	if isFireBlock(feetBlock) && l.fireTicks <= 0 {
+	fireProtected := l.fireImmune || l.effects.Has(effectdata.EffectFireResistance)
+	if fireProtected {
+		l.fireTicks = 0
+	} else if isFireBlock(feetBlock) && l.fireTicks <= 0 {
 		l.fireTicks = 160
 		damages = append(damages, NewDamageSource(DamageTypeFire, 1.0))
 	}
 
-	if isLavaBlock(feetBlock) {
+	if isLavaBlock(feetBlock) && !fireProtected {
 		l.fireTicks = 300
 		damages = append(damages, NewDamageSource(DamageTypeLava, 4.0))
 	}
@@ -300,7 +440,9 @@ func (l *LivingEntity) TickEnvironment(blockAt func(x, y, z int) int32) []*Damag
 	}
 
 	inWater := isWaterBlock(headBlock)
-	if inWater {
+	if inWater && l.effects.Has(effectdata.EffectWaterBreathing) {
+		l.airSupply = 300
+	} else if inWater {
 		if l.airSupply > 0 {
 			l.airSupply--
 		} else {

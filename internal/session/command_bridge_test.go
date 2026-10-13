@@ -2,21 +2,27 @@ package session
 
 import (
 	"context"
-	"net"
-	"sync"
-	"testing"
-
+	"github.com/vitismc/vitis/internal/block"
+	genattr "github.com/vitismc/vitis/internal/data/generated/attribute"
 	enchdata "github.com/vitismc/vitis/internal/data/generated/enchantment"
+	"github.com/vitismc/vitis/internal/entity"
 	"github.com/vitismc/vitis/internal/inventory"
 	"github.com/vitismc/vitis/internal/item"
 	"github.com/vitismc/vitis/internal/network"
 	"github.com/vitismc/vitis/internal/protocol"
 	playpacket "github.com/vitismc/vitis/internal/protocol/packets/play"
+	"github.com/vitismc/vitis/internal/protocol/states"
+	"github.com/vitismc/vitis/internal/world/chunk"
+	"math"
+	"net"
+	"sync"
+	"testing"
 )
 
 type captureSession struct {
-	mu   sync.Mutex
-	sent []protocol.Packet
+	mu     sync.Mutex
+	sent   []protocol.Packet
+	player Player
 }
 
 func (s *captureSession) ID() uint64                                       { return 1 }
@@ -26,8 +32,8 @@ func (s *captureSession) RemoteAddr() net.Addr                             { ret
 func (s *captureSession) Lifecycle() LifecycleState                        { return LifecycleActive }
 func (s *captureSession) ProtocolState() protocol.State                    { return protocol.StatePlay }
 func (s *captureSession) ProtocolVersion() int32                           { return 769 }
-func (s *captureSession) Player() Player                                   { return nil }
-func (s *captureSession) BindPlayer(Player)                                {}
+func (s *captureSession) Player() Player                                   { return s.player }
+func (s *captureSession) BindPlayer(player Player)                         { s.player = player }
 func (s *captureSession) CompressionEnabled() bool                         { return false }
 func (s *captureSession) EncryptionEnabled() bool                          { return false }
 func (s *captureSession) EnableCompression(bool)                           {}
@@ -101,10 +107,16 @@ func TestServerControlSetGameModeSyncsPackets(t *testing.T) {
 		GameMode: 0,
 	}
 
+	world := &commandTestWorld{}
 	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	control.World = world
 	if err := control.SetGameMode(7, 1); err != nil {
 		t.Fatalf("set game mode failed: %v", err)
 	}
+	if len(world.queued) != 1 {
+		t.Fatal("game mode was not queued")
+	}
+	world.queued[0]()
 	if got := pm.players[uuid].GameMode; got != 1 {
 		t.Fatalf("game mode = %d, want 1", got)
 	}
@@ -158,7 +170,7 @@ func TestServerControlGiveItemStacksAndSyncsSlots(t *testing.T) {
 	session := &captureSession{}
 	windows := inventory.NewWindowManager()
 	itemID := item.IDByName("minecraft:stone")
-	windows.Inventory().Set(inventory.MainInventoryStart, inventory.NewSlot(itemID, 63))
+	windows.Inventory().Set(inventory.HotbarStart, inventory.NewSlot(itemID, 63))
 	uuid := protocol.OfflinePlayerUUID("player")
 	pm.players[uuid] = &OnlinePlayer{
 		Session:  session,
@@ -169,12 +181,18 @@ func TestServerControlGiveItemStacksAndSyncsSlots(t *testing.T) {
 	}
 
 	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
+	var queued func()
+	control.WorldAccess = &DefaultWorldAccessor{SubmitTask: func(task func()) bool { queued = task; return true }}
 	if err := control.GiveItem(7, "minecraft:stone", 3); err != nil {
 		t.Fatalf("give item failed: %v", err)
 	}
 
-	first := windows.Inventory().Get(inventory.MainInventoryStart)
-	second := windows.Inventory().Get(inventory.MainInventoryStart + 1)
+	if queued == nil {
+		t.Fatal("give action was not queued")
+	}
+	queued()
+	first := windows.Inventory().Get(inventory.HotbarStart)
+	second := windows.Inventory().Get(inventory.HotbarStart + 1)
 	if first.ItemID != itemID || first.ItemCount != 64 {
 		t.Fatalf("first stack = id %d count %d, want stone x64", first.ItemID, first.ItemCount)
 	}
@@ -183,22 +201,16 @@ func TestServerControlGiveItemStacksAndSyncsSlots(t *testing.T) {
 	}
 
 	packets := session.packets()
-	if len(packets) != 2 {
-		t.Fatalf("packet count = %d, want 2", len(packets))
+	if len(packets) != 1 {
+		t.Fatalf("inventory packet count=%d", len(packets))
 	}
-	for index, packet := range packets {
-		slotPacket, ok := packet.(*playpacket.SetPlayerInventorySlot)
-		if !ok {
-			t.Fatalf("packet %d type = %T, want *play.SetPlayerInventorySlot", index, packet)
-		}
-		wantSlot := int32(inventory.MainInventoryStart + index)
-		if slotPacket.SlotIdx != wantSlot {
-			t.Fatalf("packet %d slot = %d, want %d", index, slotPacket.SlotIdx, wantSlot)
-		}
+	packet, ok := packets[0].(*playpacket.SetContainerContent)
+	if !ok || packet.Slots[inventory.HotbarStart].ItemCount != 64 || packet.Slots[inventory.HotbarStart+1].ItemCount != 2 {
+		t.Fatal("give action did not synchronize complete inventory")
 	}
 }
 
-func TestServerControlGiveItemRejectsWhenInventoryIsFull(t *testing.T) {
+func TestServerControlGiveItemDropsOverflowWhenInventoryIsFull(t *testing.T) {
 	pm := NewPlayerManager()
 	session := &captureSession{}
 	windows := inventory.NewWindowManager()
@@ -215,12 +227,24 @@ func TestServerControlGiveItemRejectsWhenInventoryIsFull(t *testing.T) {
 		Windows:  windows,
 	}
 
+	var queued func()
+	items := entity.NewItemEntityManager()
 	control := NewServerControl(pm, nil, nil).(*ServerControlAdapter)
-	if err := control.GiveItem(7, "minecraft:dirt", 1); err == nil {
-		t.Fatal("expected full inventory error")
+	control.WorldAccess = &DefaultWorldAccessor{Items: items, NextEntityID: func() int32 { return 99 }, SubmitTask: func(task func()) bool { queued = task; return true }}
+	if err := control.GiveItem(7, "minecraft:dirt", 1); err != nil {
+		t.Fatal(err)
 	}
-	if got := len(session.packets()); got != 0 {
-		t.Fatalf("packet count = %d, want 0", got)
+	if queued == nil || items.Count() != 0 {
+		t.Fatal("overflow bypassed the world tick")
+	}
+	queued()
+	if items.Count() != 1 || items.Get(99).Stack().ItemID != item.IDByName("minecraft:dirt") || items.Get(99).Stack().ItemCount != 1 {
+		t.Fatal("overflow was lost or duplicated")
+	}
+	for _, idx := range giveInventorySlots() {
+		if windows.Inventory().Get(idx).ItemID != stoneID || windows.Inventory().Get(idx).ItemCount != item.StackSize(stoneID) {
+			t.Fatal("overflow changed a full slot")
+		}
 	}
 }
 
@@ -470,22 +494,20 @@ func TestServerControlSetSpawnPointStoresPlayerState(t *testing.T) {
 		t.Fatalf("spawn point = has=%v %d %d %d, want true -12 70 30", op.HasSpawnPoint, op.SpawnX, op.SpawnY, op.SpawnZ)
 	}
 
-	packets := session.packets()
-	if len(packets) != 1 {
-		t.Fatalf("packet count = %d, want 1", len(packets))
+	if !op.SpawnForced || op.SpawnDimension != SessionDimension(session) {
+		t.Fatal("personal spawn lost its forced position or dimension")
 	}
-	spawnPacket, ok := packets[0].(*playpacket.SetDefaultSpawnPosition)
-	if !ok {
-		t.Fatalf("packet type = %T, want *play.SetDefaultSpawnPosition", packets[0])
-	}
-	if spawnPacket.X != -12 || spawnPacket.Y != 70 || spawnPacket.Z != 30 {
-		t.Fatalf("spawn packet = %d %d %d, want -12 70 30", spawnPacket.X, spawnPacket.Y, spawnPacket.Z)
+	if len(session.packets()) != 0 {
+		t.Fatal("personal spawn changed the world spawn packet")
 	}
 }
 
 func TestHandleRespawnUsesPlayerSpawnPoint(t *testing.T) {
 	pm := NewPlayerManager()
 	session := &captureSession{}
+	player := entity.NewPlayer(7, protocol.UUID{1}, "player", entity.Vec3{}, entity.Vec2{}, session, 10)
+	session.BindPlayer(player)
+	player.Living().SetHealth(0)
 	uuid := protocol.OfflinePlayerUUID("player")
 	pm.players[uuid] = &OnlinePlayer{
 		Session:       session,
@@ -496,10 +518,25 @@ func TestHandleRespawnUsesPlayerSpawnPoint(t *testing.T) {
 		SpawnY:        72,
 		SpawnZ:        -4,
 		HasSpawnPoint: true,
+		SpawnForced:   true,
 	}
 	cfg := DefaultPlayBootstrapConfig()
 
-	if err := handleRespawn(session, cfg, pm); err != nil {
+	storage := chunk.NewStorage(12)
+	for x := int32(-1); x <= 1; x++ {
+		for z := int32(-2); z <= 1; z++ {
+			storage.Set(chunk.New(x, z))
+		}
+	}
+	manager := chunk.NewManager(chunk.ManagerConfig{Storage: storage})
+	t.Cleanup(func() {
+		if err := manager.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	world := &DefaultWorldAccessor{Chunks: manager}
+	world.SetBlock(10, 71, -4, block.DefaultStateID("minecraft:stone"))
+	if err := handleRespawn(session, cfg, pm, world); err != nil {
 		t.Fatalf("handle respawn failed: %v", err)
 	}
 
@@ -519,6 +556,9 @@ func TestHandleRespawnUsesPlayerSpawnPoint(t *testing.T) {
 func TestHandleRespawnKeepsPlayerGameMode(t *testing.T) {
 	pm := NewPlayerManager()
 	session := &captureSession{}
+	player := entity.NewPlayer(7, protocol.UUID{1}, "player", entity.Vec3{}, entity.Vec2{}, session, 10)
+	session.BindPlayer(player)
+	player.Living().SetHealth(0)
 	uuid := protocol.OfflinePlayerUUID("player")
 	pm.players[uuid] = &OnlinePlayer{
 		Session:  session,
@@ -529,8 +569,9 @@ func TestHandleRespawnKeepsPlayerGameMode(t *testing.T) {
 	}
 	cfg := DefaultPlayBootstrapConfig()
 	cfg.GameMode = 0
+	player.Living().SetGameMode(2)
 
-	if err := handleRespawn(session, cfg, pm); err != nil {
+	if err := handleRespawn(session, cfg, pm, nil); err != nil {
 		t.Fatalf("handle respawn failed: %v", err)
 	}
 
@@ -550,7 +591,7 @@ func TestHandleRespawnKeepsPlayerGameMode(t *testing.T) {
 func TestSendPlayBootstrapSendsDifficulty(t *testing.T) {
 	session := &captureSession{}
 	cfg := DefaultPlayBootstrapConfig()
-	cfg.SpawnChunks = emptySpawnChunks{}
+
 	cfg.Difficulty = 1
 	cfg.DifficultyLocked = true
 
@@ -569,4 +610,341 @@ func TestSendPlayBootstrapSendsDifficulty(t *testing.T) {
 		return
 	}
 	t.Fatal("difficulty packet was not sent")
+}
+
+type commandTestWorld struct {
+	queued   []func()
+	reject   bool
+	daylight bool
+	weather  bool
+	fire     bool
+}
+
+func (w *commandTestWorld) SetDaylightCycle(enabled bool) { w.daylight = enabled }
+func (w *commandTestWorld) SetWeatherCycle(enabled bool)  { w.weather = enabled }
+func (w *commandTestWorld) SetFireTick(enabled bool)      { w.fire = enabled }
+
+// TestKeepInventoryDefaultsOff verifies ordinary deaths drop inventory.
+func TestKeepInventoryDefaultsOff(t *testing.T) {
+	control := &ServerControlAdapter{}
+	value, err := control.GetGameRule("keepInventory")
+	if err != nil || value != "false" {
+		t.Fatalf("default keepInventory = %q, err=%v", value, err)
+	}
+	if err := control.SetGameRule("keepInventory", "true"); err != nil {
+		t.Fatal(err)
+	}
+	value, err = control.GetGameRule("keepInventory")
+	if err != nil || value != "true" {
+		t.Fatalf("changed keepInventory = %q, err=%v", value, err)
+	}
+}
+
+func TestGameRuleValidationAndWorldTickApply(t *testing.T) {
+	world := &commandTestWorld{daylight: true}
+	control := &ServerControlAdapter{World: world}
+	if err := control.SetGameRule("doDaylightCycle", "invalid"); err == nil {
+		t.Fatal("invalid boolean accepted")
+	}
+	if err := control.SetGameRule("randomTickSpeed", "not-a-number"); err == nil {
+		t.Fatal("invalid integer accepted")
+	}
+	if err := control.SetGameRule("doDaylightCycle", "false"); err != nil {
+		t.Fatal(err)
+	}
+	if !world.daylight || len(world.queued) != 1 {
+		t.Fatal("game rule bypassed world queue")
+	}
+	world.queued[0]()
+	if world.daylight {
+		t.Fatal("queued rule did not freeze daylight")
+	}
+}
+
+// TimeOfDay satisfies the command world's read-only time interface.
+func (*commandTestWorld) TimeOfDay() int64 { return 0 }
+
+// SetTimeOfDay satisfies the command world's time mutation interface.
+func (*commandTestWorld) SetTimeOfDay(int64) {}
+
+// WorldAge satisfies the command world's read-only age interface.
+func (*commandTestWorld) WorldAge() int64 { return 0 }
+
+// Submit records world commands until the test advances the tick.
+func (w *commandTestWorld) Submit(task func()) bool {
+	if w.reject {
+		return false
+	}
+	w.queued = append(w.queued, task)
+	return true
+}
+
+func TestTeleportPlayerUpdatesOnlineAndEntityState(t *testing.T) {
+	registry := protocol.NewRegistry()
+	if err := states.RegisterPlay(registry, protocol.CurrentVersion); err != nil {
+		t.Fatalf("register play packets: %v", err)
+	}
+	s, err := New(Config{
+		Connection:     newMockConn(),
+		Registry:       registry,
+		InitialVersion: protocol.CurrentVersion,
+		InitialState:   protocol.StatePlay,
+	})
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+
+	uuid := protocol.UUID{1, 2}
+	player := entity.NewPlayer(42, uuid, "player", entity.Vec3{}, entity.Vec2{}, s, 10)
+	s.BindPlayer(player)
+	manager := NewPlayerManager()
+	if err := manager.AddPlayer(&OnlinePlayer{EntityID: 42, UUID: uuid, Name: "player", Session: s}); err != nil {
+		t.Fatalf("add player: %v", err)
+	}
+
+	world := &commandTestWorld{}
+	control := &ServerControlAdapter{PM: manager, World: world}
+	if err := control.TeleportPlayer(42, 10.5, 64, -3.25); err != nil {
+		t.Fatalf("teleport: %v", err)
+	}
+	if pos := player.Position(); pos != (entity.Vec3{}) {
+		t.Fatalf("position changed before world tick: %+v", pos)
+	}
+	if len(world.queued) != 1 {
+		t.Fatalf("queued commands = %d, want 1", len(world.queued))
+	}
+	world.queued[0]()
+
+	pos := player.Position()
+	if pos.X != 10.5 || pos.Y != 64 || pos.Z != -3.25 {
+		t.Fatalf("entity position = %+v", pos)
+	}
+	online := manager.GetByUUID(uuid)
+	if online == nil || online.X != 10.5 || online.Y != 64 || online.Z != -3.25 {
+		t.Fatalf("online position = %#v", online)
+	}
+	if !s.hasPendingTeleport() {
+		t.Fatal("teleport acknowledgement was not registered")
+	}
+	if err := s.acknowledgeTeleport(s.pendingTeleport.Load()); err != nil {
+		t.Fatalf("confirm teleport: %v", err)
+	}
+}
+
+// TestSetGameModeRunsOnWorldTick verifies ordered command-side player mutation.
+func TestSetGameModeRunsOnWorldTick(t *testing.T) {
+	s, err := New(Config{Connection: newMockConn(), Registry: protocol.NewRegistry(), InitialState: protocol.StatePlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uuid := protocol.UUID{4, 5}
+	player := entity.NewPlayer(7, uuid, "player", entity.Vec3{}, entity.Vec2{}, s, 10)
+	s.BindPlayer(player)
+	manager := NewPlayerManager()
+	if err := manager.AddPlayer(&OnlinePlayer{EntityID: 7, UUID: uuid, Name: "player", Session: s}); err != nil {
+		t.Fatal(err)
+	}
+	world := &commandTestWorld{}
+	control := &ServerControlAdapter{PM: manager, World: world}
+	if err := control.SetGameMode(7, 1); err != nil {
+		t.Fatal(err)
+	}
+	if player.Living().GameMode() != 0 || manager.GetByUUID(uuid).GameMode != 0 {
+		t.Fatal("game mode changed before world tick")
+	}
+	world.queued[0]()
+	if player.Living().GameMode() != 1 || manager.GetByUUID(uuid).GameMode != 1 {
+		t.Fatal("game mode was not applied on world tick")
+	}
+}
+
+// TestSetPlayerSpeedRunsOnWorldTickAndResets verifies ordered speed changes.
+func TestSetPlayerSpeedRunsOnWorldTickAndResets(t *testing.T) {
+	s, err := New(Config{Connection: newMockConn(), Registry: protocol.NewRegistry(), InitialState: protocol.StatePlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uuid := protocol.UUID{4, 6}
+	player := entity.NewPlayer(7, uuid, "player", entity.Vec3{}, entity.Vec2{}, s, 10)
+	s.BindPlayer(player)
+	manager := NewPlayerManager()
+	if err := manager.AddPlayer(&OnlinePlayer{EntityID: 7, UUID: uuid, Name: "player", Session: s, GameMode: 1}); err != nil {
+		t.Fatal(err)
+	}
+	world := &commandTestWorld{}
+	control := &ServerControlAdapter{PM: manager, World: world}
+	if err := control.SetPlayerSpeed(7, 2.1124); err != nil {
+		t.Fatal(err)
+	}
+	if got := player.Attributes().GetBase(genattr.AttrMovementSpeed); got != 0.1 {
+		t.Fatalf("speed changed before world tick: %g", got)
+	}
+	world.queued[0]()
+	want := 0.1 * 2.1124 / defaultWalkingBlocksPerSecond
+	if got := player.Attributes().GetBase(genattr.AttrMovementSpeed); math.Abs(got-want) > 1e-10 {
+		t.Fatalf("walking attribute = %g, want %g", got, want)
+	}
+	if got := manager.GetByUUID(uuid).SpeedBlocksPerSecond; got != 2.1124 {
+		t.Fatalf("stored speed = %g", got)
+	}
+	ab := playerAbilitiesWithSpeed(1, 2.1124, true)
+	if ab.Flags&2 == 0 || math.Abs(float64(ab.FlySpeed)-0.05*2.1124/defaultFlyingBlocksPerSecond) > 1e-7 {
+		t.Fatalf("creative flying abilities = %+v", ab)
+	}
+	if err := control.SetPlayerSpeed(7, 0); err != nil {
+		t.Fatal(err)
+	}
+	world.queued[1]()
+	if got := player.Attributes().GetBase(genattr.AttrMovementSpeed); got != 0.1 {
+		t.Fatalf("reset walking attribute = %g", got)
+	}
+	if err := control.SetPlayerSpeed(7, math.NaN()); err == nil {
+		t.Fatal("non-finite speed accepted")
+	}
+}
+
+// TestPlayerCommandsRejectFullWorldQueue prevents silent loss of mutations.
+func TestPlayerCommandsRejectFullWorldQueue(t *testing.T) {
+	s, err := New(Config{Connection: newMockConn(), Registry: protocol.NewRegistry(), InitialState: protocol.StatePlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uuid := protocol.UUID{8, 9}
+	manager := NewPlayerManager()
+	if err := manager.AddPlayer(&OnlinePlayer{EntityID: 7, UUID: uuid, Name: "player", Session: s}); err != nil {
+		t.Fatal(err)
+	}
+	control := &ServerControlAdapter{PM: manager, World: &commandTestWorld{reject: true}}
+	if err := control.SetGameMode(7, 1); err == nil {
+		t.Fatal("game mode accepted a full world queue")
+	}
+	if err := control.SetPlayerSpeed(7, 10); err == nil {
+		t.Fatal("speed accepted a full world queue")
+	}
+	if err := control.TeleportPlayer(7, 1, 2, 3); err == nil {
+		t.Fatal("teleport accepted a full world queue")
+	}
+}
+
+// TestTeleportSendFailureDoesNotLeavePendingAck prevents a stuck movement state.
+func TestTeleportSendFailureDoesNotLeavePendingAck(t *testing.T) {
+	s, err := New(Config{Connection: newMockConn(), Registry: protocol.NewRegistry(), InitialState: protocol.StatePlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uuid := protocol.UUID{10, 11}
+	player := entity.NewPlayer(7, uuid, "player", entity.Vec3{}, entity.Vec2{}, s, 10)
+	s.BindPlayer(player)
+	manager := NewPlayerManager()
+	if err := manager.AddPlayer(&OnlinePlayer{EntityID: 7, UUID: uuid, Name: "player", Session: s}); err != nil {
+		t.Fatal(err)
+	}
+	world := &commandTestWorld{}
+	control := &ServerControlAdapter{PM: manager, World: world}
+	if err := control.TeleportPlayer(7, 1, 2, 3); err != nil {
+		t.Fatal(err)
+	}
+	world.queued[0]()
+	if s.hasPendingTeleport() {
+		t.Fatal("failed send left an unacknowledgeable teleport ID")
+	}
+}
+
+func TestAdministrativeCommandsRejectUnavailableTargets(t *testing.T) {
+	control := &ServerControlAdapter{}
+	if err := control.SetOp("missing", 4); err == nil {
+		t.Fatal("SetOp succeeded without a player manager")
+	}
+	if err := control.RemoveOp("missing"); err == nil {
+		t.Fatal("RemoveOp succeeded without a player manager")
+	}
+	if err := control.KickPlayer("missing", "reason"); err == nil {
+		t.Fatal("KickPlayer succeeded without a player manager")
+	}
+}
+
+func TestGiveItemExecutesThroughWorldQueue(t *testing.T) {
+	sess, err := New(Config{
+		Connection:   newMockConn(),
+		Registry:     protocol.NewRegistry(),
+		InitialState: protocol.StatePlay,
+	})
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+	manager := NewPlayerManager()
+	windows := inventory.NewWindowManager()
+	uuid := protocol.UUID{3, 4}
+	if err := manager.AddPlayer(&OnlinePlayer{
+		Session: sess, EntityID: 7, UUID: uuid, Name: "player", Windows: windows,
+	}); err != nil {
+		t.Fatalf("add player: %v", err)
+	}
+	var queued func()
+	world := &DefaultWorldAccessor{SubmitTask: func(task func()) bool {
+		queued = task
+		return true
+	}}
+	control := &ServerControlAdapter{PM: manager, WorldAccess: world}
+	if err := control.GiveItem(7, "minecraft:stone", 65); err != nil {
+		t.Fatalf("GiveItem: %v", err)
+	}
+	if queued == nil {
+		t.Fatal("give command was not queued")
+	}
+	if !windows.Inventory().Get(inventory.HotbarStart).Empty() {
+		t.Fatal("inventory changed before world command execution")
+	}
+	queued()
+	stoneID := item.IDByName("minecraft:stone")
+	if got := windows.Inventory().Get(inventory.HotbarStart); got.ItemID != stoneID || got.ItemCount != 64 {
+		t.Fatalf("first stack = %#v", got)
+	}
+	if got := windows.Inventory().Get(inventory.HotbarStart + 1); got.ItemID != stoneID || got.ItemCount != 1 {
+		t.Fatalf("second stack = %#v", got)
+	}
+}
+
+// giveInventorySlots returns the inventory slots used by command fixtures.
+func giveInventorySlots() []int {
+	slots := []int{}
+	for i := inventory.MainInventoryStart; i <= inventory.MainInventoryEnd; i++ {
+		slots = append(slots, i)
+	}
+	for i := inventory.HotbarStart; i <= inventory.HotbarEnd; i++ {
+		slots = append(slots, i)
+	}
+	return slots
+}
+
+// commandDifficultyWorld exposes live difficulty while retaining explicit queued mutation.
+type commandDifficultyWorld struct {
+	commandTestWorld
+	difficulty int32
+}
+
+// Difficulty returns the authoritative test-world difficulty.
+func (w *commandDifficultyWorld) Difficulty() int32 { return w.difficulty }
+
+// SetDifficulty changes the test-world difficulty when its command executes.
+func (w *commandDifficultyWorld) SetDifficulty(value int32) { w.difficulty = value }
+
+// TestServerControlDifficultyReadsWorldAndQueuesChanges preserves live login difficulty.
+func TestServerControlDifficultyReadsWorldAndQueuesChanges(t *testing.T) {
+	world := &commandDifficultyWorld{difficulty: 3}
+	control := NewServerControl(nil, nil, nil).(*ServerControlAdapter)
+	control.World = world
+	if control.GetDifficulty() != 3 {
+		t.Fatal("difficulty getter retained bootstrap state")
+	}
+	if err := control.SetDifficulty(1); err != nil {
+		t.Fatal(err)
+	}
+	if world.difficulty != 3 || len(world.queued) != 1 {
+		t.Fatal("difficulty mutation bypassed the world tick")
+	}
+	world.queued[0]()
+	if control.GetDifficulty() != 1 {
+		t.Fatal("live difficulty was not updated")
+	}
 }

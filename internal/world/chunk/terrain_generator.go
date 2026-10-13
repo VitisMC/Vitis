@@ -24,8 +24,9 @@ func (g *TerrainGenerator) Generate(x, z int32) (*Chunk, error) {
 	gameData := g.noise.Generate(x, z)
 
 	c := New(x, z)
-	c.SetGameData(gameData)
+	c.SetData(gameData)
 	gameData.ComputeLight()
+	c.MarkDirty()
 	c.SetState(StateLoaded)
 	return c, nil
 }

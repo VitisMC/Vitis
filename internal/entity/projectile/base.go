@@ -10,12 +10,12 @@ import (
 
 // HitResult describes what a projectile hit.
 type HitResult struct {
-	HitBlock    bool
-	HitEntity   bool
-	BlockX      int
-	BlockY      int
-	BlockZ      int
-	EntityID    int32
+	HitBlock         bool
+	HitEntity        bool
+	BlockX           int
+	BlockY           int
+	BlockZ           int
+	EntityID         int32
 	HitX, HitY, HitZ float64
 }
 
@@ -86,6 +86,10 @@ func (b *Base) Tick(world physics.BlockAccess, entityFinder EntityFinder, dims p
 
 	b.life++
 	b.hitResult = nil
+	if b.life > 1200 {
+		b.Entity.Remove()
+		return
+	}
 
 	if b.inGround {
 		return
@@ -127,10 +131,6 @@ func (b *Base) Tick(world physics.BlockAccess, entityFinder EntityFinder, dims p
 	if newPos.Y < -128 {
 		b.Entity.Remove()
 	}
-
-	if b.life > 1200 {
-		b.Entity.Remove()
-	}
 }
 
 func (b *Base) checkBlockHit(world physics.BlockAccess, from, to entity.Vec3) *HitResult {
@@ -150,7 +150,7 @@ func (b *Base) checkBlockHit(world physics.BlockAccess, from, to entity.Vec3) *H
 		bz := int(math.Floor(z))
 
 		stateID := world.GetBlockStateAt(bx, by, bz)
-		if stateID <= 0 {
+		if stateID == 0 {
 			continue
 		}
 
@@ -208,23 +208,55 @@ func (b *Base) checkEntityHit(finder EntityFinder, from, to entity.Vec3, dims ph
 		}
 		entityBox = entityBox.Grow(0.3)
 
-		if !entityBox.Contains(from.X, from.Y, from.Z) && !entityBox.Intersects(sweepBox) {
-			dx := hit.Position.X - from.X
-			dy := hit.Position.Y - from.Y
-			dz := hit.Position.Z - from.Z
-			dist := dx*dx + dy*dy + dz*dz
-			if dist < closestDist {
-				closestDist = dist
+		if hitT, intersects := segmentAABBIntersection(from, to, entityBox); intersects {
+			if hitT < closestDist {
+				closestDist = hitT
+				hitX := from.X + (to.X-from.X)*hitT
+				hitY := from.Y + (to.Y-from.Y)*hitT
+				hitZ := from.Z + (to.Z-from.Z)*hitT
 				closest = &HitResult{
 					HitEntity: true,
 					EntityID:  hit.ID,
-					HitX:      hit.Position.X,
-					HitY:      hit.Position.Y,
-					HitZ:      hit.Position.Z,
+					HitX:      hitX,
+					HitY:      hitY,
+					HitZ:      hitZ,
 				}
 			}
 		}
 	}
 
 	return closest
+}
+
+// segmentAABBIntersection returns the earliest normalized hit point on a line segment.
+func segmentAABBIntersection(from, to entity.Vec3, box physics.AABB) (float64, bool) {
+	delta := [3]float64{to.X - from.X, to.Y - from.Y, to.Z - from.Z}
+	start := [3]float64{from.X, from.Y, from.Z}
+	min := [3]float64{box.MinX, box.MinY, box.MinZ}
+	max := [3]float64{box.MaxX, box.MaxY, box.MaxZ}
+	entry, exit := 0.0, 1.0
+
+	for axis := range delta {
+		if delta[axis] == 0 {
+			if start[axis] < min[axis] || start[axis] > max[axis] {
+				return 0, false
+			}
+			continue
+		}
+		near := (min[axis] - start[axis]) / delta[axis]
+		far := (max[axis] - start[axis]) / delta[axis]
+		if near > far {
+			near, far = far, near
+		}
+		if near > entry {
+			entry = near
+		}
+		if far < exit {
+			exit = far
+		}
+		if entry > exit {
+			return 0, false
+		}
+	}
+	return entry, true
 }

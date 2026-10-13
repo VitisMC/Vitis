@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -17,6 +18,7 @@ const (
 	headerSize      = 2 * sectorSize
 	chunksPerAxis   = 32
 	chunksPerRegion = chunksPerAxis * chunksPerAxis
+	maxChunkNBTSize = 16 << 20
 
 	CompressionGzip = 1
 	CompressionZlib = 2
@@ -27,13 +29,26 @@ var (
 	ErrNotFound = errors.New("region: chunk not found")
 	ErrTooLarge = errors.New("region: chunk data too large")
 	ErrBadData  = errors.New("region: corrupt chunk data")
+	ErrBadCoord = errors.New("region: chunk coordinate out of range")
 )
 
+// compressionBuffer owns a reusable writer and its exclusively borrowed output buffer.
+type compressionBuffer struct {
+	buffer bytes.Buffer
+	writer *zlib.Writer
+}
+
+var compressionPool = sync.Pool{New: func() any {
+	state := &compressionBuffer{}
+	state.writer = zlib.NewWriter(&state.buffer)
+	return state
+}}
+
 // Region reads and writes Anvil .mca region files.
-// Not goroutine-safe — callers must synchronize externally.
 type Region struct {
 	f          io.ReadWriteSeeker
 	offsets    [chunksPerRegion]int32
+	published  [chunksPerRegion]atomic.Int32
 	timestamps [chunksPerRegion]int32
 	sectors    map[int32]bool
 	mu         sync.Mutex
@@ -77,6 +92,9 @@ func Load(f io.ReadWriteSeeker) (*Region, error) {
 			}
 		}
 	}
+	for index, offset := range r.offsets {
+		r.published[index].Store(offset)
+	}
 	return r, nil
 }
 
@@ -111,6 +129,8 @@ func createFrom(f io.ReadWriteSeeker) (*Region, error) {
 
 // Close closes the underlying file if it implements io.Closer.
 func (r *Region) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if closer, ok := r.f.(io.Closer); ok {
 		return closer.Close()
 	}
@@ -121,6 +141,18 @@ func (r *Region) Close() error {
 // x and z must be in the range [0, 31].
 // Returns the raw bytes (compression_type_byte + compressed_nbt) for the caller to decompress.
 func (r *Region) ReadChunk(x, z int) ([]byte, error) {
+	if err := validateChunkCoord(x, z); err != nil {
+		return nil, err
+	}
+	if r.published[chunkIndex(x, z)].Load() == 0 {
+		return nil, ErrNotFound
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.readChunkLocked(x, z)
+}
+
+func (r *Region) readChunkLocked(x, z int) ([]byte, error) {
 	idx := chunkIndex(x, z)
 	sec, num := sectorLoc(r.offsets[idx])
 	if sec == 0 {
@@ -138,7 +170,7 @@ func (r *Region) ReadChunk(x, z int) ([]byte, error) {
 	if length <= 0 {
 		return nil, ErrNotFound
 	}
-	if length > int32(num)*sectorSize {
+	if length > int32(num)*sectorSize-4 {
 		return nil, ErrBadData
 	}
 
@@ -169,7 +201,10 @@ func (r *Region) ReadChunkNBT(x, z int) ([]byte, error) {
 	case CompressionZlib:
 		reader, err = zlib.NewReader(bytes.NewReader(compressed))
 	case CompressionNone:
-		return compressed, nil
+		if len(compressed) > maxChunkNBTSize {
+			return nil, ErrTooLarge
+		}
+		return bytes.Clone(compressed), nil
 	default:
 		return nil, fmt.Errorf("region: unknown compression type %d", compression)
 	}
@@ -178,78 +213,59 @@ func (r *Region) ReadChunkNBT(x, z int) ([]byte, error) {
 	}
 	defer reader.Close()
 
-	decompressed, err := io.ReadAll(reader)
+	decompressed, err := io.ReadAll(io.LimitReader(reader, maxChunkNBTSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("region: read decompressed: %w", err)
+	}
+	if len(decompressed) > maxChunkNBTSize {
+		return nil, ErrTooLarge
 	}
 	return decompressed, nil
 }
 
 // WriteChunk writes raw chunk data (compression_type_byte + compressed_nbt) at relative coordinates.
 func (r *Region) WriteChunk(x, z int, data []byte) error {
-	need := int32((len(data) + 4 + sectorSize - 1) / sectorSize)
-	if need >= 256 {
-		return ErrTooLarge
-	}
-
-	idx := chunkIndex(x, z)
-	n, now := sectorLoc(r.offsets[idx])
-
-	if n != 0 && now == need {
-		// overwrite in place
-	} else {
-		for i := int32(0); i < now; i++ {
-			r.sectors[n+i] = false
-		}
-
-		n = r.findSpace(need)
-		for i := int32(0); i < need; i++ {
-			r.sectors[n+i] = true
-		}
-
-		r.offsets[idx] = (n << 8) | (need & 0xFF)
-		if err := r.writeHeader(x, z); err != nil {
-			return err
-		}
-	}
-
-	if _, err := r.f.Seek(int64(n)*sectorSize, io.SeekStart); err != nil {
-		return err
-	}
-	if err := binary.Write(r.f, binary.BigEndian, int32(len(data))); err != nil {
-		return err
-	}
-	if _, err := r.f.Write(data); err != nil {
-		return err
-	}
-
-	padding := int(need)*sectorSize - len(data) - 4
-	if padding > 0 {
-		if _, err := r.f.Write(make([]byte, padding)); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return r.writeBatch([]ChunkData{{X: x, Z: z, Data: data}})
 }
 
 // WriteChunkNBT compresses and writes NBT data at relative coordinates using zlib.
 func (r *Region) WriteChunkNBT(x, z int, nbtData []byte) error {
-	var buf bytes.Buffer
-	buf.WriteByte(CompressionZlib)
-	w := zlib.NewWriter(&buf)
+	if len(nbtData) > maxChunkNBTSize {
+		return ErrTooLarge
+	}
+	state := compressionPool.Get().(*compressionBuffer)
+	state.buffer.Reset()
+	state.buffer.WriteByte(CompressionZlib)
+	w := state.writer
+	w.Reset(&state.buffer)
+	defer func() {
+		w.Reset(io.Discard)
+		if state.buffer.Cap() <= 1<<20 {
+			compressionPool.Put(state)
+		}
+	}()
 	if _, err := w.Write(nbtData); err != nil {
 		return err
 	}
 	if err := w.Close(); err != nil {
 		return err
 	}
-	return r.WriteChunk(x, z, buf.Bytes())
+	return r.WriteChunk(x, z, state.buffer.Bytes())
 }
 
 // HasChunk returns true if the chunk at relative coordinates exists.
 func (r *Region) HasChunk(x, z int) bool {
-	return r.offsets[chunkIndex(x, z)] != 0
+	if validateChunkCoord(x, z) != nil {
+		return false
+	}
+	return r.published[chunkIndex(x, z)].Load() != 0
+}
+
+func validateChunkCoord(x, z int) error {
+	if x < 0 || x >= chunksPerAxis || z < 0 || z >= chunksPerAxis {
+		return ErrBadCoord
+	}
+	return nil
 }
 
 func sectorLoc(offset int32) (sec, num int32) {
@@ -275,13 +291,15 @@ func (r *Region) writeHeader(x, z int) error {
 	idx := chunkIndex(x, z)
 	var buf [4]byte
 
-	binary.BigEndian.PutUint32(buf[:], uint32(r.offsets[idx]))
-	if err := r.writeAt(buf[:], int64(idx)*4); err != nil {
+	binary.BigEndian.PutUint32(buf[:], uint32(r.timestamps[idx]))
+	if err := r.writeAt(buf[:], sectorSize+int64(idx)*4); err != nil {
 		return err
 	}
 
-	binary.BigEndian.PutUint32(buf[:], uint32(r.timestamps[idx]))
-	if err := r.writeAt(buf[:], sectorSize+int64(idx)*4); err != nil {
+	// The location entry is the commit point. The payload and timestamp are
+	// durable before readers can discover the new sectors.
+	binary.BigEndian.PutUint32(buf[:], uint32(r.offsets[idx]))
+	if err := r.writeAt(buf[:], int64(idx)*4); err != nil {
 		return err
 	}
 	return nil
@@ -289,14 +307,37 @@ func (r *Region) writeHeader(x, z int) error {
 
 func (r *Region) writeAt(p []byte, off int64) error {
 	if f, ok := r.f.(io.WriterAt); ok {
-		_, err := f.WriteAt(p, off)
+		n, err := f.WriteAt(p, off)
+		if err == nil && n != len(p) {
+			return io.ErrShortWrite
+		}
 		return err
 	}
 	if _, err := r.f.Seek(off, io.SeekStart); err != nil {
 		return err
 	}
-	_, err := r.f.Write(p)
-	return err
+	return writeFull(r.f, p)
+}
+
+func (r *Region) sync() error {
+	if syncer, ok := r.f.(interface{ Sync() error }); ok {
+		return syncer.Sync()
+	}
+	return nil
+}
+
+func writeFull(writer io.Writer, data []byte) error {
+	for len(data) > 0 {
+		n, err := writer.Write(data)
+		if err != nil {
+			return err
+		}
+		if n <= 0 {
+			return io.ErrShortWrite
+		}
+		data = data[n:]
+	}
+	return nil
 }
 
 // RegionPath returns the .mca filename for the given region coordinates.

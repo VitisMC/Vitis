@@ -1,0 +1,1938 @@
+[
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 0,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "NONE",
+    "ground": 3,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4607182418800017408"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "4606431818862122325"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "4602678819172646912"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4605681218924227243"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4605504026314976883"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 0,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4604930618986332160"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "4605681218924227243"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "4604930618986332160"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "4598175219545276416"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4604476092236576602"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4603825633829936358"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BURY",
+    "ground": 3,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "13826562246658327255"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "13825896387251957860"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "13809343954627571470"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "4549494463877645996"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "13820955264407700508"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4597583227552924700"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 0,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4600563649549098189"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "4602524350397182052"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "13821775636584237410"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "13790143284410218815"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4599681023642005516"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4597715641468876168"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "13826562246658327255"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "13826562985163069628"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "13826560988599737579"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "13826563177060746410"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "13820955264407700508"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4596594414987103637"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "13736007524013919254"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 0,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4598408438061689706"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "4600566133167300107"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "13826556056966901575"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "13826556380652586131"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4597428418211120202"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4594352414290844419"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "13735622512920287186"
+  },
+  {
+    "mode": "BEARD_BOX",
+    "ground": 3,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4604780498998753144"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4604531772059399107"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 0,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": false,
+    "bits": "4605380978949069210"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": false,
+    "bits": "4604780498998753144"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": false,
+    "bits": "4604531772059399107"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "ENCAPSULATE",
+    "ground": 3,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": false,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -30,
+      -20
+    ],
+    "extra": true,
+    "bits": "4592821474602440568"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -29,
+      -20
+    ],
+    "extra": true,
+    "bits": "4598229696195618066"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      16,
+      -24,
+      -13
+    ],
+    "extra": true,
+    "bits": "13821780809580972336"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      23,
+      -18,
+      -7
+    ],
+    "extra": true,
+    "bits": "13790143284410218815"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      -2,
+      -30,
+      -20
+    ],
+    "extra": true,
+    "bits": "4543754032551027460"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      -3,
+      -30,
+      -20
+    ],
+    "extra": true,
+    "bits": "4535603141063945460"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      35,
+      -30,
+      -20
+    ],
+    "extra": true,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      36,
+      -30,
+      -20
+    ],
+    "extra": true,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -42,
+      -20
+    ],
+    "extra": true,
+    "bits": "4544990864250275500"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -43,
+      -20
+    ],
+    "extra": true,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -6,
+      -20
+    ],
+    "extra": true,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -5,
+      -20
+    ],
+    "extra": true,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      24,
+      -30,
+      -20
+    ],
+    "extra": true,
+    "bits": "4599681023642005516"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      10,
+      -31,
+      -21
+    ],
+    "extra": true,
+    "bits": "4600114975327685864"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      0,
+      -10,
+      0
+    ],
+    "extra": true,
+    "bits": "0"
+  },
+  {
+    "mode": "BEARD_THIN",
+    "ground": 3,
+    "point": [
+      40,
+      -45,
+      -32
+    ],
+    "extra": true,
+    "bits": "0"
+  }
+]

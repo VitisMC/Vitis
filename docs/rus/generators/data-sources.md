@@ -1,98 +1,35 @@
-# Источники данных
+# Источники данных Minecraft
 
-Внешние источники данных, используемые генераторами Vitis. Все данные хранятся в `.mcdata/{версия}/`.
+[English](../../eng/generators/data-sources.md) · [Документация](../README.md)
 
-## Основные источники
+## Файлы и источники
 
-### 1. Серверный JAR Minecraft — `registries.json`
+| Файл | Источник / назначение |
+| --- | --- |
+| `mojang-version.json` | Метаданные версии из официального списка Mojang |
+| `.mc-decompiled/downloads/<version>/server.jar` | Официальный JAR сервера; SHA-1 проверяется по метаданным |
+| `server_mappings.txt` | Таблицы имён Mojang с проверкой SHA-1 |
+| `<world>/vanilla/<version>/` | Ресурсы сервера, описание пакета и версия |
+| `.mcdata/<version>/vanilla` | Результат генератора данных, встроенные ресурсы и отчёты; источник переноса в мир |
+| `registries.json`, `datapacks/`, `tags/`, `recipes/`, `loot_tables/` | Копии ресурсов официального пакета для генераторов кода |
+| JSON выбранной версии PrismarineJS | Блоки, предметы, сущности, протокол, биомы, формы блоков и связанные данные |
+| `source.lock` | Закреплённый коммит minecraft-data и хеши официальных JAR и таблиц имён |
+| `checksums.sha256` | Контрольные суммы подготовленных файлов |
+| `.mc-decompiled/<version>-decompiled` | Java-исходники с читаемыми именами для генераторов |
+| `.mc-decompiled/<version>-remapped.jar` | JAR с переименованными классами для Java-экспортёров |
 
-**Источник:** Официальный серверный JAR от Mojang, встроенный генератор данных.
+Полная генерация использует ресурсы из официального JAR и закреплённую версию [PrismarineJS minecraft-data](https://github.com/PrismarineJS/minecraft-data). Снимки misode в текущем процессе не используются.
 
-**Выдаёт:** `registries.json` — все 80 маппингов имя↔ID встроенных регистров с протокольными ID.
+## Воспроизводимость
 
-**Формат:**
-```json
-{
-  "minecraft:block": {
-    "protocol_id": 3,
-    "entries": {
-      "minecraft:air": { "protocol_id": 0 },
-      "minecraft:stone": { "protocol_id": 1 }
-    }
-  }
-}
-```
+JAR, таблицы имён, ресурсы, исходники и JSON протокола должны относиться к одной версии Minecraft. Проверяйте хеши из метаданных Mojang, версию ресурсов, коммит источника и изменения сгенерированных файлов.
 
-**Как работает в `update_version.sh`:**
-1. Серверный JAR скачивается скриптом `extract_loot_tables.sh` (кэшируется в `.mc-decompiled/downloads/{версия}/server.jar`)
-2. Запускается генератор данных: `java -DbundlerMainClass="net.minecraft.data.Main" -jar server.jar --reports`
-3. Результат `generated/reports/registries.json` копируется в `.mcdata/{версия}/registries.json`
+`vitis-data` проверяет встроенные сведения о версии и содержимое пакета. Скачивание JAR и проверку его опубликованного хеша выполняют подготовка ресурсов сервера и скрипт полной генерации.
 
-**Используется:** 14 генераторами (attribute, fluid, potion, game_event, screen, data_component, block_entity, villager_profession, villager_type, cat_variant, frog_variant, message_type, registry, tag).
+MinecraftDecompiler и Vineflower готовят исходники и переименованный JAR. Версии инструментов, сведения о входных файлах и контрольные суммы результата записываются в `.mc-decompiled/<version>.sources.lock` и `.sources.sha256`. Требования Java-экспортёров описаны в [руководстве](../../../internal/data/generator/block/worldgen/README.md).
 
-### 2. PrismarineJS/minecraft-data
+## Исходники
 
-**Репозиторий:** https://github.com/PrismarineJS/minecraft-data
+[Подготовка на Linux](../../../scripts/linux/update_version.sh), [подготовка на Windows](../../../scripts/windows/update_version.ps1), [извлечение ресурсов](../../../internal/data/vanilla/prepare.go), [генерация отчётов](../../../internal/data/vanilla/generate.go), [команда](../../../cmd/vitis-data/main.go), [генераторы](../../../internal/data/generator/).
 
-**Скачиваемые файлы:**
-- `blocks.json` — Определения блоков, состояния, свойства
-- `items.json` — Определения предметов, размеры стеков
-- `entities.json` — Типы сущностей, размеры
-- `protocol.json` — Определения пакетов для всех состояний
-- `sounds.json` — Имена и ID звуковых событий
-- `particles.json` — ID типов частиц
-- `effects.json` — Определения эффектов зелий
-- `biomes.json` — Определения биомов
-- `foods.json` — Свойства еды
-- `recipes.json` — Рецепты крафта
-- `language.json` — Ключи переводов
-- `blockCollisionShapes.json` — Формы коллизий блоков
-- `materials.json`, `tints.json`, `enchantments.json`
-
-**Шаблон URL:** `https://raw.githubusercontent.com/PrismarineJS/minecraft-data/master/data/pc/{версия}/{файл}.json`
-
-**Версии:** от 1.8 до последней. Обновляется в течение дней после релиза.
-
-### 3. misode/mcmeta — датапаки и теги
-
-**Репозиторий:** https://github.com/misode/mcmeta
-
-**Используется для:**
-- **Датапаки конфигурационных регистров** — JSON-определения для регистров, отправляемых клиентам на этапе Configuration
-- **Теги** — Именованные группы записей регистров (теги блоков, предметов и т.д.)
-
-**Тег:** `{версия}-data-json` (напр. `1.21.4-data-json`)
-
-**Скачиваемые датапаки** (в `.mcdata/{версия}/datapacks/`):
-- `banner_pattern/`, `chat_type/`, `damage_type/`, `dimension_type/`
-- `enchantment/`, `instrument/`, `jukebox_song/`, `painting_variant/`
-- `trim_material/`, `trim_pattern/`, `wolf_variant/`
-- `worldgen/biome/`, `worldgen/structure/`, `worldgen/noise/`
-- `worldgen/configured_feature/`, `worldgen/placed_feature/`, `worldgen/noise_settings/`
-
-**Скачиваемые теги** (в `.mcdata/{версия}/tags/`):
-- `block/`, `entity_type/`, `fluid/`, `item/`
-
-**Версии:** от 1.14 до последней. Обновляется в течение часов после релиза.
-
-### 4. Серверный JAR Minecraft — декомпилированный исходный код
-
-**Инструмент:** MaxPixelStudios/MinecraftDecompiler (https://github.com/MaxPixelStudios/MinecraftDecompiler)
-
-**Используется:** 15 генераторами, которые парсят декомпилированный Java-код для извлечения констант и маппингов, недоступных в публичных JSON-данных (позы сущностей, игровые правила, мировые события, отслеживаемые данные и т.д.).
-
-**Процесс:** `update_version.sh` Шаг 5 декомпилирует серверный JAR с помощью Vineflower. Генераторы из массива `GENERATORS` читают из `.mc-decompiled/{версия}-decompiled/`.
-
-## Запасные источники
-
-- **Официальная Minecraft Wiki** — https://minecraft.wiki
-- **Articdive/ArticData** — https://github.com/Articdive/ArticData
-
-## Доступность по версиям
-
-| Источник | Мин. версия | Частота обновления |
-|----------|-------------|-------------------|
-| PrismarineJS | 1.7.10 | Дни после релиза |
-| misode/mcmeta | 1.14 | Часы после релиза |
-| Генератор данных серверного JAR | Любая | Немедленно (от Mojang) |
-| Декомпилированный JAR | Любая | Немедленно (требуется Java) |
+Перенос ядра описан в [обновлении версии](version-upgrade.md).

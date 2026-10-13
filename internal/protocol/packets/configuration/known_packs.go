@@ -7,6 +7,11 @@ import (
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
+const (
+	maxKnownPacks     = 64
+	maxKnownPackField = 128
+)
+
 // KnownPack represents a single data pack entry.
 type KnownPack struct {
 	Namespace string
@@ -35,17 +40,20 @@ func (p *ClientboundKnownPacks) Decode(buf *protocol.Buffer) error {
 	if err != nil {
 		return fmt.Errorf("decode known_packs count: %w", err)
 	}
-	p.Packs = make([]KnownPack, count)
+	if count < 0 || count > maxKnownPacks {
+		return fmt.Errorf("decode known_packs: invalid count %d", count)
+	}
+	p.Packs = make([]KnownPack, int(count))
 	for i := int32(0); i < count; i++ {
-		ns, err := buf.ReadString()
+		ns, err := buf.ReadStringLimit(maxKnownPackField)
 		if err != nil {
 			return fmt.Errorf("decode known_packs[%d] namespace: %w", i, err)
 		}
-		id, err := buf.ReadString()
+		id, err := buf.ReadStringLimit(maxKnownPackField)
 		if err != nil {
 			return fmt.Errorf("decode known_packs[%d] id: %w", i, err)
 		}
-		ver, err := buf.ReadString()
+		ver, err := buf.ReadStringLimit(maxKnownPackField)
 		if err != nil {
 			return fmt.Errorf("decode known_packs[%d] version: %w", i, err)
 		}
@@ -92,17 +100,20 @@ func (p *ServerboundKnownPacks) Decode(buf *protocol.Buffer) error {
 	if err != nil {
 		return fmt.Errorf("decode known_packs count: %w", err)
 	}
-	p.Packs = make([]KnownPack, count)
+	if count < 0 || count > maxKnownPacks {
+		return fmt.Errorf("decode known_packs: invalid count %d", count)
+	}
+	p.Packs = make([]KnownPack, int(count))
 	for i := int32(0); i < count; i++ {
-		ns, err := buf.ReadString()
+		ns, err := buf.ReadStringLimit(maxKnownPackField)
 		if err != nil {
 			return fmt.Errorf("decode known_packs[%d] namespace: %w", i, err)
 		}
-		id, err := buf.ReadString()
+		id, err := buf.ReadStringLimit(maxKnownPackField)
 		if err != nil {
 			return fmt.Errorf("decode known_packs[%d] id: %w", i, err)
 		}
-		ver, err := buf.ReadString()
+		ver, err := buf.ReadStringLimit(maxKnownPackField)
 		if err != nil {
 			return fmt.Errorf("decode known_packs[%d] version: %w", i, err)
 		}

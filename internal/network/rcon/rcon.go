@@ -1,6 +1,7 @@
 package rcon
 
 import (
+	"crypto/subtle"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -34,11 +35,12 @@ type Config struct {
 
 // Server is a Minecraft RCON server.
 type Server struct {
-	cfg      Config
-	listener net.Listener
-	mu       sync.Mutex
-	closed   bool
-	wg       sync.WaitGroup
+	cfg         Config
+	listener    net.Listener
+	mu          sync.Mutex
+	closed      bool
+	wg          sync.WaitGroup
+	connections sync.Map
 }
 
 // New creates a new RCON server.
@@ -48,6 +50,9 @@ func New(cfg Config) *Server {
 
 // Start begins listening for RCON connections.
 func (s *Server) Start() error {
+	if s == nil || !ValidPassword(s.cfg.Password) {
+		return fmt.Errorf("rcon: password is too weak")
+	}
 	ln, err := net.Listen("tcp", s.cfg.Address)
 	if err != nil {
 		return fmt.Errorf("rcon listen: %w", err)
@@ -69,6 +74,12 @@ func (s *Server) Stop() {
 	if s.listener != nil {
 		_ = s.listener.Close()
 	}
+	s.connections.Range(func(key, _ any) bool {
+		if conn, ok := key.(net.Conn); ok {
+			_ = conn.Close()
+		}
+		return true
+	})
 	s.wg.Wait()
 	logger.Info("rcon server stopped")
 }
@@ -97,6 +108,14 @@ func (s *Server) acceptLoop() {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer s.wg.Done()
 	defer conn.Close()
+	s.connections.Store(conn, struct{}{})
+	defer s.connections.Delete(conn)
+	s.mu.Lock()
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return
+	}
 
 	addr := conn.RemoteAddr().String()
 	logger.Debug("rcon connection", "addr", addr)
@@ -121,7 +140,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		switch pktType {
 		case packetTypeAuth:
-			if payload == s.cfg.Password {
+			if subtle.ConstantTimeCompare([]byte(payload), []byte(s.cfg.Password)) == 1 {
 				authenticated = true
 				_ = writePacket(conn, reqID, packetTypeAuthResp, "")
 				logger.Info("rcon authenticated", "addr", addr)

@@ -37,9 +37,6 @@ func (r *BrainRegistry) Register(entityID int32, brain *Brain) {
 
 // RegisterMob creates and assigns a brain for the given mob.
 func (r *BrainRegistry) RegisterMob(mob *entity.MobEntity) {
-	if mob.NoAI() {
-		return
-	}
 	r.brains[mob.ID()] = NewBrain(mob.TypeDef())
 }
 
@@ -58,8 +55,11 @@ func (r *BrainRegistry) TickAll(mobs map[int32]*entity.MobEntity, players []Play
 	var toRemove []int32
 	for id, brain := range r.brains {
 		mob, ok := mobs[id]
-		if !ok || mob.Entity.Removed() || mob.IsDead() || mob.NoAI() {
+		if !ok || mob.Entity.Removed() || mob.IsDead() {
 			toRemove = append(toRemove, id)
+			continue
+		}
+		if !entity.IsTickingAt(blocks, mob.Position()) {
 			continue
 		}
 
@@ -68,6 +68,17 @@ func (r *BrainRegistry) TickAll(mobs map[int32]*entity.MobEntity, players []Play
 			Players: players,
 			Tick:    worldTick,
 			Blocks:  blocks,
+		}
+		if mob.NoAI() {
+			// NoAI suppresses decisions, while sunlight remains an environmental effect.
+			if brain.Goals != nil {
+				for _, entry := range brain.Goals.entries {
+					if sunlight, ok := entry.goal.(*BurnInSunlightGoal); ok {
+						sunlight.Tick(ctx)
+					}
+				}
+			}
+			continue
 		}
 
 		if brain.Targets != nil {

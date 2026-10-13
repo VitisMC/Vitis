@@ -4,49 +4,63 @@ import (
 	"math"
 	"math/rand"
 
+	"github.com/vitismc/vitis/internal/block"
+	"github.com/vitismc/vitis/internal/block/fluid"
 	"github.com/vitismc/vitis/internal/entity"
+	"github.com/vitismc/vitis/internal/logger"
 )
 
 // --- BurnInSunlightGoal ---
 
 // BurnInSunlightGoal sets the mob on fire during daytime if exposed to sky.
-// Uses a simplified check: mob Y > 60 and world tick in daytime range.
 type BurnInSunlightGoal struct {
-	burnTicks int
+	random func() float32
 }
 
+// CanStart checks live exposure and the mob's environmental eligibility.
 func (g *BurnInSunlightGoal) CanStart(ctx *Context) bool {
-	// Daytime: ticks 0-12000
-	dayTick := ctx.Tick % 24000
-	if dayTick > 12000 {
-		return false
+	environment, ok := ctx.Blocks.(MobEnvironment)
+	return ok && !ctx.Mob.IsDead() && !ctx.Mob.Removed() && !ctx.Mob.TypeDef().FireImmune && environment.MobSunlit(ctx.Mob.Position())
+}
+
+// Start leaves existing fire and equipment state unchanged.
+func (g *BurnInSunlightGoal) Start(ctx *Context) {}
+
+// Tick samples current brightness and wears head protection before ignition.
+func (g *BurnInSunlightGoal) Tick(ctx *Context) {
+	if !g.CanStart(ctx) {
+		return
 	}
 	pos := ctx.Mob.Position()
-	// Simplified sky exposure check: above Y=60
-	if pos.Y < 60 {
-		return false
+	state := ctx.Blocks.GetBlockStateAt(int(math.Floor(pos.X)), int(math.Floor(pos.Y)), int(math.Floor(pos.Z)))
+	if fluid.ContainedFluidType(state) == fluid.FluidTypeWater || block.NameFromState(state) == "minecraft:powder_snow" {
+		return
 	}
-	// Check if wearing helmet (would prevent burning) - skip for now
-	return true
-}
-
-func (g *BurnInSunlightGoal) Start(ctx *Context) {
-	g.burnTicks = 0
-}
-
-func (g *BurnInSunlightGoal) Tick(ctx *Context) {
-	g.burnTicks++
-	// Apply 1 fire damage every 20 ticks (1 second)
-	if g.burnTicks%20 == 0 {
-		ctx.Mob.Damage(1, "on_fire")
+	light := float32(min(uint8(15), ctx.Blocks.(MobEnvironment).MobBrightness(pos))) / 15
+	brightness := light / (4 - 3*light)
+	sample := rand.Float32
+	if g.random != nil {
+		sample = g.random
+	}
+	if brightness <= .5 || sample()*30 >= (brightness-.4)*2 {
+		return
+	}
+	protected, err := ctx.Mob.WearSunHelmet()
+	if err != nil {
+		logger.Error("wear sunlight helmet failed", "entity_id", ctx.Mob.ID(), "error", err)
+	}
+	// Refresh fire while the live environment still exposes the mob to sunlight.
+	if !protected {
+		ctx.Mob.SetFireTicks(160)
 	}
 }
 
+// CanContinue rechecks exposure before the next environmental update.
 func (g *BurnInSunlightGoal) CanContinue(ctx *Context) bool {
-	dayTick := ctx.Tick % 24000
-	return dayTick <= 12000 && ctx.Mob.Position().Y >= 60 && !ctx.Mob.IsDead()
+	return !ctx.Mob.IsDead() && g.CanStart(ctx)
 }
 
+// Stop leaves ongoing fire to the living entity's environment simulation.
 func (g *BurnInSunlightGoal) Stop(ctx *Context) {}
 
 // --- CreeperSwellGoal ---
@@ -68,12 +82,14 @@ func (g *CreeperSwellGoal) CanStart(ctx *Context) bool {
 func (g *CreeperSwellGoal) Start(ctx *Context) {
 	g.fuse = 0
 	g.swelling = true
+	ctx.Mob.SetSwellDirection(1)
 }
 
 func (g *CreeperSwellGoal) Tick(ctx *Context) {
 	p := ctx.NearestPlayer(g.swellDist())
 	if p == nil {
 		g.swelling = false
+		ctx.Mob.SetSwellDirection(-1)
 		return
 	}
 
@@ -87,9 +103,9 @@ func (g *CreeperSwellGoal) Tick(ctx *Context) {
 	g.fuse++
 	fuseTime := g.fuseTime()
 	if g.fuse >= fuseTime {
-		// Explode: kill the creeper and mark for explosion processing
-		ctx.Mob.Damage(ctx.Mob.Health(), "explosion.self")
-		g.swelling = false
+		if actions, ok := ctx.Blocks.(MobActions); ok && actions.ExplodeMob(ctx.Mob, float64(g.ExplosionPw)) {
+			g.swelling = false
+		}
 	}
 }
 
@@ -100,6 +116,7 @@ func (g *CreeperSwellGoal) CanContinue(ctx *Context) bool {
 func (g *CreeperSwellGoal) Stop(ctx *Context) {
 	g.fuse = 0
 	g.swelling = false
+	ctx.Mob.SetSwellDirection(-1)
 }
 
 func (g *CreeperSwellGoal) swellDist() float64 {
@@ -130,13 +147,14 @@ type RangedAttackGoal struct {
 	AttackDist  float64
 	Cooldown    int
 	StrafeSpeed float64
+	RequiresBow bool
 	cooldown    int
 	strafeDir   int // -1 left, 1 right
 	strafeTick  int
 }
 
 func (g *RangedAttackGoal) CanStart(ctx *Context) bool {
-	return ctx.Mob.Target() >= 0
+	return ctx.Mob.Target() >= 0 && (!g.RequiresBow || ctx.Mob.UsesBow())
 }
 
 func (g *RangedAttackGoal) Start(ctx *Context) {
@@ -188,6 +206,7 @@ func (g *RangedAttackGoal) Tick(ctx *Context) {
 	if speed <= 0 {
 		speed = 0.25
 	}
+	speed = movementSpeed(ctx.Mob, speed)
 
 	// Move toward target if too far
 	vel := ctx.Mob.Entity.Velocity()
@@ -203,6 +222,8 @@ func (g *RangedAttackGoal) Tick(ctx *Context) {
 		strafeSpeed := g.StrafeSpeed
 		if strafeSpeed <= 0 {
 			strafeSpeed = speed * 0.5
+		} else {
+			strafeSpeed = movementSpeed(ctx.Mob, strafeSpeed)
 		}
 		vel.X = -dz / dist * float64(g.strafeDir) * strafeSpeed
 		vel.Z = dx / dist * float64(g.strafeDir) * strafeSpeed
@@ -212,10 +233,13 @@ func (g *RangedAttackGoal) Tick(ctx *Context) {
 	if g.cooldown > 0 {
 		g.cooldown--
 	}
+	if actions, ok := ctx.Blocks.(MobActions); ok && g.ShouldShoot(ctx) {
+		actions.AttackMobTarget(ctx.Mob, ctx.Mob.Target(), true)
+	}
 }
 
 func (g *RangedAttackGoal) CanContinue(ctx *Context) bool {
-	return ctx.Mob.Target() >= 0
+	return g.CanStart(ctx)
 }
 
 func (g *RangedAttackGoal) Stop(ctx *Context) {}
@@ -232,7 +256,7 @@ func (g *RangedAttackGoal) ShouldShoot(ctx *Context) bool {
 			if atkDist <= 0 {
 				atkDist = 15.0
 			}
-			if ctx.Mob.DistanceTo(p.Pos) <= atkDist {
+			if ctx.Mob.DistanceTo(p.Pos) <= atkDist && p.GameMode != 1 && p.GameMode != 3 && ctx.CanSee(p.Pos) {
 				cd := g.Cooldown
 				if cd <= 0 {
 					cd = 30
@@ -256,11 +280,8 @@ type AvoidSunlightGoal struct {
 }
 
 func (g *AvoidSunlightGoal) CanStart(ctx *Context) bool {
-	dayTick := ctx.Tick % 24000
-	if dayTick > 12000 {
-		return false
-	}
-	return ctx.Mob.Position().Y >= 60
+	environment, ok := ctx.Blocks.(MobEnvironment)
+	return ok && ctx.Mob.Equipment(entity.EquipmentHead).Empty() && environment.MobSunlit(ctx.Mob.Position())
 }
 
 func (g *AvoidSunlightGoal) Start(ctx *Context) {
@@ -287,6 +308,7 @@ func (g *AvoidSunlightGoal) Tick(ctx *Context) {
 	if speed <= 0 {
 		speed = 0.3
 	}
+	speed = movementSpeed(ctx.Mob, speed)
 	nx := dx / dist * speed
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
@@ -298,7 +320,7 @@ func (g *AvoidSunlightGoal) Tick(ctx *Context) {
 }
 
 func (g *AvoidSunlightGoal) CanContinue(ctx *Context) bool {
-	return g.seeking
+	return g.seeking && g.CanStart(ctx)
 }
 
 func (g *AvoidSunlightGoal) Stop(ctx *Context) {
@@ -367,7 +389,9 @@ func (g *TemptGoal) CanStart(ctx *Context) bool {
 	if p == nil {
 		return false
 	}
-	// Simplified: always follow nearest player in survival (full impl would check held item)
+	if !temptItem(ctx.Mob.TypeName(), p.HeldItem) && !temptItem(ctx.Mob.TypeName(), p.OffhandItem) {
+		return false
+	}
 	g.target = p
 	return true
 }
@@ -389,6 +413,7 @@ func (g *TemptGoal) Tick(ctx *Context) {
 	if speed <= 0 {
 		speed = 0.2
 	}
+	speed = movementSpeed(ctx.Mob, speed)
 	nx := dx / dist * speed
 	nz := dz / dist * speed
 	yaw := float32(math.Atan2(-nx, nz) * 180.0 / math.Pi)
@@ -407,7 +432,28 @@ func (g *TemptGoal) CanContinue(ctx *Context) bool {
 	if maxDist <= 0 {
 		maxDist = 10.0
 	}
-	return ctx.Mob.DistanceToSq(g.target.Pos) <= maxDist*maxDist
+	for i := range ctx.Players {
+		p := &ctx.Players[i]
+		if p.EntityID == g.target.EntityID {
+			g.target = p
+			return ctx.Mob.DistanceToSq(p.Pos) <= maxDist*maxDist && (temptItem(ctx.Mob.TypeName(), p.HeldItem) || temptItem(ctx.Mob.TypeName(), p.OffhandItem))
+		}
+	}
+	return false
+}
+
+// temptItem validates food held by a player for the currently supported species.
+func temptItem(mob, item string) bool {
+	switch mob {
+	case "cow", "sheep":
+		return item == "minecraft:wheat"
+	case "pig":
+		return item == "minecraft:carrot" || item == "minecraft:potato" || item == "minecraft:beetroot"
+	case "chicken":
+		return item == "minecraft:wheat_seeds" || item == "minecraft:melon_seeds" || item == "minecraft:pumpkin_seeds" || item == "minecraft:beetroot_seeds" || item == "minecraft:torchflower_seeds" || item == "minecraft:pitcher_pod"
+	default:
+		return false
+	}
 }
 
 func (g *TemptGoal) Stop(ctx *Context) {
@@ -429,9 +475,8 @@ func (g *SpiderNeutralGoal) CanStart(ctx *Context) bool {
 	}
 	g.timer = 10
 
-	dayTick := ctx.Tick % 24000
-	isNight := dayTick >= 13000 && dayTick <= 23000
-	if !isNight {
+	environment, available := ctx.Blocks.(MobEnvironment)
+	if available && environment.MobBrightness(ctx.Mob.Position()) >= 8 {
 		// Daytime: clear target if exists
 		if ctx.Mob.Target() >= 0 {
 			ctx.Mob.SetTarget(-1)

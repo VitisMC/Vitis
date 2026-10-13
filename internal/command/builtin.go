@@ -117,6 +117,44 @@ func RegisterBuiltinCommands(registry *Registry, players PlayerLookup, server Se
 	registry.Register(cmdXP(players, server))
 	registry.Register(cmdSummon(server))
 	registry.Register(cmdEffect(players, server))
+	registry.Register(cmdReload(server))
+	registry.Register(cmdSpeed(server))
+	if control, ok := server.(ChunkyControl); ok {
+		registry.Register(cmdChunky(control))
+	}
+}
+
+// resourceReloader is implemented by servers with atomic datapack reload support.
+type resourceReloader interface {
+	ReloadResources() error
+}
+
+// cmdReload creates the server resource reload command.
+func cmdReload(server ServerControl) *Command {
+	return &Command{
+		Name:            "reload",
+		Description:     "Reloads server datapacks",
+		Usage:           "/reload",
+		PermissionLevel: 2,
+		Execute: func(ctx *Context) error {
+			if ctx.ArgCount() != 0 {
+				ctx.ReplyError("Usage: /reload")
+				return nil
+			}
+			reloader, ok := server.(resourceReloader)
+			if !ok {
+				ctx.ReplyError("Resource reload is unavailable")
+				return nil
+			}
+			ctx.Reply("§7Reloading server resources...")
+			if err := reloader.ReloadResources(); err != nil {
+				ctx.ReplyError("Reload failed: %v", err)
+				return nil
+			}
+			ctx.Reply("§aServer resources reloaded")
+			return nil
+		},
+	}
 }
 
 // --- /help ---

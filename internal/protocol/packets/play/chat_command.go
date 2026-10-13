@@ -5,6 +5,8 @@ import (
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
+const maxChatCommandLength = 32500
+
 // ChatCommand is sent by the client when executing a slash command.
 type ChatCommand struct {
 	Command string
@@ -16,7 +18,7 @@ func (p *ChatCommand) ID() int32 { return int32(packetid.ServerboundChatCommand)
 
 func (p *ChatCommand) Decode(buf *protocol.Buffer) error {
 	var err error
-	p.Command, err = buf.ReadString()
+	p.Command, err = buf.ReadStringLimit(maxChatCommandLength)
 	return err
 }
 

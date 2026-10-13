@@ -72,9 +72,6 @@ func (p *DefaultStatusInfoProvider) StatusInfo(session Session) StatusInfo {
 	}
 
 	protocolVersion := p.ProtocolVersion
-	if session != nil && session.ProtocolVersion() > 0 {
-		protocolVersion = session.ProtocolVersion()
-	}
 	if protocolVersion <= 0 {
 		protocolVersion = defaultStatusProtocol
 	}
@@ -191,6 +188,16 @@ func (r *DefaultPacketRouter) Handle(session Session, state protocol.State, pack
 		return fmt.Errorf("handle packet state=%s id=%d: %w", state.String(), packet.ID(), ErrPacketHandlerNotFound)
 	}
 	return handler(session, packet)
+}
+
+// Has reports whether a handler is registered for the state and packet ID.
+func (r *DefaultPacketRouter) Has(state protocol.State, packetID int32) bool {
+	if r == nil {
+		return false
+	}
+	handlers := r.handlers.Load().(map[handlerKey]PacketHandler)
+	_, ok := handlers[handlerKey{state: state, id: packetID}]
+	return ok
 }
 
 // RegisterStatusHandlers registers status request and ping handlers on a packet router.

@@ -1,102 +1,54 @@
-# Protocol Overview
+# Network transport and protocol flows
 
-Vitis implements the Minecraft Java Edition protocol version **769** (1.21.4).
+[Русский](../rus/protocol.md) · [Documentation](README.md)
 
-## Protocol States
+## Transport
 
-The connection progresses through four states:
+[Conn](../../internal/network/conn.go) handles the socket, timeouts and outbound queue. The [pipeline](../../internal/network/pipeline.go) handles framing, compression and session dispatch. [Decompression](../../internal/network/compression.go) checks compressed-data limits.
 
-```
-Handshake → Status (server list ping)
-Handshake → Login → Configuration → Play
-```
+Uncompressed frames contain `VarInt(frame length) + VarInt(packet ID) + payload`. After compression negotiation, contents begin with `VarInt(uncompressed length)`: zero means the remainder is uncompressed; otherwise it contains zlib data. Online authentication enables encryption of the byte stream. Sizes are checked before allocation and decompression.
 
-### Handshake
+A codec is registered for a version, state, direction and ID. `AnyVersion` is a fallback for codec lookup; the handshake checks the supported Minecraft version.
 
-Single packet from client declaring intent (status or login) and protocol version.
+## Session states
 
-### Status
-
-Server list ping/pong. The server responds with version info, player count, MOTD, and optional favicon.
-
-### Login
-
-1. **LoginStart** — client sends username and UUID
-2. **EncryptionRequest/Response** (online mode only) — RSA key exchange, shared secret, CFB8 cipher
-3. **SetCompression** — enables zlib packet compression above threshold
-4. **LoginSuccess** — server confirms login with UUID and skin properties
-5. **LoginAcknowledged** — client confirms, transitions to Configuration
-
-### Configuration
-
-1. **PluginMessage** — server sends brand (`minecraft:brand` = "Vitis")
-2. **KnownPacks** — client/server negotiate known data packs
-3. **RegistryData** — server sends 78+ registries and 12 config registries (NBT-encoded)
-4. **UpdateTags** — server sends tag groups (biome tags, item tags, etc.)
-5. **FinishConfiguration** — transitions to Play
-
-### Play
-
-All gameplay packets. Key categories:
-
-- **Position** — `SetPlayerPosition`, `SetPlayerPositionAndRotation`, `SyncPlayerPosition`
-- **Chunks** — `ChunkData`, `UnloadChunk`, `ChunkBatchStart/Finished`
-- **Entities** — `SpawnEntity`, `EntityPosition`, `EntityMetadata`, `EntityStatus`
-- **Inventory** — `WindowClick`, `SetContainerContent`, `SetContainerSlot`
-- **Combat** — `DamageEvent`, `HurtAnimation`, `DeathCombatEvent`, `EntityVelocity`
-- **World** — `BlockUpdate`, `AcknowledgeBlockChange`, `UpdateTime`, `WorldEvent`
-- **Chat** — `DisguisedChat`, `SystemChatMessage`, `ChatCommand`
-- **Scoreboard** — `UpdateObjectives`, `UpdateScore`, `UpdateTeams`
-- **Tab** — `PlayerInfoUpdate/Remove`, `TabHeaderFooter`, `TabComplete`
-- **KeepAlive** — bidirectional heartbeat every 10 seconds
-
-## Wire Format
-
-All packets follow this structure:
-
-```
-[VarInt packet_length] [VarInt packet_id] [payload...]
+```mermaid
+stateDiagram-v2
+  [*] --> Handshake
+  Handshake --> Status
+  Handshake --> Login
+  Login --> Configuration
+  Configuration --> Play
+  Status --> [*]
+  Play --> [*]
 ```
 
-With compression enabled:
+| State | Server actions |
+| --- | --- |
+| Handshake | Check protocol version and select status or login |
+| Status | Server-list response and ping; player count comes from admitted Play sessions |
+| Login | Check name, IP and access, authenticate or derive an offline UUID, negotiate compression and send success |
+| Configuration | Exchange known-pack information, registries and tags; wait for completion acknowledgement |
+| Play | Prepare player state, validate actions, check connection health, handle gameplay and chunk feedback |
 
-```
-[VarInt packet_length] [VarInt data_length] [zlib_compressed([VarInt packet_id] [payload...])]
-```
+Login and configuration have internal stages. The session checks packet and acknowledgement order. Reconfiguration after entering Play is not currently initiated, although the state machine allows Play → Configuration.
 
-If `data_length` is 0, the packet is uncompressed (below threshold).
+## Online and offline login
 
-### VarInt Encoding
+With `online_mode: true`, the server generates RSA keys, verifies the encryption token, enables AES/CFB8 and checks Mojang's session service. With `false`, it derives a UUID from the name without authenticating the account. See [operations](operations.md) for access-list behavior.
 
-Variable-length integer encoding (1–5 bytes). Each byte uses 7 data bits and 1 continuation bit.
+Compression and encryption changes must stay ordered with negotiation packets. Do not move stage handling into unordered background jobs or change connection flags before sending the corresponding frame.
 
-```
-Value:  0x00–0x7F      → 1 byte
-Value:  0x80–0x3FFF     → 2 bytes
-Value:  0x4000–0x1FFFFF → 3 bytes
-...up to 5 bytes for int32
-```
+## Validation and handlers
 
-## Packet Registration
+Packets implement [Packet](../../internal/protocol/packet.go): `ID()`, `Decode(*Buffer) error`, `Encode(*Buffer) error`. Bound strings, collections, components and NBT. Reject malformed VarInts, invalid lengths, prohibited trailing bytes, and NaN or infinite movement values.
 
-Packets are registered in `internal/protocol/states/` with version-aware and state-aware mappings:
+After decoding, game handlers check the player, reach, game mode, inventory state and whether the action is allowed. These checks run on the server.
 
-```go
-states.RegisterCore(registry, protocol.AnyVersion)
-```
+[play_policy.go](../../internal/session/play_policy.go) lists packets accepted without performing actions, including vehicle control, signed chat, trading and several special interfaces. Add a handler for a new packet or explicitly state why it is accepted without an action.
 
-Each packet implements the `protocol.Packet` interface:
+## Sources and tests
 
-```go
-type Packet interface {
-    ID() int32
-    Encode(buf *Buffer) error
-    Decode(buf *Buffer) error
-}
-```
+[Session processing](../../internal/session/session.go), [protocol stages](../../internal/session/protocol_flow.go), [login](../../internal/session/login_handler.go), [configuration](../../internal/session/configuration_handler.go), [codec registration](../../internal/protocol/states/).
 
-## 1.21.4 Specifics
-
-- **Text Components** are encoded as **NBT**, not JSON strings (affects MOTD, chat, disconnect)
-- **UpdateTime** includes a trailing `TickDayTime` boolean field
-- **Registry data** uses the 1.21.4 datapack format with NBT-encoded entries
+Run `go test ./internal/protocol/... ./internal/network/... ./internal/session -count=1`. Check encoding and decoding, malformed input and transition order. See [packet IDs](packets/packet-ids.md) and [version upgrades](generators/version-upgrade.md) for ID changes.

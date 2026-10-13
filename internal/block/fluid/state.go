@@ -6,10 +6,16 @@ import (
 )
 
 const (
-	WaterSourceState  int32 = 86
-	LavaSourceState   int32 = 102
-	MaxFluidLevel     int   = 8
-	MinFlowingLevel   int   = 1
+	WaterSourceState int32 = 86
+	LavaSourceState  int32 = 102
+	MaxFluidLevel    int   = 8
+	MinFlowingLevel  int   = 1
+)
+
+// Registry state intervals cover source and flowing levels without name lookup.
+var (
+	waterStates = block.InfoByName("minecraft:water")
+	lavaStates  = block.InfoByName("minecraft:lava")
 )
 
 type FluidType int8
@@ -20,16 +26,28 @@ const (
 	FluidTypeLava
 )
 
+// GetFluidType identifies pure fluid states using immutable registry intervals.
 func GetFluidType(stateID int32) FluidType {
-	if stateID <= 0 {
-		return FluidTypeNone
-	}
-	name := block.NameFromState(stateID)
-	switch name {
-	case "minecraft:water":
+	if stateID >= waterStates.MinStateID && stateID <= waterStates.MaxStateID {
 		return FluidTypeWater
-	case "minecraft:lava":
+	}
+	if stateID >= lavaStates.MinStateID && stateID <= lavaStates.MaxStateID {
 		return FluidTypeLava
+	}
+	return FluidTypeNone
+}
+
+// ContainedFluidType includes waterlogged blocks and submerged vegetation.
+func ContainedFluidType(stateID int32) FluidType {
+	if kind := GetFluidType(stateID); kind != FluidTypeNone {
+		return kind
+	}
+	if block.PropertiesFromState(stateID)["waterlogged"] == "true" {
+		return FluidTypeWater
+	}
+	switch block.NameFromState(stateID) {
+	case "minecraft:bubble_column", "minecraft:kelp", "minecraft:kelp_plant", "minecraft:seagrass", "minecraft:tall_seagrass":
+		return FluidTypeWater
 	}
 	return FluidTypeNone
 }

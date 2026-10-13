@@ -102,6 +102,13 @@ func TestBufferBoolRoundtrip(t *testing.T) {
 	}
 }
 
+func TestBufferReadBoolRejectsInvalidEncoding(t *testing.T) {
+	buf := WrapBuffer([]byte{2})
+	if _, err := buf.ReadBool(); err == nil {
+		t.Fatal("invalid boolean encoding was accepted")
+	}
+}
+
 func TestBufferUUIDRoundtrip(t *testing.T) {
 	original := UUID{0x0123456789ABCDEF, 0xFEDCBA9876543210}
 	buf := NewBuffer(32)

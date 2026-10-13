@@ -1,10 +1,29 @@
 package level
 
 import (
+	"bytes"
+	"compress/gzip"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/vitismc/vitis/internal/nbt"
+	"github.com/vitismc/vitis/internal/protocol"
 )
+
+func TestReadGzipNBTRejectsOversizedPayload(t *testing.T) {
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := writer.Write(make([]byte, maxPersistentNBTSize+1)); err != nil {
+		t.Fatalf("write gzip payload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close gzip writer: %v", err)
+	}
+	if _, err := readGzipNBT(&compressed); err == nil {
+		t.Fatal("oversized gzip payload was accepted")
+	}
+}
 
 func TestNewAndSave(t *testing.T) {
 	dir := t.TempDir()
@@ -81,6 +100,9 @@ func TestSaveAndOpen(t *testing.T) {
 	if loaded.Version != 19133 {
 		t.Fatalf("Version = %d, want 19133", loaded.Version)
 	}
+	if loaded.DataVersion != protocol.CurrentDataVersion {
+		t.Fatalf("DataVersion = %d, want %d", loaded.DataVersion, protocol.CurrentDataVersion)
+	}
 }
 
 func TestSaveCreatesBackup(t *testing.T) {
@@ -111,9 +133,57 @@ func TestSaveCreatesBackup(t *testing.T) {
 	}
 }
 
+func TestLevelSavePreservesUnknownNBT(t *testing.T) {
+	worldDir := filepath.Join(t.TempDir(), "world")
+	level := New("world", 0, 64, 0)
+	level.Seed = 42
+	level.ServerBrands = nil
+	level.raw = nbt.NewCompound().PutCompound("Data", nbt.NewCompound().
+		PutInt("DataVersion", protocol.CurrentDataVersion).
+		PutString("UnknownRootData", "preserve").
+		PutList("ServerBrands", nbt.NewList(nbt.TagString).Add("Imported")).
+		PutCompound("WorldGenSettings", nbt.NewCompound().
+			PutLong("seed", 42).
+			PutBool("bonus_chest", true).
+			PutString("UnknownWorldGen", "preserve")))
+
+	if err := level.Save(worldDir); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	loaded, err := Open(worldDir)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	data, _ := loaded.raw.GetCompound("Data")
+	if value, _ := data.GetString("UnknownRootData"); value != "preserve" {
+		t.Fatalf("UnknownRootData = %q; want preserve", value)
+	}
+	worldGen, _ := data.GetCompound("WorldGenSettings")
+	if value, _ := worldGen.GetString("UnknownWorldGen"); value != "preserve" {
+		t.Fatalf("UnknownWorldGen = %q; want preserve", value)
+	}
+	if bonus, _ := worldGen.GetBool("bonus_chest"); !bonus {
+		t.Fatal("bonus_chest was reset")
+	}
+	if !loaded.BonusChestEnabled() {
+		t.Fatal("bonus chest setting was not exposed to world generation")
+	}
+	if brands, ok := data.GetList("ServerBrands"); !ok || brands.Len() != 1 {
+		t.Fatal("imported ServerBrands were not preserved")
+	}
+}
+
 func TestOpenNonExistent(t *testing.T) {
 	_, err := Open("/nonexistent/path/to/world")
 	if err == nil {
 		t.Fatal("expected error for non-existent world")
+	}
+}
+
+func TestSaveRejectsUnsupportedDataVersion(t *testing.T) {
+	level := New("unsupported", 0, 64, 0)
+	level.DataVersion = protocol.CurrentDataVersion - 1
+	if err := level.Save(t.TempDir()); err == nil {
+		t.Fatal("Save succeeded for unsupported DataVersion")
 	}
 }

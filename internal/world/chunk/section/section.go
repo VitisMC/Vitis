@@ -1,5 +1,7 @@
 package section
 
+import "github.com/vitismc/vitis/internal/block"
+
 const (
 	// SectionWidth is the X/Z size of a chunk section.
 	SectionWidth = 16
@@ -20,7 +22,8 @@ const (
 	// MaxBitsBiome is the maximum bits per entry for indirect biome palettes.
 	MaxBitsBiome = 3
 	// DirectBitsBiome is the bits per entry for direct/global biome palette.
-	DirectBitsBiome = 6
+	// Minecraft 1.21.4 has 65 registered biomes, requiring seven bits.
+	DirectBitsBiome = 7
 )
 
 // Section is one 16×16×16 vertical slice of a chunk.
@@ -61,11 +64,17 @@ func (s *Section) SetBiome(x, y, z int, biomeID int32) {
 	s.Biomes.Set(biomeIndex(x, y, z), biomeID)
 }
 
-// NonAirCount returns the number of non-air blocks (state != 0) in the section.
+// NonAirCount excludes normal, cave, and void air from the protocol block count.
 func (s *Section) NonAirCount() int16 {
+	if s.Blocks.IsSingle() {
+		if block.IsAir(s.Blocks.Palette()[0]) {
+			return 0
+		}
+		return BlocksPerSection
+	}
 	var count int16
 	for i := 0; i < BlocksPerSection; i++ {
-		if s.Blocks.Get(i) != 0 {
+		if !block.IsAir(s.Blocks.Get(i)) {
 			count++
 		}
 	}

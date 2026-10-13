@@ -2,6 +2,8 @@
 
 package packet
 
+import "github.com/vitismc/vitis/internal/protocol/packetid"
+
 //go:generate stringer -type ClientboundPacketID
 //go:generate stringer -type ServerboundPacketID
 
@@ -12,269 +14,269 @@ type (
 
 // Clientbound Login
 const (
-	ClientboundLoginDisconnect ClientboundPacketID = iota
-	ClientboundLoginEncryptionBegin
-	ClientboundLoginSuccess
-	ClientboundLoginCompress
-	ClientboundLoginLoginPluginRequest
-	ClientboundLoginCookieRequest
+	ClientboundLoginDisconnect         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundLoginDisconnect)
+	ClientboundLoginEncryptionBegin    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundLoginEncryptionBegin)
+	ClientboundLoginSuccess            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundLoginSuccess)
+	ClientboundLoginCompress           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundLoginCompress)
+	ClientboundLoginLoginPluginRequest ClientboundPacketID = ClientboundPacketID(packetid.ClientboundLoginLoginPluginRequest)
+	ClientboundLoginCookieRequest      ClientboundPacketID = ClientboundPacketID(packetid.ClientboundLoginCookieRequest)
 )
 
 // Serverbound Login
 const (
-	ServerboundLoginLoginStart ServerboundPacketID = iota
-	ServerboundLoginEncryptionBegin
-	ServerboundLoginLoginPluginResponse
-	ServerboundLoginLoginAcknowledged
-	ServerboundLoginCookieResponse
+	ServerboundLoginLoginStart          ServerboundPacketID = ServerboundPacketID(packetid.ServerboundLoginLoginStart)
+	ServerboundLoginEncryptionBegin     ServerboundPacketID = ServerboundPacketID(packetid.ServerboundLoginEncryptionBegin)
+	ServerboundLoginLoginPluginResponse ServerboundPacketID = ServerboundPacketID(packetid.ServerboundLoginLoginPluginResponse)
+	ServerboundLoginLoginAcknowledged   ServerboundPacketID = ServerboundPacketID(packetid.ServerboundLoginLoginAcknowledged)
+	ServerboundLoginCookieResponse      ServerboundPacketID = ServerboundPacketID(packetid.ServerboundLoginCookieResponse)
 )
 
 // Clientbound Status
 const (
-	ClientboundStatusServerInfo ClientboundPacketID = iota
-	ClientboundStatusPing
+	ClientboundStatusServerInfo ClientboundPacketID = ClientboundPacketID(packetid.ClientboundStatusServerInfo)
+	ClientboundStatusPing       ClientboundPacketID = ClientboundPacketID(packetid.ClientboundStatusPing)
 )
 
 // Serverbound Status
 const (
-	ServerboundStatusPingStart ServerboundPacketID = iota
-	ServerboundStatusPing
+	ServerboundStatusPingStart ServerboundPacketID = ServerboundPacketID(packetid.ServerboundStatusPingStart)
+	ServerboundStatusPing      ServerboundPacketID = ServerboundPacketID(packetid.ServerboundStatusPing)
 )
 
 // Clientbound Config
 const (
-	ClientboundConfigCookieRequest ClientboundPacketID = iota
-	ClientboundConfigCustomPayload
-	ClientboundConfigDisconnect
-	ClientboundConfigFinishConfiguration
-	ClientboundConfigKeepAlive
-	ClientboundConfigPing
-	ClientboundConfigResetChat
-	ClientboundConfigRegistryData
-	ClientboundConfigRemoveResourcePack
-	ClientboundConfigAddResourcePack
-	ClientboundConfigStoreCookie
-	ClientboundConfigTransfer
-	ClientboundConfigFeatureFlags
-	ClientboundConfigTags
-	ClientboundConfigSelectKnownPacks
-	ClientboundConfigCustomReportDetails
-	ClientboundConfigServerLinks
+	ClientboundConfigCookieRequest       ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigCookieRequest)
+	ClientboundConfigCustomPayload       ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigCustomPayload)
+	ClientboundConfigDisconnect          ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigDisconnect)
+	ClientboundConfigFinishConfiguration ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigFinishConfiguration)
+	ClientboundConfigKeepAlive           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigKeepAlive)
+	ClientboundConfigPing                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigPing)
+	ClientboundConfigResetChat           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigResetChat)
+	ClientboundConfigRegistryData        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigRegistryData)
+	ClientboundConfigRemoveResourcePack  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigRemoveResourcePack)
+	ClientboundConfigAddResourcePack     ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigAddResourcePack)
+	ClientboundConfigStoreCookie         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigStoreCookie)
+	ClientboundConfigTransfer            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigTransfer)
+	ClientboundConfigFeatureFlags        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigFeatureFlags)
+	ClientboundConfigTags                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigTags)
+	ClientboundConfigSelectKnownPacks    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigSelectKnownPacks)
+	ClientboundConfigCustomReportDetails ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigCustomReportDetails)
+	ClientboundConfigServerLinks         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundConfigServerLinks)
 )
 
 // Serverbound Config
 const (
-	ServerboundConfigSettings ServerboundPacketID = iota
-	ServerboundConfigCookieResponse
-	ServerboundConfigCustomPayload
-	ServerboundConfigFinishConfiguration
-	ServerboundConfigKeepAlive
-	ServerboundConfigPong
-	ServerboundConfigResourcePackReceive
-	ServerboundConfigSelectKnownPacks
-	ServerboundConfigCustomReportDetails
-	ServerboundConfigServerLinks
+	ServerboundConfigSettings            ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigSettings)
+	ServerboundConfigCookieResponse      ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigCookieResponse)
+	ServerboundConfigCustomPayload       ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigCustomPayload)
+	ServerboundConfigFinishConfiguration ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigFinishConfiguration)
+	ServerboundConfigKeepAlive           ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigKeepAlive)
+	ServerboundConfigPong                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigPong)
+	ServerboundConfigResourcePackReceive ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigResourcePackReceive)
+	ServerboundConfigSelectKnownPacks    ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigSelectKnownPacks)
+	ServerboundConfigCustomReportDetails ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigCustomReportDetails)
+	ServerboundConfigServerLinks         ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigServerLinks)
 )
 
 // Clientbound Play
 const (
-	ClientboundBundleDelimiter ClientboundPacketID = iota
-	ClientboundSpawnEntity
-	ClientboundSpawnEntityExperienceOrb
-	ClientboundAnimation
-	ClientboundStatistics
-	ClientboundAcknowledgePlayerDigging
-	ClientboundBlockBreakAnimation
-	ClientboundTileEntityData
-	ClientboundBlockAction
-	ClientboundBlockChange
-	ClientboundBossBar
-	ClientboundDifficulty
-	ClientboundChunkBatchFinished
-	ClientboundChunkBatchStart
-	ClientboundChunkBiomes
-	ClientboundClearTitles
-	ClientboundTabComplete
-	ClientboundDeclareCommands
-	ClientboundCloseWindow
-	ClientboundWindowItems
-	ClientboundCraftProgressBar
-	ClientboundSetSlot
-	ClientboundCookieRequest
-	ClientboundSetCooldown
-	ClientboundChatSuggestions
-	ClientboundCustomPayload
-	ClientboundDamageEvent
-	ClientboundDebugSample
-	ClientboundHideMessage
-	ClientboundKickDisconnect
-	ClientboundProfilelessChat
-	ClientboundEntityStatus
-	ClientboundSyncEntityPosition
-	ClientboundExplosion
-	ClientboundUnloadChunk
-	ClientboundGameStateChange
-	ClientboundOpenHorseWindow
-	ClientboundHurtAnimation
-	ClientboundInitializeWorldBorder
-	ClientboundKeepAlive
-	ClientboundMapChunk
-	ClientboundWorldEvent
-	ClientboundWorldParticles
-	ClientboundUpdateLight
-	ClientboundLogin
-	ClientboundMap
-	ClientboundTradeList
-	ClientboundRelEntityMove
-	ClientboundEntityMoveLook
-	ClientboundMoveMinecart
-	ClientboundEntityLook
-	ClientboundVehicleMove
-	ClientboundOpenBook
-	ClientboundOpenWindow
-	ClientboundOpenSignEntity
-	ClientboundPing
-	ClientboundPingResponse
-	ClientboundCraftRecipeResponse
-	ClientboundAbilities
-	ClientboundPlayerChat
-	ClientboundEndCombatEvent
-	ClientboundEnterCombatEvent
-	ClientboundDeathCombatEvent
-	ClientboundPlayerRemove
-	ClientboundPlayerInfo
-	ClientboundFacePlayer
-	ClientboundPosition
-	ClientboundPlayerRotation
-	ClientboundRecipeBookAdd
-	ClientboundRecipeBookRemove
-	ClientboundRecipeBookSettings
-	ClientboundEntityDestroy
-	ClientboundRemoveEntityEffect
-	ClientboundResetScore
-	ClientboundRemoveResourcePack
-	ClientboundAddResourcePack
-	ClientboundRespawn
-	ClientboundEntityHeadRotation
-	ClientboundMultiBlockChange
-	ClientboundSelectAdvancementTab
-	ClientboundServerData
-	ClientboundActionBar
-	ClientboundWorldBorderCenter
-	ClientboundWorldBorderLerpSize
-	ClientboundWorldBorderSize
-	ClientboundWorldBorderWarningDelay
-	ClientboundWorldBorderWarningReach
-	ClientboundCamera
-	ClientboundUpdateViewPosition
-	ClientboundUpdateViewDistance
-	ClientboundSetCursorItem
-	ClientboundSpawnPosition
-	ClientboundScoreboardDisplayObjective
-	ClientboundEntityMetadata
-	ClientboundAttachEntity
-	ClientboundEntityVelocity
-	ClientboundEntityEquipment
-	ClientboundExperience
-	ClientboundUpdateHealth
-	ClientboundHeldItemSlot
-	ClientboundScoreboardObjective
-	ClientboundSetPassengers
-	ClientboundSetPlayerInventory
-	ClientboundTeams
-	ClientboundScoreboardScore
-	ClientboundSimulationDistance
-	ClientboundSetTitleSubtitle
-	ClientboundUpdateTime
-	ClientboundSetTitleText
-	ClientboundSetTitleTime
-	ClientboundEntitySoundEffect
-	ClientboundSoundEffect
-	ClientboundStartConfiguration
-	ClientboundStopSound
-	ClientboundStoreCookie
-	ClientboundSystemChat
-	ClientboundPlayerlistHeader
-	ClientboundNbtQueryResponse
-	ClientboundCollect
-	ClientboundEntityTeleport
-	ClientboundSetTickingState
-	ClientboundStepTick
-	ClientboundTransfer
-	ClientboundAdvancements
-	ClientboundEntityUpdateAttributes
-	ClientboundEntityEffect
-	ClientboundDeclareRecipes
-	ClientboundTags
-	ClientboundSetProjectilePower
-	ClientboundCustomReportDetails
-	ClientboundServerLinks
+	ClientboundBundleDelimiter            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundBundleDelimiter)
+	ClientboundSpawnEntity                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSpawnEntity)
+	ClientboundSpawnEntityExperienceOrb   ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSpawnEntityExperienceOrb)
+	ClientboundAnimation                  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundAnimation)
+	ClientboundStatistics                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundStatistics)
+	ClientboundAcknowledgePlayerDigging   ClientboundPacketID = ClientboundPacketID(packetid.ClientboundAcknowledgePlayerDigging)
+	ClientboundBlockBreakAnimation        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundBlockBreakAnimation)
+	ClientboundTileEntityData             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundTileEntityData)
+	ClientboundBlockAction                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundBlockAction)
+	ClientboundBlockChange                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundBlockChange)
+	ClientboundBossBar                    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundBossBar)
+	ClientboundDifficulty                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundDifficulty)
+	ClientboundChunkBatchFinished         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundChunkBatchFinished)
+	ClientboundChunkBatchStart            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundChunkBatchStart)
+	ClientboundChunkBiomes                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundChunkBiomes)
+	ClientboundClearTitles                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundClearTitles)
+	ClientboundTabComplete                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundTabComplete)
+	ClientboundDeclareCommands            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundDeclareCommands)
+	ClientboundCloseWindow                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCloseWindow)
+	ClientboundWindowItems                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWindowItems)
+	ClientboundCraftProgressBar           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCraftProgressBar)
+	ClientboundSetSlot                    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetSlot)
+	ClientboundCookieRequest              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCookieRequest)
+	ClientboundSetCooldown                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetCooldown)
+	ClientboundChatSuggestions            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundChatSuggestions)
+	ClientboundCustomPayload              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCustomPayload)
+	ClientboundDamageEvent                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundDamageEvent)
+	ClientboundDebugSample                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundDebugSample)
+	ClientboundHideMessage                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundHideMessage)
+	ClientboundKickDisconnect             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundKickDisconnect)
+	ClientboundProfilelessChat            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundProfilelessChat)
+	ClientboundEntityStatus               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityStatus)
+	ClientboundSyncEntityPosition         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSyncEntityPosition)
+	ClientboundExplosion                  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundExplosion)
+	ClientboundUnloadChunk                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundUnloadChunk)
+	ClientboundGameStateChange            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundGameStateChange)
+	ClientboundOpenHorseWindow            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundOpenHorseWindow)
+	ClientboundHurtAnimation              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundHurtAnimation)
+	ClientboundInitializeWorldBorder      ClientboundPacketID = ClientboundPacketID(packetid.ClientboundInitializeWorldBorder)
+	ClientboundKeepAlive                  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundKeepAlive)
+	ClientboundMapChunk                   ClientboundPacketID = ClientboundPacketID(packetid.ClientboundMapChunk)
+	ClientboundWorldEvent                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWorldEvent)
+	ClientboundWorldParticles             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWorldParticles)
+	ClientboundUpdateLight                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundUpdateLight)
+	ClientboundLogin                      ClientboundPacketID = ClientboundPacketID(packetid.ClientboundLogin)
+	ClientboundMap                        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundMap)
+	ClientboundTradeList                  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundTradeList)
+	ClientboundRelEntityMove              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundRelEntityMove)
+	ClientboundEntityMoveLook             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityMoveLook)
+	ClientboundMoveMinecart               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundMoveMinecart)
+	ClientboundEntityLook                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityLook)
+	ClientboundVehicleMove                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundVehicleMove)
+	ClientboundOpenBook                   ClientboundPacketID = ClientboundPacketID(packetid.ClientboundOpenBook)
+	ClientboundOpenWindow                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundOpenWindow)
+	ClientboundOpenSignEntity             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundOpenSignEntity)
+	ClientboundPing                       ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPing)
+	ClientboundPingResponse               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPingResponse)
+	ClientboundCraftRecipeResponse        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCraftRecipeResponse)
+	ClientboundAbilities                  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundAbilities)
+	ClientboundPlayerChat                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPlayerChat)
+	ClientboundEndCombatEvent             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEndCombatEvent)
+	ClientboundEnterCombatEvent           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEnterCombatEvent)
+	ClientboundDeathCombatEvent           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundDeathCombatEvent)
+	ClientboundPlayerRemove               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPlayerRemove)
+	ClientboundPlayerInfo                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPlayerInfo)
+	ClientboundFacePlayer                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundFacePlayer)
+	ClientboundPosition                   ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPosition)
+	ClientboundPlayerRotation             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPlayerRotation)
+	ClientboundRecipeBookAdd              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundRecipeBookAdd)
+	ClientboundRecipeBookRemove           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundRecipeBookRemove)
+	ClientboundRecipeBookSettings         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundRecipeBookSettings)
+	ClientboundEntityDestroy              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityDestroy)
+	ClientboundRemoveEntityEffect         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundRemoveEntityEffect)
+	ClientboundResetScore                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundResetScore)
+	ClientboundRemoveResourcePack         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundRemoveResourcePack)
+	ClientboundAddResourcePack            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundAddResourcePack)
+	ClientboundRespawn                    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundRespawn)
+	ClientboundEntityHeadRotation         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityHeadRotation)
+	ClientboundMultiBlockChange           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundMultiBlockChange)
+	ClientboundSelectAdvancementTab       ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSelectAdvancementTab)
+	ClientboundServerData                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundServerData)
+	ClientboundActionBar                  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundActionBar)
+	ClientboundWorldBorderCenter          ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWorldBorderCenter)
+	ClientboundWorldBorderLerpSize        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWorldBorderLerpSize)
+	ClientboundWorldBorderSize            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWorldBorderSize)
+	ClientboundWorldBorderWarningDelay    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWorldBorderWarningDelay)
+	ClientboundWorldBorderWarningReach    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundWorldBorderWarningReach)
+	ClientboundCamera                     ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCamera)
+	ClientboundUpdateViewPosition         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundUpdateViewPosition)
+	ClientboundUpdateViewDistance         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundUpdateViewDistance)
+	ClientboundSetCursorItem              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetCursorItem)
+	ClientboundSpawnPosition              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSpawnPosition)
+	ClientboundScoreboardDisplayObjective ClientboundPacketID = ClientboundPacketID(packetid.ClientboundScoreboardDisplayObjective)
+	ClientboundEntityMetadata             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityMetadata)
+	ClientboundAttachEntity               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundAttachEntity)
+	ClientboundEntityVelocity             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityVelocity)
+	ClientboundEntityEquipment            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityEquipment)
+	ClientboundExperience                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundExperience)
+	ClientboundUpdateHealth               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundUpdateHealth)
+	ClientboundHeldItemSlot               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundHeldItemSlot)
+	ClientboundScoreboardObjective        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundScoreboardObjective)
+	ClientboundSetPassengers              ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetPassengers)
+	ClientboundSetPlayerInventory         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetPlayerInventory)
+	ClientboundTeams                      ClientboundPacketID = ClientboundPacketID(packetid.ClientboundTeams)
+	ClientboundScoreboardScore            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundScoreboardScore)
+	ClientboundSimulationDistance         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSimulationDistance)
+	ClientboundSetTitleSubtitle           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetTitleSubtitle)
+	ClientboundUpdateTime                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundUpdateTime)
+	ClientboundSetTitleText               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetTitleText)
+	ClientboundSetTitleTime               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetTitleTime)
+	ClientboundEntitySoundEffect          ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntitySoundEffect)
+	ClientboundSoundEffect                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSoundEffect)
+	ClientboundStartConfiguration         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundStartConfiguration)
+	ClientboundStopSound                  ClientboundPacketID = ClientboundPacketID(packetid.ClientboundStopSound)
+	ClientboundStoreCookie                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundStoreCookie)
+	ClientboundSystemChat                 ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSystemChat)
+	ClientboundPlayerlistHeader           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundPlayerlistHeader)
+	ClientboundNbtQueryResponse           ClientboundPacketID = ClientboundPacketID(packetid.ClientboundNbtQueryResponse)
+	ClientboundCollect                    ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCollect)
+	ClientboundEntityTeleport             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityTeleport)
+	ClientboundSetTickingState            ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetTickingState)
+	ClientboundStepTick                   ClientboundPacketID = ClientboundPacketID(packetid.ClientboundStepTick)
+	ClientboundTransfer                   ClientboundPacketID = ClientboundPacketID(packetid.ClientboundTransfer)
+	ClientboundAdvancements               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundAdvancements)
+	ClientboundEntityUpdateAttributes     ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityUpdateAttributes)
+	ClientboundEntityEffect               ClientboundPacketID = ClientboundPacketID(packetid.ClientboundEntityEffect)
+	ClientboundDeclareRecipes             ClientboundPacketID = ClientboundPacketID(packetid.ClientboundDeclareRecipes)
+	ClientboundTags                       ClientboundPacketID = ClientboundPacketID(packetid.ClientboundTags)
+	ClientboundSetProjectilePower         ClientboundPacketID = ClientboundPacketID(packetid.ClientboundSetProjectilePower)
+	ClientboundCustomReportDetails        ClientboundPacketID = ClientboundPacketID(packetid.ClientboundCustomReportDetails)
+	ClientboundServerLinks                ClientboundPacketID = ClientboundPacketID(packetid.ClientboundServerLinks)
 )
 
 // Serverbound Play
 const (
-	ServerboundTeleportConfirm ServerboundPacketID = iota
-	ServerboundQueryBlockNbt
-	ServerboundSelectBundleItem
-	ServerboundSetDifficulty
-	ServerboundMessageAcknowledgement
-	ServerboundChatCommand
-	ServerboundChatCommandSigned
-	ServerboundChatMessage
-	ServerboundChatSessionUpdate
-	ServerboundChunkBatchReceived
-	ServerboundClientCommand
-	ServerboundTickEnd
-	ServerboundSettings
-	ServerboundTabComplete
-	ServerboundConfigurationAcknowledged
-	ServerboundEnchantItem
-	ServerboundWindowClick
-	ServerboundCloseWindow
-	ServerboundSetSlotState
-	ServerboundCookieResponse
-	ServerboundCustomPayload
-	ServerboundDebugSampleSubscription
-	ServerboundEditBook
-	ServerboundQueryEntityNbt
-	ServerboundUseEntity
-	ServerboundGenerateStructure
-	ServerboundKeepAlive
-	ServerboundLockDifficulty
-	ServerboundPosition
-	ServerboundPositionLook
-	ServerboundLook
-	ServerboundFlying
-	ServerboundVehicleMove
-	ServerboundSteerBoat
-	ServerboundPickItemFromBlock
-	ServerboundPickItemFromEntity
-	ServerboundPingRequest
-	ServerboundCraftRecipeRequest
-	ServerboundAbilities
-	ServerboundBlockDig
-	ServerboundEntityAction
-	ServerboundPlayerInput
-	ServerboundPlayerLoaded
-	ServerboundPong
-	ServerboundRecipeBook
-	ServerboundDisplayedRecipe
-	ServerboundNameItem
-	ServerboundResourcePackReceive
-	ServerboundAdvancementTab
-	ServerboundSelectTrade
-	ServerboundSetBeaconEffect
-	ServerboundHeldItemSlot
-	ServerboundUpdateCommandBlock
-	ServerboundUpdateCommandBlockMinecart
-	ServerboundSetCreativeSlot
-	ServerboundUpdateJigsawBlock
-	ServerboundUpdateStructureBlock
-	ServerboundUpdateSign
-	ServerboundArmAnimation
-	ServerboundSpectate
-	ServerboundBlockPlace
-	ServerboundUseItem
+	ServerboundTeleportConfirm            ServerboundPacketID = ServerboundPacketID(packetid.ServerboundTeleportConfirm)
+	ServerboundQueryBlockNbt              ServerboundPacketID = ServerboundPacketID(packetid.ServerboundQueryBlockNbt)
+	ServerboundSelectBundleItem           ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSelectBundleItem)
+	ServerboundSetDifficulty              ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSetDifficulty)
+	ServerboundMessageAcknowledgement     ServerboundPacketID = ServerboundPacketID(packetid.ServerboundMessageAcknowledgement)
+	ServerboundChatCommand                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundChatCommand)
+	ServerboundChatCommandSigned          ServerboundPacketID = ServerboundPacketID(packetid.ServerboundChatCommandSigned)
+	ServerboundChatMessage                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundChatMessage)
+	ServerboundChatSessionUpdate          ServerboundPacketID = ServerboundPacketID(packetid.ServerboundChatSessionUpdate)
+	ServerboundChunkBatchReceived         ServerboundPacketID = ServerboundPacketID(packetid.ServerboundChunkBatchReceived)
+	ServerboundClientCommand              ServerboundPacketID = ServerboundPacketID(packetid.ServerboundClientCommand)
+	ServerboundTickEnd                    ServerboundPacketID = ServerboundPacketID(packetid.ServerboundTickEnd)
+	ServerboundSettings                   ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSettings)
+	ServerboundTabComplete                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundTabComplete)
+	ServerboundConfigurationAcknowledged  ServerboundPacketID = ServerboundPacketID(packetid.ServerboundConfigurationAcknowledged)
+	ServerboundEnchantItem                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundEnchantItem)
+	ServerboundWindowClick                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundWindowClick)
+	ServerboundCloseWindow                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundCloseWindow)
+	ServerboundSetSlotState               ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSetSlotState)
+	ServerboundCookieResponse             ServerboundPacketID = ServerboundPacketID(packetid.ServerboundCookieResponse)
+	ServerboundCustomPayload              ServerboundPacketID = ServerboundPacketID(packetid.ServerboundCustomPayload)
+	ServerboundDebugSampleSubscription    ServerboundPacketID = ServerboundPacketID(packetid.ServerboundDebugSampleSubscription)
+	ServerboundEditBook                   ServerboundPacketID = ServerboundPacketID(packetid.ServerboundEditBook)
+	ServerboundQueryEntityNbt             ServerboundPacketID = ServerboundPacketID(packetid.ServerboundQueryEntityNbt)
+	ServerboundUseEntity                  ServerboundPacketID = ServerboundPacketID(packetid.ServerboundUseEntity)
+	ServerboundGenerateStructure          ServerboundPacketID = ServerboundPacketID(packetid.ServerboundGenerateStructure)
+	ServerboundKeepAlive                  ServerboundPacketID = ServerboundPacketID(packetid.ServerboundKeepAlive)
+	ServerboundLockDifficulty             ServerboundPacketID = ServerboundPacketID(packetid.ServerboundLockDifficulty)
+	ServerboundPosition                   ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPosition)
+	ServerboundPositionLook               ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPositionLook)
+	ServerboundLook                       ServerboundPacketID = ServerboundPacketID(packetid.ServerboundLook)
+	ServerboundFlying                     ServerboundPacketID = ServerboundPacketID(packetid.ServerboundFlying)
+	ServerboundVehicleMove                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundVehicleMove)
+	ServerboundSteerBoat                  ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSteerBoat)
+	ServerboundPickItemFromBlock          ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPickItemFromBlock)
+	ServerboundPickItemFromEntity         ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPickItemFromEntity)
+	ServerboundPingRequest                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPingRequest)
+	ServerboundCraftRecipeRequest         ServerboundPacketID = ServerboundPacketID(packetid.ServerboundCraftRecipeRequest)
+	ServerboundAbilities                  ServerboundPacketID = ServerboundPacketID(packetid.ServerboundAbilities)
+	ServerboundBlockDig                   ServerboundPacketID = ServerboundPacketID(packetid.ServerboundBlockDig)
+	ServerboundEntityAction               ServerboundPacketID = ServerboundPacketID(packetid.ServerboundEntityAction)
+	ServerboundPlayerInput                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPlayerInput)
+	ServerboundPlayerLoaded               ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPlayerLoaded)
+	ServerboundPong                       ServerboundPacketID = ServerboundPacketID(packetid.ServerboundPong)
+	ServerboundRecipeBook                 ServerboundPacketID = ServerboundPacketID(packetid.ServerboundRecipeBook)
+	ServerboundDisplayedRecipe            ServerboundPacketID = ServerboundPacketID(packetid.ServerboundDisplayedRecipe)
+	ServerboundNameItem                   ServerboundPacketID = ServerboundPacketID(packetid.ServerboundNameItem)
+	ServerboundResourcePackReceive        ServerboundPacketID = ServerboundPacketID(packetid.ServerboundResourcePackReceive)
+	ServerboundAdvancementTab             ServerboundPacketID = ServerboundPacketID(packetid.ServerboundAdvancementTab)
+	ServerboundSelectTrade                ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSelectTrade)
+	ServerboundSetBeaconEffect            ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSetBeaconEffect)
+	ServerboundHeldItemSlot               ServerboundPacketID = ServerboundPacketID(packetid.ServerboundHeldItemSlot)
+	ServerboundUpdateCommandBlock         ServerboundPacketID = ServerboundPacketID(packetid.ServerboundUpdateCommandBlock)
+	ServerboundUpdateCommandBlockMinecart ServerboundPacketID = ServerboundPacketID(packetid.ServerboundUpdateCommandBlockMinecart)
+	ServerboundSetCreativeSlot            ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSetCreativeSlot)
+	ServerboundUpdateJigsawBlock          ServerboundPacketID = ServerboundPacketID(packetid.ServerboundUpdateJigsawBlock)
+	ServerboundUpdateStructureBlock       ServerboundPacketID = ServerboundPacketID(packetid.ServerboundUpdateStructureBlock)
+	ServerboundUpdateSign                 ServerboundPacketID = ServerboundPacketID(packetid.ServerboundUpdateSign)
+	ServerboundArmAnimation               ServerboundPacketID = ServerboundPacketID(packetid.ServerboundArmAnimation)
+	ServerboundSpectate                   ServerboundPacketID = ServerboundPacketID(packetid.ServerboundSpectate)
+	ServerboundBlockPlace                 ServerboundPacketID = ServerboundPacketID(packetid.ServerboundBlockPlace)
+	ServerboundUseItem                    ServerboundPacketID = ServerboundPacketID(packetid.ServerboundUseItem)
 )
 
 // ClientboundPacketIDGuard is a sentinel for bounds checking.

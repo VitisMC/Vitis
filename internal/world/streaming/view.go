@@ -16,6 +16,7 @@ const defaultLoadedCapacity = 256
 // View tracks per-player chunk streaming state.
 type View struct {
 	center       ChunkPos
+	direction    ChunkPos
 	viewDistance int32
 
 	loaded     map[ChunkPos]struct{}
@@ -49,6 +50,22 @@ func (v *View) Center() ChunkPos {
 // SetCenter updates the chunk center position.
 func (v *View) SetCenter(center ChunkPos) {
 	v.center = center
+}
+
+// SetDirection prioritizes chunks ahead of the player's last chunk movement.
+func (v *View) SetDirection(dx, dz int32) {
+	v.direction = ChunkPos{X: sign32(dx), Z: sign32(dz)}
+}
+
+func sign32(value int32) int32 {
+	switch {
+	case value < 0:
+		return -1
+	case value > 0:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // ViewDistance returns the current view distance.
@@ -98,9 +115,45 @@ func (v *View) AddPending(pos ChunkPos) {
 	if v.IsLoaded(pos) || v.IsPending(pos) {
 		return
 	}
-	priority := ManhattanDistance(pos, v.center)
-	v.pending.Enqueue(pos, priority)
+	priority := DistanceSquared(pos, v.center)
+	secondary := balancedRadialOrder(pos, v.center)
+	if v.direction != (ChunkPos{}) {
+		dx, dz := pos.X-v.center.X, pos.Z-v.center.Z
+		secondary -= (dx*v.direction.X + dz*v.direction.Z) * 16
+	}
+	v.pending.EnqueueBalanced(pos, priority, secondary)
 	v.pendingSet[pos] = struct{}{}
+}
+
+func balancedRadialOrder(pos, center ChunkPos) int32 {
+	dx, dz := pos.X-center.X, pos.Z-center.Z
+	radius := dx
+	if radius < 0 {
+		radius = -radius
+	}
+	if value := dz; value < 0 {
+		if -value > radius {
+			radius = -value
+		}
+	} else if value > radius {
+		radius = value
+	}
+	if radius == 0 {
+		return 0
+	}
+	var perimeter int32
+	switch {
+	case dz == -radius:
+		perimeter = dx + radius
+	case dx == radius:
+		perimeter = 2*radius + dz + radius
+	case dz == radius:
+		perimeter = 4*radius + radius - dx
+	default:
+		perimeter = 6*radius + radius - dz
+	}
+	half := 4 * radius
+	return (perimeter%half)*2 + perimeter/half
 }
 
 // PopPending dequeues the highest-priority pending chunk.
@@ -113,6 +166,7 @@ func (v *View) PopPending() (ChunkPos, bool) {
 		if _, stillPending := v.pendingSet[entry.Pos]; !stillPending {
 			continue
 		}
+		delete(v.pendingSet, entry.Pos)
 		return entry.Pos, true
 	}
 	return ChunkPos{}, false
@@ -125,15 +179,7 @@ func (v *View) PendingCount() int {
 
 // InRange reports whether a chunk position is within the current view distance.
 func (v *View) InRange(pos ChunkPos) bool {
-	dx := pos.X - v.center.X
-	if dx < 0 {
-		dx = -dx
-	}
-	dz := pos.Z - v.center.Z
-	if dz < 0 {
-		dz = -dz
-	}
-	return dx <= v.viewDistance && dz <= v.viewDistance
+	return inRange(pos, v.center, v.viewDistance)
 }
 
 // ClearPending removes all entries from the pending queue.

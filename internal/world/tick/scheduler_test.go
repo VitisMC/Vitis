@@ -48,6 +48,23 @@ func TestSchedulerPriorityOrder(t *testing.T) {
 	}
 }
 
+func TestSchedulerPreservesInsertionOrderForEqualPriority(t *testing.T) {
+	s := NewScheduler()
+	s.Schedule(1, 64, 0, 100, 5, PriorityNormal, TickTypeBlock, 0)
+	s.Schedule(2, 64, 0, 100, 5, PriorityNormal, TickTypeBlock, 0)
+	s.Schedule(3, 64, 0, 100, 5, PriorityNormal, TickTypeBlock, 0)
+
+	got := s.Drain(105, 3)
+	if len(got) != 3 {
+		t.Fatalf("expected three ticks, got %d", len(got))
+	}
+	for i, scheduled := range got {
+		if scheduled.X != i+1 {
+			t.Fatalf("position %d: expected X=%d, got %d", i, i+1, scheduled.X)
+		}
+	}
+}
+
 func TestSchedulerTickOrder(t *testing.T) {
 	s := NewScheduler()
 	s.Schedule(0, 64, 0, 100, 10, PriorityNormal, TickTypeBlock, 0)

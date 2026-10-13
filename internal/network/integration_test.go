@@ -3,9 +3,40 @@ package network
 import (
 	"context"
 	"net"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestListenerConnectionReservationIsAtomic(t *testing.T) {
+	listener, err := NewListener(ListenerConfig{Address: "127.0.0.1:0", MaxConnections: 1})
+	if err != nil {
+		t.Fatalf("new listener: %v", err)
+	}
+	defer listener.Close()
+
+	const contenders = 64
+	var wg sync.WaitGroup
+	var accepted atomic.Int32
+	for range contenders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if listener.reserveConnection() {
+				accepted.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := accepted.Load(); got != 1 {
+		t.Fatalf("accepted reservations = %d, want 1", got)
+	}
+	if got := listener.ActiveConnections(); got != 1 {
+		t.Fatalf("active reservations = %d, want 1", got)
+	}
+}
 
 type captureHandler struct {
 	recv chan Packet

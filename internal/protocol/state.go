@@ -3,6 +3,15 @@ package protocol
 import "fmt"
 
 const (
+	// CurrentMinecraftVersion is the supported release name.
+	CurrentMinecraftVersion = "1.21.4"
+	// CurrentVersion is the only wire protocol version supported by this build.
+	CurrentVersion int32 = 769
+	// CurrentDataVersion is the persistent data version used by Minecraft 1.21.4.
+	CurrentDataVersion int32 = 4189
+)
+
+const (
 	StateHandshake State = iota
 	StateStatus
 	StateLogin

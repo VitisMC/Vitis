@@ -62,9 +62,12 @@ func NewZombieGoals(def *entity.MobTypeDef) *GoalSelector {
 func NewSkeletonGoals(def *entity.MobTypeDef) *GoalSelector {
 	gs := NewGoalSelector()
 	gs.AddGoal(0, &SwimGoal{})
-	gs.AddGoal(1, &AvoidSunlightGoal{Speed: def.MoveSpeed * 1.2})
-	gs.AddGoal(2, &BurnInSunlightGoal{})
-	gs.AddGoal(3, &RangedAttackGoal{Speed: def.MoveSpeed, AttackDist: 15, Cooldown: 30, StrafeSpeed: def.MoveSpeed * 0.5})
+	if !def.FireImmune {
+		gs.AddGoal(1, &AvoidSunlightGoal{Speed: def.MoveSpeed * 1.2})
+		gs.AddGoal(2, &BurnInSunlightGoal{})
+	}
+	gs.AddGoal(3, &RangedAttackGoal{Speed: def.MoveSpeed, AttackDist: 15, Cooldown: 30, StrafeSpeed: def.MoveSpeed * 0.5, RequiresBow: true})
+	gs.AddGoal(3, &MeleeAttackGoal{Speed: def.MoveSpeed, AttackDist: 2, Cooldown: 20, RequiresNoBow: true})
 	gs.AddGoal(5, &WanderGoal{Speed: def.MoveSpeed, Interval: 80})
 	gs.AddGoal(6, &LookAtPlayerGoal{MaxDist: 16})
 	return gs
@@ -114,8 +117,10 @@ func NewEndermanGoals(def *entity.MobTypeDef) *GoalSelector {
 func GoalsForMob(def *entity.MobTypeDef) (goals *GoalSelector, targets *GoalSelector) {
 	// Mob-specific presets
 	switch def.Name {
-	case "zombie", "husk", "drowned":
+	case "zombie", "drowned":
 		return NewZombieGoals(def), NewHostileTargetGoals(def)
+	case "husk":
+		return NewHostileGoals(def), NewHostileTargetGoals(def)
 	case "skeleton", "stray", "wither_skeleton":
 		return NewSkeletonGoals(def), NewHostileTargetGoals(def)
 	case "creeper":
@@ -124,6 +129,12 @@ func GoalsForMob(def *entity.MobTypeDef) (goals *GoalSelector, targets *GoalSele
 		return NewSpiderGoals(def), NewSpiderTargetGoals(def)
 	case "enderman":
 		return NewEndermanGoals(def), NewHostileTargetGoals(def)
+	case "slime":
+		goals := NewGoalSelector()
+		goals.AddGoal(1, &SlimeHopGoal{})
+		targets := NewGoalSelector()
+		targets.AddGoal(1, &NearestAttackableTargetGoal{MaxDist: def.FollowRange, MaxVertical: 4, Interval: 10})
+		return goals, targets
 	}
 
 	// Category fallbacks

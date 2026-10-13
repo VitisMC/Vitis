@@ -9,12 +9,13 @@ import (
 
 // SetPlayerPositionAndRotation is sent by the client when the player moves and rotates.
 type SetPlayerPositionAndRotation struct {
-	X        float64
-	Y        float64
-	Z        float64
-	Yaw      float32
-	Pitch    float32
-	OnGround bool
+	X                   float64
+	Y                   float64
+	Z                   float64
+	Yaw                 float32
+	Pitch               float32
+	OnGround            bool
+	HorizontalCollision bool
 }
 
 // NewSetPlayerPositionAndRotation constructs an empty SetPlayerPositionAndRotation packet.
@@ -49,16 +50,20 @@ func (p *SetPlayerPositionAndRotation) Decode(buf *protocol.Buffer) error {
 	if err != nil {
 		return fmt.Errorf("decode set_player_position_and_rotation pitch: %w", err)
 	}
-	onGround, err := buf.ReadBool()
+	flags, err := buf.ReadByte()
 	if err != nil {
-		return fmt.Errorf("decode set_player_position_and_rotation on_ground: %w", err)
+		return fmt.Errorf("decode set_player_position_and_rotation flags: %w", err)
+	}
+	if flags&^byte(0x03) != 0 {
+		return fmt.Errorf("decode set_player_position_and_rotation flags: invalid flags 0x%02X", flags)
 	}
 	p.X = x
 	p.Y = y
 	p.Z = z
 	p.Yaw = yaw
 	p.Pitch = pitch
-	p.OnGround = onGround
+	p.OnGround = flags&0x01 != 0
+	p.HorizontalCollision = flags&0x02 != 0
 	return nil
 }
 
@@ -69,6 +74,6 @@ func (p *SetPlayerPositionAndRotation) Encode(buf *protocol.Buffer) error {
 	buf.WriteFloat64(p.Z)
 	buf.WriteFloat32(p.Yaw)
 	buf.WriteFloat32(p.Pitch)
-	buf.WriteBool(p.OnGround)
+	buf.WriteByte(movementFlags(p.OnGround, p.HorizontalCollision))
 	return nil
 }

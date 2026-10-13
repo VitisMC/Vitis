@@ -10,6 +10,13 @@ type Config struct {
 	Performance PerformanceConfig `yaml:"performance"`
 	RCON        RCONConfig        `yaml:"rcon"`
 	Query       QueryConfig       `yaml:"query"`
+	Security    SecurityConfig    `yaml:"security"`
+}
+
+// SecurityConfig contains application-level abuse limits.
+type SecurityConfig struct {
+	ChatMessagesPer10Seconds int `yaml:"chat_messages_per_10_seconds"`
+	CommandsPer10Seconds     int `yaml:"commands_per_10_seconds"`
 }
 
 // QueryConfig contains GS4 query protocol settings.
@@ -21,6 +28,7 @@ type QueryConfig struct {
 // RCONConfig contains RCON server settings.
 type RCONConfig struct {
 	Enabled  bool   `yaml:"enabled"`
+	Address  string `yaml:"address"`
 	Port     int    `yaml:"port"`
 	Password string `yaml:"password"`
 }
@@ -37,6 +45,11 @@ type ServerConfig struct {
 
 // NetworkConfig contains network transport and protocol settings.
 type NetworkConfig struct {
+	// MaxConnections bounds all TCP connections, including status and login.
+	// It is deliberately independent from server.max_players.
+	MaxConnections          int `yaml:"max_connections"`
+	AdmissionRatePerSecond  int `yaml:"admission_rate_per_second"`
+	AdmissionBurst          int `yaml:"admission_burst"`
 	ReadTimeoutSeconds      int `yaml:"read_timeout_seconds"`
 	WriteTimeoutSeconds     int `yaml:"write_timeout_seconds"`
 	IdleTimeoutSeconds      int `yaml:"idle_timeout_seconds"`
@@ -54,6 +67,9 @@ type TickConfig struct {
 // WorldConfig contains world bootstrap and simulation settings.
 type WorldConfig struct {
 	DefaultWorldName string `yaml:"default_world_name"`
+	Seed             int64  `yaml:"seed"`
+	Difficulty       string `yaml:"difficulty"`
+	BackupWorld      bool   `yaml:"backup_world"`
 
 	ViewDistance       int `yaml:"view_distance"`
 	SimulationDistance int `yaml:"simulation_distance"`
@@ -74,6 +90,9 @@ type WorldConfig struct {
 	ChunkUnloadQueueSize  int `yaml:"chunk_unload_queue_size"`
 
 	ChunkStreamChunksPerTick int `yaml:"chunk_stream_chunks_per_tick"`
+	AutosaveIntervalTicks    int `yaml:"autosave_interval_ticks"`
+	AutosaveBatchPerTick     int `yaml:"autosave_batch_per_tick"`
+	AutosaveQueueCapacity    int `yaml:"autosave_queue_capacity"`
 }
 
 // LoggingConfig contains runtime logging options.
@@ -86,9 +105,8 @@ type LoggingConfig struct {
 
 // PerformanceConfig contains pool and buffer sizing options.
 type PerformanceConfig struct {
-	IOWorkerPoolSize     int `yaml:"io_worker_pool_size"`
-	PacketWorkerPoolSize int `yaml:"packet_worker_pool_size"`
-	ReadBufferSize       int `yaml:"read_buffer_size"`
-	WriteBufferSize      int `yaml:"write_buffer_size"`
-	OutboundQueueSize    int `yaml:"outbound_queue_size"`
+	IOWorkerPoolSize  int `yaml:"io_worker_pool_size"`
+	ReadBufferSize    int `yaml:"read_buffer_size"`
+	WriteBufferSize   int `yaml:"write_buffer_size"`
+	OutboundQueueSize int `yaml:"outbound_queue_size"`
 }

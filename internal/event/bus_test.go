@@ -1,12 +1,31 @@
 package event
 
 import (
+	"sync"
 	"testing"
 )
 
 type testEvent struct {
 	BaseEvent
 	Value string
+}
+
+func TestConcurrentFireAndSubscriptionMutation(t *testing.T) {
+	bus := NewBus()
+	event := &testEvent{BaseEvent: BaseEvent{EventType: PlayerMove}}
+	var wg sync.WaitGroup
+	for worker := 0; worker < 8; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for iteration := 0; iteration < 1_000; iteration++ {
+				id := bus.Subscribe(PlayerMove, PriorityNormal, func(Event) {})
+				bus.Fire(event)
+				bus.Unsubscribe(id)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 type testCancellableEvent struct {

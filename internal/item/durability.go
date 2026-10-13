@@ -24,7 +24,7 @@ func IsDurable(itemID int32) bool {
 // ShouldConsumeDurability returns true if this use should consume a durability point,
 // taking the Unbreaking enchantment into account.
 // For tools/weapons: chance to not consume = unbreakingLevel / (unbreakingLevel + 1)
-// For armor: chance to not consume = 0.6 + 0.4 / (unbreakingLevel + 1)
+// For armor: chance to consume = 0.6 + 0.4 / (unbreakingLevel + 1)
 func ShouldConsumeDurability(unbreakingLevel int32, isArmor bool) bool {
 	if unbreakingLevel <= 0 {
 		return true

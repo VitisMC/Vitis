@@ -13,9 +13,10 @@ const (
 
 // BreakResult contains the computed mining parameters for a block+tool combination.
 type BreakResult struct {
-	CanHarvest bool
-	Ticks      int
-	Instant    bool
+	CanHarvest      bool
+	Ticks           int
+	Instant         bool
+	ProgressPerTick float64
 }
 
 // CalculateBreakTime computes the number of ticks required to break a block.
@@ -25,7 +26,7 @@ type BreakResult struct {
 func CalculateBreakTime(stateID int32, itemName string, onGround bool, efficiencyLevel int32) BreakResult {
 	blockID := block.BlockIDFromState(stateID)
 	if blockID < 0 {
-		return BreakResult{CanHarvest: true, Ticks: 0, Instant: true}
+		return BreakResult{CanHarvest: true, Ticks: 0, Instant: true, ProgressPerTick: 1}
 	}
 
 	info := &genblock.Blocks[blockID]
@@ -35,7 +36,7 @@ func CalculateBreakTime(stateID int32, itemName string, onGround bool, efficienc
 	}
 
 	if info.Hardness == 0 {
-		return BreakResult{CanHarvest: true, Ticks: 0, Instant: true}
+		return BreakResult{CanHarvest: true, Ticks: 0, Instant: true, ProgressPerTick: 1}
 	}
 
 	tool := GetToolInfo(itemName)
@@ -69,9 +70,9 @@ func CalculateBreakTime(stateID int32, itemName string, onGround bool, efficienc
 	}
 
 	if damage >= 1.0 {
-		return BreakResult{CanHarvest: canHarvest, Ticks: 0, Instant: true}
+		return BreakResult{CanHarvest: canHarvest, Ticks: 0, Instant: true, ProgressPerTick: damage}
 	}
 
 	ticks := int(math.Ceil(1.0 / damage))
-	return BreakResult{CanHarvest: canHarvest, Ticks: ticks, Instant: false}
+	return BreakResult{CanHarvest: canHarvest, Ticks: ticks, Instant: false, ProgressPerTick: damage}
 }

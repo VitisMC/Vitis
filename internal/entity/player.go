@@ -1,6 +1,7 @@
 package entity
 
 import (
+	genentity "github.com/vitismc/vitis/internal/data/generated/entity"
 	"github.com/vitismc/vitis/internal/protocol"
 	play "github.com/vitismc/vitis/internal/protocol/packets/play"
 )
@@ -14,13 +15,18 @@ type PacketSender interface {
 type Player struct {
 	*LivingEntity
 
-	session      PacketSender
-	username     string
-	viewDistance int32
+	session       PacketSender
+	username      string
+	viewDistance  int32
+	clientLoaded  bool
+	loadTimeout   int32
+	xpPickupDelay int32
 
 	trackedEntities map[int32]struct{}
 
+	chunkBuf   []int64
 	visibleBuf []int32
+	visibleSet map[int32]struct{}
 	spawnBuf   []int32
 	despawnBuf []int32
 }
@@ -34,9 +40,40 @@ func NewPlayer(id int32, uuid protocol.UUID, username string, pos Vec3, rot Vec2
 		session:         session,
 		username:        username,
 		viewDistance:    viewDistance,
+		loadTimeout:     60,
 		trackedEntities: make(map[int32]struct{}, 64),
+		visibleSet:      make(map[int32]struct{}, 64),
 	}
 }
+
+// HasClientLoaded reports whether play input and damage may be processed.
+func (p *Player) HasClientLoaded() bool {
+	return p.clientLoaded || p.loadTimeout <= 0
+}
+
+// SetClientLoaded updates the client terrain-loading state.
+func (p *Player) SetClientLoaded(loaded bool) {
+	p.clientLoaded = loaded
+	if !loaded {
+		p.loadTimeout = 60
+	}
+}
+
+// TickClientLoadTimeout advances the bounded fallback for clients that omit PlayerLoaded.
+func (p *Player) TickClientLoadTimeout() {
+	if p.xpPickupDelay > 0 {
+		p.xpPickupDelay--
+	}
+	if !p.clientLoaded && p.loadTimeout > 0 {
+		p.loadTimeout--
+	}
+}
+
+// CanPickupXP reports whether the shared experience pickup delay has elapsed.
+func (p *Player) CanPickupXP() bool { return p.xpPickupDelay == 0 && !p.IsDead() && p.gameMode != 3 }
+
+// DelayXPPickup prevents picking up more than one award every two ticks.
+func (p *Player) DelayXPPickup() { p.xpPickupDelay = 2 }
 
 // Living returns the underlying LivingEntity for health/damage access.
 func (p *Player) Living() *LivingEntity { return p.LivingEntity }
@@ -66,6 +103,13 @@ func (p *Player) SetRotationYP(yaw, pitch float32) {
 // TrackedEntities returns the set of entity IDs currently tracked by this player.
 func (p *Player) TrackedEntities() map[int32]struct{} { return p.trackedEntities }
 
+// ResetTracking clears client visibility before a dimension or respawn reset.
+func (p *Player) ResetTracking() {
+	clear(p.trackedEntities)
+	clear(p.visibleSet)
+	p.spawnBuf, p.despawnBuf = p.spawnBuf[:0], p.despawnBuf[:0]
+}
+
 // VisibleChunkKeys computes chunk keys within the player's view distance.
 // Results are appended to the reusable visibleBuf and the slice is returned.
 func (p *Player) VisibleChunkKeys() []int64 {
@@ -74,25 +118,39 @@ func (p *Player) VisibleChunkKeys() []int64 {
 	d := p.viewDistance
 
 	count := int((2*d + 1) * (2*d + 1))
-	keys := make([]int64, 0, count)
+	if cap(p.chunkBuf) < count {
+		p.chunkBuf = make([]int64, 0, count)
+	}
+	keys := p.chunkBuf[:0]
 
 	for dx := -d; dx <= d; dx++ {
 		for dz := -d; dz <= d; dz++ {
 			keys = append(keys, ChunkKey(cx+dx, cz+dz))
 		}
 	}
+	p.chunkBuf = keys
 	return keys
 }
 
 // UpdateTracking diffs the currently visible entities against tracked entities
 // and populates spawn/despawn buffers.
 func (p *Player) UpdateTracking(mgr *Manager) (spawns []int32, despawns []int32) {
+	return p.updateTracking(mgr, nil)
+}
+
+func (p *Player) updateTracking(mgr *Manager, chunkVisible func(chunkX, chunkZ int32) bool) (spawns []int32, despawns []int32) {
 	p.visibleBuf = p.visibleBuf[:0]
 	p.spawnBuf = p.spawnBuf[:0]
 	p.despawnBuf = p.despawnBuf[:0]
 
 	chunkKeys := p.VisibleChunkKeys()
 	for _, key := range chunkKeys {
+		if chunkVisible != nil {
+			chunkX, chunkZ := ChunkCoordsFromKey(key)
+			if !chunkVisible(chunkX, chunkZ) {
+				continue
+			}
+		}
 		ids := mgr.EntitiesInChunk(key)
 		for _, eid := range ids {
 			if eid == p.ID() {
@@ -102,9 +160,9 @@ func (p *Player) UpdateTracking(mgr *Manager) (spawns []int32, despawns []int32)
 		}
 	}
 
-	visible := make(map[int32]struct{}, len(p.visibleBuf))
+	clear(p.visibleSet)
 	for _, eid := range p.visibleBuf {
-		visible[eid] = struct{}{}
+		p.visibleSet[eid] = struct{}{}
 	}
 
 	for _, eid := range p.visibleBuf {
@@ -115,7 +173,7 @@ func (p *Player) UpdateTracking(mgr *Manager) (spawns []int32, despawns []int32)
 	}
 
 	for eid := range p.trackedEntities {
-		if _, vis := visible[eid]; !vis {
+		if _, vis := p.visibleSet[eid]; !vis {
 			p.despawnBuf = append(p.despawnBuf, eid)
 		}
 	}
@@ -134,6 +192,10 @@ func (p *Player) SendSpawnEntity(e *Entity) {
 	pos := e.Position()
 	rot := e.Rotation()
 	vel := e.Velocity()
+	if e.ProtocolType() == genentity.EntityExperienceOrb {
+		_ = p.session.Send(&play.SpawnEntityExperienceOrb{EntityID: e.ID(), X: pos.X, Y: pos.Y, Z: pos.Z, Count: int16(e.SpawnData())})
+		return
+	}
 
 	pkt := &play.SpawnEntity{
 		EntityID:   e.ID(),

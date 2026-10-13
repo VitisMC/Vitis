@@ -8,6 +8,8 @@ import (
 
 const packetID int32 = 0x00
 
+const maxServerAddressLength = 255
+
 // Handshake is the initial packet used to negotiate protocol version and next state.
 type Handshake struct {
 	ProtocolVersion int32
@@ -33,7 +35,7 @@ func (p *Handshake) Decode(buf *protocol.Buffer) error {
 		return fmt.Errorf("decode protocol version: %w", err)
 	}
 
-	address, err := buf.ReadString()
+	address, err := buf.ReadStringLimit(maxServerAddressLength)
 	if err != nil {
 		return fmt.Errorf("decode server address: %w", err)
 	}

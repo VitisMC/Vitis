@@ -12,10 +12,28 @@ type PaletteContainer struct {
 	mode    paletteMode
 }
 
+// Clone returns an independently mutable copy of the palette and packed data.
+func (pc PaletteContainer) Clone() PaletteContainer {
+	clone := pc
+	clone.palette = append([]int32(nil), pc.palette...)
+	if pc.ids != nil {
+		clone.ids = make(map[int32]int32, len(pc.ids))
+		for state, index := range pc.ids {
+			clone.ids[state] = index
+		}
+	}
+	if pc.data != nil {
+		data := *pc.data
+		data.data = append([]uint64(nil), pc.data.data...)
+		clone.data = &data
+	}
+	return clone
+}
+
 type paletteMode uint8
 
 const (
-	modeSingle   paletteMode = iota
+	modeSingle paletteMode = iota
 	modeIndirect
 	modeDirect
 )

@@ -1,10 +1,39 @@
 package mining
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestDigStateRequiresMatchingTargetAndDuration(t *testing.T) {
+	now := time.Now()
+	state := &DigState{X: 1, Y: 64, Z: 2, StateID: 7, TotalTicks: 4, StartedAt: now}
+	if !state.Matches(1, 64, 2, 7) || state.Matches(2, 64, 2, 7) || state.Matches(1, 64, 2, 8) {
+		t.Fatal("target revision matching is incorrect")
+	}
+	if state.Ready(now.Add(99 * time.Millisecond)) {
+		t.Fatal("dig completed before its minimum duration")
+	}
+	if !state.Ready(now.Add(100 * time.Millisecond)) {
+		t.Fatal("dig did not complete after its minimum duration")
+	}
+}
+
+// TestDigStateReadyUsesExactProgress verifies threshold handling when reciprocal ticks are rounded up.
+func TestDigStateReadyUsesExactProgress(t *testing.T) {
+	now := time.Now()
+	state := &DigState{TotalTicks: 5, ProgressPerTick: 0.24, StartedAt: now}
+	if state.Ready(now.Add(50 * time.Millisecond)) {
+		t.Fatal("dig completed below the accepted progress threshold")
+	}
+	if !state.Ready(now.Add(100 * time.Millisecond)) {
+		t.Fatal("dig did not complete after reaching the accepted progress threshold")
+	}
+}
 
 func TestTrackerStartAndGet(t *testing.T) {
 	tr := NewTracker()
-	tr.Start(1, 10, 20, 30, 100, 60, true)
+	tr.Start(1, 10, 20, 30, 100, 60, 1.0/60.0, true)
 
 	state := tr.Get(1)
 	if state == nil {
@@ -20,7 +49,7 @@ func TestTrackerStartAndGet(t *testing.T) {
 
 func TestTrackerCancel(t *testing.T) {
 	tr := NewTracker()
-	tr.Start(1, 0, 0, 0, 1, 20, true)
+	tr.Start(1, 0, 0, 0, 1, 20, 0.05, true)
 
 	state := tr.Cancel(1)
 	if state == nil {
@@ -33,7 +62,7 @@ func TestTrackerCancel(t *testing.T) {
 
 func TestTrackerTick(t *testing.T) {
 	tr := NewTracker()
-	tr.Start(1, 0, 0, 0, 1, 10, true)
+	tr.Start(1, 0, 0, 0, 1, 10, 0.1, true)
 
 	changed := tr.Tick()
 	if len(changed) == 0 {
@@ -69,8 +98,8 @@ func TestDigStateStage(t *testing.T) {
 
 func TestTrackerMultiplePlayers(t *testing.T) {
 	tr := NewTracker()
-	tr.Start(1, 0, 0, 0, 1, 20, true)
-	tr.Start(2, 5, 5, 5, 2, 40, true)
+	tr.Start(1, 0, 0, 0, 1, 20, 0.05, true)
+	tr.Start(2, 5, 5, 5, 2, 40, 0.025, true)
 
 	tr.Tick()
 

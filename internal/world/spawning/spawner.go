@@ -57,6 +57,8 @@ type SpawnEntry struct {
 	MaxGroup        int
 	Category        entity.MobCategory
 	BiomeCategories []string
+	Group           Category
+	slimeSize       int
 }
 
 // DefaultOverworldSpawns provides the default overworld spawn table.
@@ -76,6 +78,12 @@ var DefaultOverworldSpawns = []SpawnEntry{
 }
 
 // PlayerInfo represents a player eligible for spawning calculations.
+// PlayerPos retains the resource spawner position API.
+type PlayerPos = PlayerInfo
+
+// BlockAccess supplies block states for resource spawn evaluation.
+type BlockAccess interface{ GetBlock(x, y, z int) int32 }
+
 type PlayerInfo struct {
 	X, Y, Z  float64
 	GameMode int32
@@ -96,8 +104,9 @@ type WorldAccess interface {
 
 // SpawnRequest describes a mob spawn the world should execute.
 type SpawnRequest struct {
-	TypeName string
-	X, Y, Z  float64
+	TypeName  string
+	X, Y, Z   float64
+	SlimeSize int
 }
 
 // SpawnResult contains world mutations selected by the spawner.
@@ -111,6 +120,8 @@ type Spawner struct {
 	spawnTable []SpawnEntry
 	mobCaps    map[entity.MobCategory]int
 
+	runtime               *Runtime
+	ticks                 uint64
 	spawnCounter          int
 	interval              int
 	attemptsPerCategory   int
@@ -125,6 +136,9 @@ type Spawner struct {
 
 	rng *rand.Rand
 }
+
+// SetRuntime enables snapshot-defined spawn and despawn decisions.
+func (s *Spawner) SetRuntime(runtime *Runtime) { s.runtime = runtime }
 
 // NewSpawner creates a mob spawner using default-compatible settings.
 func NewSpawner(table []SpawnEntry, interval int) *Spawner {
@@ -191,7 +205,28 @@ func NewSpawnerWithConfig(config Config) *Spawner {
 }
 
 // Tick runs one natural spawn cycle and returns world mutations to apply.
-func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerInfo, world WorldAccess) SpawnResult {
+func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerInfo, blocks BlockAccess) SpawnResult {
+	if s == nil || mobs == nil || blocks == nil {
+		return SpawnResult{}
+	}
+	if s.runtime != nil {
+		eligible := make([]PlayerPos, 0, len(players))
+		for _, player := range players {
+			if !player.Dead && player.GameMode != 3 {
+				eligible = append(eligible, player)
+			}
+		}
+		return SpawnResult{Requests: s.tickResources(mobs, eligible, blocks)}
+	}
+	world, ok := blocks.(WorldAccess)
+	if !ok {
+		return SpawnResult{}
+	}
+	return s.tickLegacy(mobs, players, world)
+}
+
+// tickLegacy evaluates explicitly configured spawning without a resource snapshot.
+func (s *Spawner) tickLegacy(mobs *entity.MobManager, players []PlayerInfo, world WorldAccess) SpawnResult {
 	if s == nil || mobs == nil || world == nil {
 		return SpawnResult{}
 	}
@@ -202,7 +237,7 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerInfo, world Worl
 	}
 
 	result := SpawnResult{
-		DespawnIDs: s.collectDespawns(mobs, eligiblePlayers),
+		DespawnIDs: s.collectDespawns(mobs, eligiblePlayers, world),
 	}
 
 	s.spawnCounter++
@@ -211,7 +246,13 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerInfo, world Worl
 	}
 	s.spawnCounter = 0
 
+	if environment, ok := world.(Environment); ok && !environment.SpawnSettings().Enabled {
+		return result
+	}
 	for _, category := range spawnCategoryOrder {
+		if environment, ok := world.(Environment); ok && environment.SpawnSettings().Peaceful && category == entity.MobCategoryHostile {
+			continue
+		}
 		capacity := s.mobCaps[category]
 		if capacity <= 0 {
 			continue
@@ -269,10 +310,10 @@ func (s *Spawner) Tick(mobs *entity.MobManager, players []PlayerInfo, world Worl
 	return result
 }
 
-func (s *Spawner) collectDespawns(mobs *entity.MobManager, players []PlayerInfo) []int32 {
+func (s *Spawner) collectDespawns(mobs *entity.MobManager, players []PlayerInfo, world WorldAccess) []int32 {
 	var ids []int32
 	for _, mob := range mobs.Mobs() {
-		if mob == nil || mob.IsDead() || mob.Entity.Removed() {
+		if mob == nil || mob.IsDead() || mob.Entity.Removed() || mob.PersistenceRequired() || !entity.IsTickingAt(world, mob.Position()) {
 			continue
 		}
 
@@ -289,7 +330,7 @@ func (s *Spawner) collectDespawns(mobs *entity.MobManager, players []PlayerInfo)
 }
 
 func (s *Spawner) canSpawnAt(entry SpawnEntry, x, y, z int, player PlayerInfo, world WorldAccess) bool {
-	if !world.IsChunkLoaded(blockToChunk(x), blockToChunk(z)) {
+	if !entity.IsTickingAt(world, entity.Vec3{X: float64(x), Y: float64(y), Z: float64(z)}) || !world.IsChunkLoaded(blockToChunk(x), blockToChunk(z)) {
 		return false
 	}
 	if y < world.MinY() || y+1 > world.MaxY() {
@@ -516,4 +557,9 @@ func maxLight(a, b uint8) uint8 {
 
 func landBiomeCategories() []string {
 	return []string{"plains", "forest", "taiga", "savanna", "jungle", "mountain", "extreme_hills", "beach", "swamp", "mesa", "mushroom"}
+}
+
+// nearestPlayerDist keeps the squared-distance resource lookup contract.
+func nearestPlayerDist(pos entity.Vec3, players []PlayerPos) float64 {
+	return nearestPlayerDistSq(pos, players)
 }

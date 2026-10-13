@@ -23,19 +23,18 @@ func (p *UnloadChunk) ID() int32 {
 
 // Decode reads packet fields from a protocol buffer.
 func (p *UnloadChunk) Decode(buf *protocol.Buffer) error {
-	var err error
-	if p.ChunkX, err = buf.ReadInt32(); err != nil {
+	position, err := buf.ReadInt64()
+	if err != nil {
 		return err
 	}
-	if p.ChunkZ, err = buf.ReadInt32(); err != nil {
-		return err
-	}
+	p.ChunkX = int32(uint32(position))
+	p.ChunkZ = int32(uint32(uint64(position) >> 32))
 	return nil
 }
 
 // Encode writes packet fields to a protocol buffer.
 func (p *UnloadChunk) Encode(buf *protocol.Buffer) error {
-	buf.WriteInt32(p.ChunkX)
-	buf.WriteInt32(p.ChunkZ)
+	position := int64(uint64(uint32(p.ChunkX)) | uint64(uint32(p.ChunkZ))<<32)
+	buf.WriteInt64(position)
 	return nil
 }

@@ -2,6 +2,8 @@ package fluid
 
 import (
 	"testing"
+
+	"github.com/vitismc/vitis/internal/block"
 )
 
 func TestFluidLevel(t *testing.T) {
@@ -21,6 +23,55 @@ func TestFluidLevel(t *testing.T) {
 			level := FluidLevel(tt.stateID)
 			if level != tt.expected {
 				t.Errorf("FluidLevel(%d) = %d, want %d", tt.stateID, level, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLavaWaterInteractionUsesRegistryStates(t *testing.T) {
+	tests := []struct {
+		name     string
+		current  int32
+		getBlock BlockGetter
+		want     string
+	}{
+		{
+			name:    "source lava creates obsidian",
+			current: SourceStateID(FluidTypeLava),
+			getBlock: func(x, y, z int) int32 {
+				if x == 1 && y == 64 && z == 0 {
+					return SourceStateID(FluidTypeWater)
+				}
+				return SourceStateID(FluidTypeLava)
+			},
+			want: "minecraft:obsidian",
+		},
+		{
+			name:    "flowing lava creates cobblestone",
+			current: FlowingStateID(FluidTypeLava, 4, false),
+			getBlock: func(x, y, z int) int32 {
+				if x == 1 && y == 64 && z == 0 {
+					return SourceStateID(FluidTypeWater)
+				}
+				return FlowingStateID(FluidTypeLava, 4, false)
+			},
+			want: "minecraft:cobblestone",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state, ok := CheckLavaWaterInteraction(0, 64, 0, func(x, y, z int) int32 {
+				if x == 0 && y == 64 && z == 0 {
+					return tt.current
+				}
+				return tt.getBlock(x, y, z)
+			})
+			if !ok {
+				t.Fatal("expected an interaction")
+			}
+			if got := block.NameFromState(state); got != tt.want {
+				t.Fatalf("expected %s, got %s (%d)", tt.want, got, state)
 			}
 		})
 	}

@@ -4,11 +4,50 @@ import (
 	"math/rand"
 )
 
+// Context supplies detached gameplay inputs and snapshot-bound resource resolvers.
 type Context struct {
-	Rng             *rand.Rand
-	Tool            *ToolInfo
-	ExplosionRadius float64
-	BlockState      map[string]string
+	Rng                 *rand.Rand
+	Tool                *ToolInfo
+	ExplosionRadius     float64
+	BlockState          map[string]string
+	Luck                float64
+	OpenWater           bool
+	KilledByPlayer      bool
+	Entity              *EntityInfo
+	Attacker            *EntityInfo
+	DirectAttacker      *EntityInfo
+	DamageType          string
+	DamageIsDirect      *bool
+	tableResolver       func(string, *Context) []Drop
+	tagResolver         func(string) []string
+	depth               int
+	fullStacks          bool
+	registryTagResolver func(string, string) []string
+	smeltResolver       func(string) string
+}
+
+// EntityInfo is a detached view of entity state used by death predicates.
+type EntityInfo struct {
+	Type     string
+	OnFire   bool
+	Baby     bool
+	Color    string
+	Sheared  bool
+	Size     int
+	Captain  bool
+	Mainhand *ToolInfo
+}
+
+// WithLuck sets the luck attribute used by weighted loot entries.
+func (c *Context) WithLuck(luck float64) *Context {
+	c.Luck = luck
+	return c
+}
+
+// WithOpenWater sets whether a fishing hook satisfies open-water predicates.
+func (c *Context) WithOpenWater(open bool) *Context {
+	c.OpenWater = open
+	return c
 }
 
 type ToolInfo struct {

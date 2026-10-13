@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,13 +12,13 @@ import (
 	"github.com/vitismc/vitis/internal/logger"
 	"github.com/vitismc/vitis/internal/network"
 	"github.com/vitismc/vitis/internal/protocol"
+	handshakepacket "github.com/vitismc/vitis/internal/protocol/packets/handshake"
 )
 
 const (
-	defaultWorkerQueueCapacity = 2048
-	defaultEncodeBufferSize    = 256
-	defaultFrameBufferSize     = 256
-	maxPooledBufferSize        = 256 * 1024
+	defaultEncodeBufferSize = 256
+	defaultFrameBufferSize  = 256
+	maxPooledBufferSize     = 256 * 1024
 )
 
 // Player is a game-layer player reference bound to a session after login.
@@ -85,10 +84,10 @@ type Config struct {
 	Registry         *protocol.Registry
 	Decoder          *protocol.Decoder
 	Router           PacketRouter
-	WorkerPool       *network.WorkerPool
 	InitialVersion   int32
 	InitialState     protocol.State
 	Events           Events
+	PhaseTimeout     time.Duration
 }
 
 type playerBinding struct {
@@ -103,23 +102,28 @@ type DefaultSession struct {
 	registry         *protocol.Registry
 	decoder          *protocol.Decoder
 	router           PacketRouter
-	workerPool       *network.WorkerPool
-	ownedWorkerPool  bool
 	events           Events
 
 	protocolState *protocol.SessionState
 	lifecycle     atomic.Uint32
 
-	compressionEnabled atomic.Bool
-	encryptionEnabled  atomic.Bool
+	compressionEnabled         atomic.Bool
+	encryptionEnabled          atomic.Bool
+	chunkBatchAcknowledgements atomic.Uint64
 
 	player atomic.Pointer[playerBinding]
+	world  atomic.Pointer[worldBinding]
 
 	sessionData sync.Map
 
 	encodeBufferPool sync.Pool
 	frameBufferPool  sync.Pool
 	packetPool       sync.Pool
+	phaseTimeout     time.Duration
+	phaseDeadline    atomic.Int64
+	keepAliveID      atomic.Int64
+	keepAliveSentAt  atomic.Int64
+	pendingTeleport  atomic.Int32
 
 	closeOnce sync.Once
 	closeErr  atomic.Value
@@ -146,20 +150,6 @@ func New(cfg Config) (*DefaultSession, error) {
 		decoder = protocol.NewDecoder(cfg.Registry, 0)
 	}
 
-	workerPool := cfg.WorkerPool
-	ownedPool := false
-	if workerPool == nil {
-		size := runtime.GOMAXPROCS(0)
-		if size < 2 {
-			size = 2
-		}
-		workerPool = network.NewWorkerPool(network.WorkerPoolConfig{
-			Size:          size,
-			QueueCapacity: defaultWorkerQueueCapacity,
-		})
-		ownedPool = true
-	}
-
 	s := &DefaultSession{
 		id:               cfg.ID,
 		networkSessionID: cfg.NetworkSessionID,
@@ -167,9 +157,8 @@ func New(cfg Config) (*DefaultSession, error) {
 		registry:         cfg.Registry,
 		decoder:          decoder,
 		router:           cfg.Router,
-		workerPool:       workerPool,
-		ownedWorkerPool:  ownedPool,
 		events:           cfg.Events,
+		phaseTimeout:     cfg.PhaseTimeout,
 		protocolState:    protocol.NewSessionState(cfg.InitialVersion, cfg.InitialState),
 		ctx:              cfg.Connection.Context(),
 	}
@@ -177,6 +166,7 @@ func New(cfg Config) (*DefaultSession, error) {
 		s.ctx = context.Background()
 	}
 	s.lifecycle.Store(uint32(LifecycleActive))
+	s.resetPhaseDeadline(cfg.InitialState)
 
 	s.encodeBufferPool.New = func() any {
 		return protocol.NewBuffer(defaultEncodeBufferSize)
@@ -193,6 +183,9 @@ func New(cfg Config) (*DefaultSession, error) {
 	}
 
 	go s.watchConnectionDone()
+	if s.phaseTimeout > 0 {
+		go s.watchPhaseDeadline()
+	}
 	return s, nil
 }
 
@@ -274,6 +267,36 @@ func (s *DefaultSession) SessionData() *sync.Map {
 	return &s.sessionData
 }
 
+// ChunkBatchRate returns the most recent chunk delivery rate requested by the client.
+func (s *DefaultSession) ChunkBatchRate() (float32, bool) {
+	value, ok := s.sessionData.Load("chunk_batch_rate")
+	if !ok {
+		return 0, false
+	}
+	rate, ok := value.(float32)
+	return rate, ok
+}
+
+// ChunkBatchAcknowledgements returns the number of chunk batches acknowledged by the client.
+func (s *DefaultSession) ChunkBatchAcknowledgements() uint64 {
+	return s.chunkBatchAcknowledgements.Load()
+}
+
+// AcknowledgeChunkBatch records one client acknowledgement after packet validation.
+func (s *DefaultSession) AcknowledgeChunkBatch() {
+	s.chunkBatchAcknowledgements.Add(1)
+}
+
+// ClientViewDistance returns the most recent render distance advertised by the client.
+func (s *DefaultSession) ClientViewDistance() (int32, bool) {
+	value, ok := s.sessionData.Load("client_view_distance")
+	if !ok {
+		return 0, false
+	}
+	distance, ok := value.(int32)
+	return distance, ok
+}
+
 // EnableNetworkCompression enables protocol compression on the underlying connection.
 func (s *DefaultSession) EnableNetworkCompression(threshold int) {
 	s.conn.EnableCompression(threshold)
@@ -326,7 +349,8 @@ func (s *DefaultSession) Send(packet protocol.Packet) error {
 	return nil
 }
 
-// HandleNetworkPacket accepts a decoded network packet and dispatches protocol handling on worker pool.
+// HandleNetworkPacket processes one packet synchronously. The connection read loop
+// is the sole caller, preserving TCP order for all stateful protocol operations.
 func (s *DefaultSession) HandleNetworkPacket(packet *network.Packet) error {
 	if packet == nil {
 		return fmt.Errorf("handle packet: nil packet")
@@ -340,21 +364,7 @@ func (s *DefaultSession) HandleNetworkPacket(packet *network.Packet) error {
 	offset := protocol.EncodeVarInt(frame, packet.ID)
 	copy(frame[offset:], packet.Payload)
 
-	err := s.workerPool.Submit(func() {
-		s.processInboundFrame(frame[:frameSize])
-	})
-	if err != nil {
-		s.releaseFrameBuffer(frame)
-		if errors.Is(err, network.ErrWorkerPoolFull) {
-			return fmt.Errorf("session worker pool saturated: %w", err)
-		}
-		if errors.Is(err, network.ErrWorkerPoolClosed) {
-			return ErrSessionClosing
-		}
-		return err
-	}
-
-	return nil
+	return s.processInboundFrame(frame[:frameSize])
 }
 
 // Close gracefully closes the session and underlying connection.
@@ -366,9 +376,10 @@ func (s *DefaultSession) Close() error {
 		return ErrSessionClosing
 	}
 
-	err := s.conn.Close()
-	s.finalize(err)
-	return err
+	go func() {
+		s.finalize(s.conn.Close())
+	}()
+	return nil
 }
 
 // ForceClose force-closes the session and underlying connection.
@@ -380,30 +391,22 @@ func (s *DefaultSession) ForceClose(err error) error {
 		return ErrSessionClosing
 	}
 
-	closeErr := s.conn.ForceClose(err)
-	s.finalize(closeErr)
-	return closeErr
+	go func() {
+		s.finalize(s.conn.ForceClose(err))
+	}()
+	return nil
 }
 
-func (s *DefaultSession) processInboundFrame(frame []byte) {
+func (s *DefaultSession) processInboundFrame(frame []byte) error {
 	defer s.releaseFrameBuffer(frame)
 	if s.Lifecycle() != LifecycleActive {
-		return
+		return ErrSessionClosing
 	}
 
 	previousState := s.protocolState.State()
 	packet, err := s.decoder.Decode(s.protocolState, frame)
 	if err != nil {
-		logger.Warn("decode error", "session", s.id, "state", previousState.String(), "error", err)
-		_ = s.ForceClose(err)
-		return
-	}
-
-	if err := ValidateProtocolTransition(previousState, s.protocolState.State()); err != nil {
-		logger.Warn("invalid protocol transition", "session", s.id, "from", previousState.String(), "to", s.protocolState.State().String())
-		s.protocolState.SetState(previousState)
-		_ = s.ForceClose(err)
-		return
+		return fmt.Errorf("decode inbound state=%s: %w", previousState.String(), err)
 	}
 
 	if s.events.OnPacketReceive != nil {
@@ -411,11 +414,24 @@ func (s *DefaultSession) processInboundFrame(frame []byte) {
 	}
 
 	if s.router != nil {
-		if err := s.router.Handle(s, previousState, packet); err != nil && !errors.Is(err, ErrPacketHandlerNotFound) {
-			logger.Warn("handler error", "session", s.id, "state", previousState.String(), "packet_id", fmt.Sprintf("0x%02X", packet.ID()), "error", err)
-			_ = s.ForceClose(err)
+		if err := s.router.Handle(s, previousState, packet); err != nil {
+			if !errors.Is(err, ErrPacketHandlerNotFound) || !isValidatedNoopPacket(previousState, packet) {
+				return fmt.Errorf("handle inbound state=%s packet_id=0x%02X: %w", previousState.String(), packet.ID(), err)
+			}
 		}
 	}
+
+	return s.applyInboundTransitions(previousState, packet)
+}
+
+// isValidatedNoopPacket identifies protocol packets whose full semantic effect is
+// the transition applied by DefaultSession after successful decoding.
+func isValidatedNoopPacket(state protocol.State, packet protocol.Packet) bool {
+	if state != protocol.StateHandshake {
+		return false
+	}
+	_, ok := packet.(*handshakepacket.Handshake)
+	return ok
 }
 
 func (s *DefaultSession) ensureActive() error {
@@ -451,11 +467,6 @@ func (s *DefaultSession) finalize(err error) {
 			s.closeErr.Store(err)
 		}
 		s.lifecycle.Store(uint32(LifecycleClosed))
-		if s.ownedWorkerPool {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			_ = s.workerPool.Stop(ctx)
-			cancel()
-		}
 		var cause error
 		stored := s.closeErr.Load()
 		if stored != nil {
@@ -468,10 +479,115 @@ func (s *DefaultSession) finalize(err error) {
 	})
 }
 
+func (s *DefaultSession) transitionProtocol(next protocol.State) error {
+	current := s.protocolState.State()
+	if err := ValidateProtocolTransition(current, next); err != nil {
+		return err
+	}
+	s.protocolState.SetState(next)
+	s.resetPhaseDeadline(next)
+	return nil
+}
+
+func (s *DefaultSession) applyInboundTransitions(previous protocol.State, packet protocol.Packet) error {
+	if transition, ok := packet.(protocol.ProtocolVersionTransition); ok {
+		if version, change := transition.ProtocolVersionTransition(); change {
+			if stateTransition, ok := packet.(protocol.InboundStateTransition); ok {
+				next, changesState := stateTransition.InboundStateTransition()
+				if changesState && next == protocol.StateLogin && version != protocol.CurrentVersion {
+					return fmt.Errorf("unsupported protocol version %d, expected %d", version, protocol.CurrentVersion)
+				}
+			}
+			s.protocolState.SetProtocolVersion(version)
+		}
+	}
+
+	current := s.protocolState.State()
+	if current != previous {
+		return ValidateProtocolTransition(previous, current)
+	}
+	transition, ok := packet.(protocol.InboundStateTransition)
+	if !ok {
+		return nil
+	}
+	next, change := transition.InboundStateTransition()
+	if !change {
+		return nil
+	}
+	return s.transitionProtocol(next)
+}
+
 func (s *DefaultSession) watchConnectionDone() {
 	<-s.conn.Done()
 	s.markClosing()
 	s.finalize(nil)
+}
+
+func (s *DefaultSession) resetPhaseDeadline(state protocol.State) {
+	if s.phaseTimeout <= 0 || state == protocol.StatePlay {
+		s.phaseDeadline.Store(0)
+		return
+	}
+	s.phaseDeadline.Store(time.Now().Add(s.phaseTimeout).UnixNano())
+}
+
+func (s *DefaultSession) watchPhaseDeadline() {
+	interval := s.phaseTimeout / 4
+	if interval < 10*time.Millisecond {
+		interval = 10 * time.Millisecond
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case now := <-ticker.C:
+			deadline := s.phaseDeadline.Load()
+			if deadline > 0 && now.UnixNano() >= deadline {
+				_ = s.ForceClose(fmt.Errorf("%w: state=%s", ErrProtocolPhaseTimeout, s.ProtocolState()))
+				return
+			}
+		}
+	}
+}
+
+func (s *DefaultSession) beginKeepAlive(id int64) bool {
+	if id == 0 || !s.keepAliveID.CompareAndSwap(0, id) {
+		return false
+	}
+	s.keepAliveSentAt.Store(time.Now().UnixNano())
+	return true
+}
+
+func (s *DefaultSession) acknowledgeKeepAlive(id int64) error {
+	expected := s.keepAliveID.Load()
+	if expected == 0 || expected != id {
+		return fmt.Errorf("%w: expected=%d received=%d", ErrKeepAliveMismatch, expected, id)
+	}
+	if !s.keepAliveID.CompareAndSwap(expected, 0) {
+		return fmt.Errorf("%w: response raced", ErrKeepAliveMismatch)
+	}
+	s.keepAliveSentAt.Store(0)
+	return nil
+}
+
+func (s *DefaultSession) setPendingTeleport(id int32) {
+	if id > 0 {
+		s.pendingTeleport.Store(id)
+	}
+}
+
+func (s *DefaultSession) acknowledgeTeleport(id int32) error {
+	expected := s.pendingTeleport.Load()
+	if expected == 0 || id != expected || !s.pendingTeleport.CompareAndSwap(expected, 0) {
+		return fmt.Errorf("teleport acknowledgement mismatch: expected=%d received=%d", expected, id)
+	}
+	return nil
+}
+
+func (s *DefaultSession) hasPendingTeleport() bool {
+	return s.pendingTeleport.Load() != 0
 }
 
 func (s *DefaultSession) applyOutboundVersionTransition(packet protocol.Packet) {

@@ -5,7 +5,7 @@ import (
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
-// SetSlotState is sent by the client to toggle a slot lock state (bundle, crafter).
+// SetSlotState requests enabling or disabling one slot in a crafter menu.
 type SetSlotState struct {
 	SlotID   int32
 	WindowID int32

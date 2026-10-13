@@ -1,6 +1,8 @@
 package play
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
@@ -23,7 +25,13 @@ func (p *ResourcePackReceive) Decode(buf *protocol.Buffer) error {
 		return err
 	}
 	p.Result, err = buf.ReadVarInt()
-	return err
+	if err != nil {
+		return err
+	}
+	if p.Result < 0 || p.Result > 7 {
+		return fmt.Errorf("resource pack result out of range: %d", p.Result)
+	}
+	return nil
 }
 
 func (p *ResourcePackReceive) Encode(buf *protocol.Buffer) error {

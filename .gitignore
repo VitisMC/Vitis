@@ -1,5 +1,6 @@
 # Binaries
 /vitis
+/client/
 *.exe
 *.exe~
 *.dll
@@ -7,14 +8,19 @@
 *.dylib
 
 # Runtime data
-world/region/*.mca
-world/playerdata/*.dat
-world/playerdata/*.dat_old
+/world/
+/*.vitis-backup/
+/banned-ips.json
+/banned-players.json
+/whitelist.json
+/configs/vitis.yaml
+/configs/tab.yaml
 logs/
 
 # Data & reference files (fetched by scripts)
 .mcdata/
 .mc-decompiled/
+/.generation-backup.*/
 .protocol_docs_1214/
 libraries/
 versions/
@@ -37,7 +43,12 @@ Thumbs.db
 # Test output
 *.test
 *.out
+*.prof
+*.pprof
 coverage.html
+
+# Temporary files
+*.tmp
 
 ops.json
 .etc/

@@ -1,379 +1,183 @@
 # Contributing to Vitis
 
-[Русская версия ниже](#участие-в-разработке-vitis) | [Russian version below](#участие-в-разработке-vitis)
+[Русский](#участие-в-разработке-vitis) · [Developer setup](docs/eng/development.md) · [Documentation](docs/eng/README.md)
 
-Thank you for your interest in contributing to Vitis! This document covers how to set up the project, coding conventions, and how to submit changes.
+## Setup and verification
 
-## Getting Started
+Use Go 1.23+ and Git. Build and test from the repository root:
 
-### Prerequisites
-
-- **Go 1.23+**
-- **Git**
-
-### Build & Run
+Linux (Bash):
 
 ```bash
-# Clone
-git clone https://github.com/vitismc/vitis.git
-cd vitis
-
-# Build
-go build -o vitis ./cmd/vitis
-
-# Run
-cp configs/vitis.yaml vitis.yaml
-./vitis -config vitis.yaml
-
-# Run tests
-go test ./internal/... -count=1
+go mod download
+go build ./...
+go test ./... -count=1
+go vet ./...
+make docs-check
 ```
 
-### Using the Makefile
+Windows (PowerShell 7.2+):
 
-```bash
-make build    # Build the binary
-make run      # Build and run
-make test     # Run all tests
-make lint     # Run go vet
-make clean    # Remove build artifacts
+```powershell
+go mod download
+go build ./...
+go test ./... -count=1
+go vet ./...
+go run ./cmd/vitis-doccheck
 ```
 
-## Coding Style
+Startup prepares vanilla resources automatically; see [installation](docs/eng/getting-started.md). Full code generation is a separate development operation.
 
-- Follow standard Go conventions ([Effective Go](https://go.dev/doc/effective_go), [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments))
-- Write **docstrings in English only**
-- Do **not** write inline comments — use docstrings instead
-- Use `gofmt` (or `goimports`) to format code
-- Keep functions short and focused
-- Use meaningful variable names
-- Error messages should be lowercase and not end with punctuation
+| Make target | Purpose |
+| --- | --- |
+| `build` | Build `vitis` from the complete command package |
+| `run` | Build and run with the checked-in example YAML; missing resources are prepared automatically |
+| `test` | Run all tests without cached results |
+| `lint` | Run go vet |
+| `test-race` | Test with the race detector |
+| `fuzz-smoke` | Exercise the current protocol/NBT/decompression fuzz targets |
+| `docs-check` | Check local Markdown link targets, EN/RU page sets and configuration-key coverage |
+| `verify` | Combine test, vet, race, fuzz smoke and docs checks |
+| `generate` | Automatic input preparation and full regeneration; `make generate MC_VERSION=1.21.4` (default: 1.21.4); see [prerequisites](docs/eng/generators/README.md) |
+| `clean` | Remove the server binary |
 
-### Logging
+On Windows, use the native PowerShell equivalents described in [developer setup](docs/eng/development.md) and [generation](docs/eng/generators/README.md).
 
-Use the structured logger from `internal/logger`:
+Check the baseline before editing and report existing failures separately; see [known limitations](docs/eng/status.md).
 
-```go
-import "github.com/vitismc/vitis/internal/logger"
+## Coding conventions
 
-logger.Info("player joined", "name", name, "session", s.ID())
-logger.Error("failed to load chunk", "x", cx, "z", cz, "error", err)
-logger.Debug("packet received", "id", packetID)
-```
+Follow idiomatic Go, existing package boundaries, SOLID/KISS/DRY where they simplify the implementation, and the project's formatting. Keep functions focused; avoid speculative abstractions and unrelated rewrites.
 
-Do **not** use `log.Printf` or `fmt.Println` in production code.
+- Use gofmt. Keep names meaningful and errors lowercase without trailing punctuation.
+- Write concise English Go documentation comments for packages, types and functions. Preserve the existing preference for documentation comments over inline commentary.
+- Use structured `internal/logger` logging with contextual fields; avoid `log.Printf` and `fmt.Println` in production logic.
+- Validate untrusted packet/command input. Keep protocol decoding, gameplay authority and storage responsibilities separate.
+- Keep blocking IO out of network/tick paths. Respect state ownership, handle bounded-queue refusal, and cancel/join owned goroutines on shutdown.
+- Add focused tests for new logic and edge cases; use race checks for concurrency and malformed-input tests for codecs.
+- Change generators/inputs instead of hand-editing `internal/data/generated`. Inspect every generated diff.
 
-### Generated Code
+Read [architecture](docs/eng/architecture.md), [extension guides](docs/eng/extending.md) and [testing](docs/eng/testing.md) for runtime-specific contracts.
 
-Files under `internal/data/generated/` are auto-generated. Do **not** edit them manually. To regenerate:
+## Branches and commits
 
-```bash
-./scripts/update_version.sh 1.21.4
-```
+Create branches from `dev` and target PRs at **`dev`**. Maintainers merge changes into `main`.
 
-## Branch Model
+| Prefix | Purpose |
+| --- | --- |
+| `feature/` | New functionality |
+| `fix/` | Bug fixes |
+| `hotfix/` | Critical fixes intended for main |
+| `docs/` | Documentation |
+| `refactor/` | Refactoring |
+| `test/` | Tests |
+| `chore/` | Maintenance |
 
-### Main Branches
+Use short lowercase hyphenated names, optionally including an issue number: `fix/123-chunk-unload`.
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Stable, production-ready code. Only updated via merges from `dev` by maintainers. |
-| `dev`  | Active development. All PRs target this branch. |
+Use Conventional Commits: `<type>(<optional scope>): <description>`. Existing types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `revert`. Use imperative mood, a subject of at most 72 characters with no final period, and a blank line before an optional body explaining what and why.
 
-### Feature Branches
+Example: `fix(world): preserve dirty state after asynchronous save`.
 
-Create branches from `dev` using the following prefixes:
+## Pull requests and issues
 
-| Prefix | Purpose | Example |
-|--------|---------|---------|
-| `feature/` | New functionality | `feature/inventory-drag` |
-| `fix/` | Bug fixes | `fix/chunk-unload-crash` |
-| `hotfix/` | Critical fixes for `main` | `hotfix/login-timeout` |
-| `docs/` | Documentation only | `docs/readme-badges` |
-| `refactor/` | Code refactoring (no behavior change) | `refactor/session-cleanup` |
-| `test/` | Adding or updating tests | `test/physics-collision` |
-| `chore/` | Maintenance, dependencies, configs | `chore/update-go-mod` |
+Keep each PR focused. Describe the concrete problem, resulting behavior and validation. Run relevant tests and vet; use full verification when runtime/concurrency changes require it. Document baseline failures and unavailable checks explicitly. Add tests for new functionality and update both documentation languages when behavior changes.
 
-### Branch Naming Rules
+For documentation changes, review translations, anchors, external URLs, examples and defaults manually: `docs-check` only verifies structural properties. Each configuration key has exactly one backticked first-cell table row in both references.
 
-- Use lowercase with hyphens: `feature/player-death-event`
-- Keep names short but descriptive
-- Include issue number if applicable: `fix/123-chunk-leak`
+Issue reports need revision, OS/toolchain/client versions, reproduction steps, expected/actual behavior and relevant logs. Redact credentials and personal/runtime data. See [troubleshooting](docs/eng/troubleshooting.md).
 
-## Commit Messages
-
-Use [Conventional Commits](https://www.conventionalcommits.org/) format:
-
-```
-<type>(<scope>): <description>
-
-[optional body]
-
-[optional footer]
-```
-
-### Types
-
-| Type | Description |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `docs` | Documentation changes |
-| `style` | Formatting, no code change |
-| `refactor` | Code change without adding features or fixing bugs |
-| `perf` | Performance improvement |
-| `test` | Adding or updating tests |
-| `chore` | Maintenance (deps, configs, scripts) |
-| `ci` | CI/CD changes |
-| `revert` | Revert a previous commit |
-
-### Scope (optional)
-
-The affected module or area: `protocol`, `world`, `entity`, `session`, `network`, `inventory`, `command`, `config`, etc.
-
-### Examples
-
-```
-feat(inventory): add drag-click support
-
-fix(world): prevent chunk unload during player teleport
-
-docs: update README badges
-
-refactor(session): extract packet routing to separate file
-
-perf(protocol): use buffer pool for packet encoding
-
-test(physics): add AABB intersection edge cases
-
-chore: update go.mod dependencies
-```
-
-### Rules
-
-- Use imperative mood: "add feature" not "added feature"
-- First line max 72 characters
-- No period at the end of the subject line
-- Separate subject from body with a blank line
-- Body explains *what* and *why*, not *how*
-
-## Pull Requests
-
-1. Fork the repository
-2. Create a feature branch from `dev`: `git checkout -b feature/my-change dev`
-3. Make your changes
-4. Run tests: `go test ./internal/... -count=1`
-5. Run vet: `go vet ./...`
-6. Commit with a clear message
-7. Open a pull request against **`dev`** (not `main`)
-
-### PR Guidelines
-
-- Keep PRs focused — one feature or fix per PR
-- Include a short description of what changed and why
-- Ensure all tests pass and the build is clean
-- Add tests for new functionality when practical
-- Do **not** open PRs directly against `main`
-
-## Reporting Issues
-
-Open an issue on GitHub with:
-- A clear title
-- Steps to reproduce (if applicable)
-- Expected vs actual behavior
-- Go version and OS
-
-## License
-
-By contributing to Vitis, you agree that your contributions will be licensed under the [GPLv3](LICENSE).
+Contributions are licensed under [GPLv3](LICENSE).
 
 ---
 
 # Участие в разработке Vitis
 
-[English version above](#contributing-to-vitis) | [Английская версия выше](#contributing-to-vitis)
+[English](#contributing-to-vitis) · [Окружение разработчика](docs/rus/development.md) · [Документация](docs/rus/README.md)
 
-Спасибо за интерес к участию в разработке Vitis! Этот документ описывает настройку проекта, стиль кода и процесс внесения изменений.
+## Окружение и проверки
 
-## Начало работы
+Нужны Go 1.23+ и Git. Выполняйте команды из корня репозитория.
 
-### Требования
-
-- **Go 1.23+**
-- **Git**
-
-### Сборка и запуск
+Linux (Bash):
 
 ```bash
-# Клонирование
-git clone https://github.com/vitismc/vitis.git
-cd vitis
-
-# Сборка
-go build -o vitis ./cmd/vitis
-
-# Запуск
-cp configs/vitis.yaml vitis.yaml
-./vitis -config vitis.yaml
-
-# Запуск тестов
-go test ./internal/... -count=1
+go mod download
+go build ./...
+go test ./... -count=1
+go vet ./...
+make docs-check
 ```
 
-### Использование Makefile
+Windows (PowerShell 7.2+):
 
-```bash
-make build    # Собрать бинарник
-make run      # Собрать и запустить
-make test     # Запустить все тесты
-make lint     # Запустить go vet
-make clean    # Удалить артефакты сборки
+```powershell
+go mod download
+go build ./...
+go test ./... -count=1
+go vet ./...
+go run ./cmd/vitis-doccheck
 ```
 
-## Стиль кода
+При запуске сервер сам подготавливает ресурсы Minecraft; см. [установку](docs/rus/getting-started.md). Полная кодогенерация выполняется отдельно при разработке.
 
-- Следуйте стандартным Go-конвенциям ([Effective Go](https://go.dev/doc/effective_go), [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments))
-- Пишите **docstrings только на английском**
-- **Не** пишите инлайн-комментарии — используйте docstrings
-- Используйте `gofmt` (или `goimports`) для форматирования
-- Делайте функции короткими и сфокусированными
-- Используйте осмысленные имена переменных
-- Сообщения об ошибках должны быть в нижнем регистре и без точки в конце
+| Цель Make | Назначение |
+| --- | --- |
+| `build` | Собрать `vitis` из пакета команды сервера |
+| `run` | Собрать и запустить с примером YAML; отсутствующие ресурсы готовятся автоматически |
+| `test` | Запустить все тесты без использования кешированных результатов |
+| `lint` | Выполнить go vet |
+| `test-race` | Проверить гонки данных |
+| `fuzz-smoke` | Выполнить краткие проверки протокола, NBT и распаковки с генерируемыми входными данными |
+| `docs-check` | Проверить локальные ссылки, парность EN/RU и покрытие ключей конфигурации |
+| `verify` | Выполнить тесты, go vet, проверку гонок, фаззинг и проверку документации |
+| `generate` | Подготовить входные данные и запустить генераторы; `make generate MC_VERSION=1.21.4` (по умолчанию 1.21.4); см. [зависимости](docs/rus/generators/README.md) |
+| `clean` | Удалить бинарник сервера |
 
-### Логирование
+Команды PowerShell для Windows описаны в [окружении разработчика](docs/rus/development.md) и [генерации](docs/rus/generators/README.md).
 
-Используйте структурированный логгер из `internal/logger`:
+До изменений проверьте результаты тестов и отдельно отметьте существующие ошибки; см. [ограничения](docs/rus/status.md).
 
-```go
-import "github.com/vitismc/vitis/internal/logger"
+## Правила кода
 
-logger.Info("player joined", "name", name, "session", s.ID())
-logger.Error("failed to load chunk", "x", cx, "z", cz, "error", err)
-logger.Debug("packet received", "id", packetID)
-```
+Следуйте принятым в Go подходам, границам пакетов и форматированию проекта. Используйте SOLID/KISS/DRY там, где они упрощают код. Функции должны решать конкретные задачи; избегайте абстракций без необходимости и несвязанных переписываний.
 
-**Не** используйте `log.Printf` или `fmt.Println` в продакшен-коде.
+- Используйте gofmt и понятные имена. Сообщения ошибок начинайте со строчной буквы, без точки в конце.
+- Пишите краткие документационные комментарии к пакетам, типам и функциям на английском. Предпочитайте их комментариям внутри реализации.
+- Используйте `internal/logger` со структурированными полями; избегайте `log.Printf` и `fmt.Println` в коде сервера.
+- Проверяйте входные пакеты и команды. Разделяйте декодирование протокола, проверку игровых действий и хранение.
+- Выполняйте блокирующие операции вне обработки сети и тиков. Соблюдайте владение состоянием, обрабатывайте отказ очереди, отменяйте и дожидайтесь горутин при остановке.
+- Покрывайте новую логику и граничные случаи тестами. Проверяйте гонки в конкурентном коде и некорректные данные в кодеках.
+- Меняйте генераторы и входные данные, а не файлы в `internal/data/generated` вручную. Проверяйте все изменения результата генерации.
 
-### Сгенерированный код
+Работа подсистем описана в [архитектуре](docs/rus/architecture.md), [добавлении функциональности](docs/rus/extending.md) и [тестировании](docs/rus/testing.md).
 
-Файлы в `internal/data/generated/` генерируются автоматически. **Не** редактируйте их вручную. Для перегенерации:
+## Ветки и коммиты
 
-```bash
-./scripts/update_version.sh 1.21.4
-```
+Создавайте ветки от `dev` и направляйте PR в **`dev`**. Сопровождающие проекта переносят изменения в `main`.
 
-## Модель веток
+| Префикс | Назначение |
+| --- | --- |
+| `feature/` | Новая функциональность |
+| `fix/` | Исправления |
+| `hotfix/` | Критические исправления для main |
+| `docs/` | Документация |
+| `refactor/` | Рефакторинг |
+| `test/` | Тесты |
+| `chore/` | Обслуживание |
 
-### Основные ветки
+Имена веток короткие, строчными буквами, с дефисами; номер задачи необязателен: `fix/123-chunk-unload`.
 
-| Ветка | Назначение |
-|-------|------------|
-| `main` | Стабильный, готовый к продакшену код. Обновляется только мержами из `dev` мейнтейнерами. |
-| `dev`  | Активная разработка. Все PR идут сюда. |
+Используйте Conventional Commits: `<type>(<optional scope>): <description>`. Типы: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `revert`. Заголовок пишется в повелительном наклонении, до 72 символов, без точки. Дополнительное описание отделяется пустой строкой и поясняет изменение и его причину.
 
-### Фича-ветки
+Пример: `fix(world): preserve dirty state after asynchronous save`.
 
-Создавайте ветки от `dev` со следующими префиксами:
+## Запросы на включение изменений и отчёты об ошибках
 
-| Префикс | Назначение | Пример |
-|---------|------------|--------|
-| `feature/` | Новая функциональность | `feature/inventory-drag` |
-| `fix/` | Исправление багов | `fix/chunk-unload-crash` |
-| `hotfix/` | Критические фиксы для `main` | `hotfix/login-timeout` |
-| `docs/` | Только документация | `docs/readme-badges` |
-| `refactor/` | Рефакторинг (без изменения поведения) | `refactor/session-cleanup` |
-| `test/` | Добавление или обновление тестов | `test/physics-collision` |
-| `chore/` | Обслуживание, зависимости, конфиги | `chore/update-go-mod` |
+Описывайте проблему, итоговое поведение и выполненные проверки. Ограничивайте PR одной задачей. Запускайте подходящие тесты и go vet; для изменений работы сервера и конкурентности при необходимости выполняйте полную проверку. Указывайте исходные ошибки и недоступные проверки. Добавляйте тесты новой логики и обновляйте оба языка документации при изменении поведения.
 
-### Правила именования веток
+В документации вручную проверяйте перевод, ссылки на разделы, внешние сайты, примеры и значения по умолчанию. `docs-check` проверяет структуру. Каждый ключ конфигурации должен иметь одну строку с ключом в обратных кавычках в первой ячейке обоих справочников.
 
-- Используйте нижний регистр с дефисами: `feature/player-death-event`
-- Имена должны быть короткими, но понятными
-- Указывайте номер issue, если применимо: `fix/123-chunk-leak`
+В отчёте об ошибке укажите коммит, версии ОС, инструментов и клиента, шаги воспроизведения, ожидаемый и фактический результат, логи. Удалите пароли и личные данные. См. [диагностику](docs/rus/troubleshooting.md).
 
-## Сообщения коммитов
-
-Используйте формат [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<тип>(<область>): <описание>
-
-[опциональное тело]
-
-[опциональный футер]
-```
-
-### Типы
-
-| Тип | Описание |
-|-----|----------|
-| `feat` | Новая функциональность |
-| `fix` | Исправление бага |
-| `docs` | Изменения документации |
-| `style` | Форматирование, без изменения кода |
-| `refactor` | Изменение кода без добавления фич или исправления багов |
-| `perf` | Улучшение производительности |
-| `test` | Добавление или обновление тестов |
-| `chore` | Обслуживание (зависимости, конфиги, скрипты) |
-| `ci` | Изменения CI/CD |
-| `revert` | Откат предыдущего коммита |
-
-### Область (опционально)
-
-Затронутый модуль или область: `protocol`, `world`, `entity`, `session`, `network`, `inventory`, `command`, `config` и т.д.
-
-### Примеры
-
-```
-feat(inventory): add drag-click support
-
-fix(world): prevent chunk unload during player teleport
-
-docs: update README badges
-
-refactor(session): extract packet routing to separate file
-
-perf(protocol): use buffer pool for packet encoding
-
-test(physics): add AABB intersection edge cases
-
-chore: update go.mod dependencies
-```
-
-### Правила
-
-- Используйте повелительное наклонение: "add feature", а не "added feature"
-- Первая строка — максимум 72 символа
-- Без точки в конце темы
-- Отделяйте тему от тела пустой строкой
-- Тело объясняет *что* и *почему*, а не *как*
-
-## Pull Requests
-
-1. Сделайте форк репозитория
-2. Создайте фича-ветку от `dev`: `git checkout -b feature/my-change dev`
-3. Внесите изменения
-4. Запустите тесты: `go test ./internal/... -count=1`
-5. Запустите vet: `go vet ./...`
-6. Закоммитьте с понятным сообщением
-7. Откройте pull request в **`dev`** (не в `main`)
-
-### Рекомендации по PR
-
-- Держите PR сфокусированными — одна фича или фикс на PR
-- Включите краткое описание что изменилось и почему
-- Убедитесь, что все тесты проходят и сборка чистая
-- Добавляйте тесты для новой функциональности, когда это уместно
-- **Не** открывайте PR напрямую в `main`
-
-## Сообщения об ошибках
-
-Откройте issue на GitHub с:
-- Понятным заголовком
-- Шагами воспроизведения (если применимо)
-- Ожидаемое vs фактическое поведение
-- Версия Go и ОС
-
-## Лицензия
-
-Внося вклад в Vitis, вы соглашаетесь, что ваши изменения будут лицензированы под [GPLv3](LICENSE).
+Изменения распространяются под [GPLv3](LICENSE).

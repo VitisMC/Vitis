@@ -1,6 +1,8 @@
 package session
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/logger"
 	"github.com/vitismc/vitis/internal/protocol"
 	cfgpacket "github.com/vitismc/vitis/internal/protocol/packets/configuration"
@@ -19,6 +21,9 @@ func RegisterConfigurationHandlers(router PacketRouter, regMgr *registry.Manager
 		if !ok {
 			return protocol.ErrNilPacket
 		}
+		if ds, ok := s.(*DefaultSession); ok {
+			ds.SessionData().Store("client_view_distance", int32(pkt.ViewDistance))
+		}
 		logger.Debug("client_information", "session", s.ID(), "locale", pkt.Locale, "view_distance", pkt.ViewDistance)
 		return nil
 	}); err != nil {
@@ -31,6 +36,13 @@ func RegisterConfigurationHandlers(router PacketRouter, regMgr *registry.Manager
 		if !ok {
 			return protocol.ErrNilPacket
 		}
+		flow, err := flowFor(s)
+		if err != nil {
+			return err
+		}
+		if flow.configuration != configurationAwaitKnownPacks {
+			return fmt.Errorf("known_packs: unexpected configuration phase %d", flow.configuration)
+		}
 		clientKnowsVanilla := false
 		for _, p := range pkt.Packs {
 			if p.Namespace == "minecraft" && p.ID == "core" && p.Version == "1.21.4" {
@@ -39,7 +51,11 @@ func RegisterConfigurationHandlers(router PacketRouter, regMgr *registry.Manager
 			}
 		}
 		logger.Debug("serverbound_known_packs", "session", s.ID(), "count", len(pkt.Packs), "vanilla", clientKnowsVanilla)
-		return handleKnownPacksResponse(s, regMgr, clientKnowsVanilla)
+		if err := handleKnownPacksResponse(s, regMgr, clientKnowsVanilla); err != nil {
+			return err
+		}
+		flow.configuration = configurationAwaitFinishAcknowledgement
+		return nil
 	}); err != nil {
 		return err
 	}
@@ -58,6 +74,28 @@ func RegisterConfigurationHandlers(router PacketRouter, regMgr *registry.Manager
 
 	ackFinishID := cfgpacket.NewAcknowledgeFinishConfiguration().ID()
 	if err := router.Register(protocol.StateConfiguration, ackFinishID, func(s Session, packet protocol.Packet) error {
+		flow, err := flowFor(s)
+		if err != nil {
+			return err
+		}
+		if flow.configuration != configurationAwaitFinishAcknowledgement {
+			return fmt.Errorf("acknowledge_finish_configuration: finish was not sent")
+		}
+		ds, ok := s.(*DefaultSession)
+		if !ok {
+			return fmt.Errorf("acknowledge_finish_configuration: invalid session type")
+		}
+		nameValue, hasName := ds.sessionData.Load("login_name")
+		uuidValue, hasUUID := ds.sessionData.Load("login_uuid")
+		name, nameOK := nameValue.(string)
+		uuid, uuidOK := uuidValue.(protocol.UUID)
+		if !hasName || !hasUUID || !nameOK || !uuidOK || !validPlayerName(name) || uuid == (protocol.UUID{}) {
+			return fmt.Errorf("acknowledge_finish_configuration: missing authenticated identity")
+		}
+		if err := transitionProtocol(s, protocol.StatePlay); err != nil {
+			return err
+		}
+		flow.configuration = configurationComplete
 		logger.Debug("acknowledge_finish_configuration", "session", s.ID())
 		if onFinishConfiguration != nil {
 			onFinishConfiguration(s)

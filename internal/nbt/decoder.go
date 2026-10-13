@@ -7,13 +7,53 @@ import (
 
 // Decoder reads NBT data from a byte buffer.
 type Decoder struct {
-	data []byte
-	pos  int
+	data   []byte
+	pos    int
+	depth  int
+	nodes  int
+	limits DecoderLimits
+	err    error
+}
+
+// DecoderLimits bounds allocations and recursion while decoding untrusted NBT.
+type DecoderLimits struct {
+	MaxBytes            int
+	MaxDepth            int
+	MaxNodes            int
+	MaxCollectionLength int
+}
+
+var defaultDecoderLimits = DecoderLimits{
+	MaxBytes:            16 << 20,
+	MaxDepth:            64,
+	MaxNodes:            1 << 20,
+	MaxCollectionLength: 1 << 20,
 }
 
 // NewDecoder creates a new NBT decoder over the given data.
 func NewDecoder(data []byte) *Decoder {
-	return &Decoder{data: data}
+	return NewDecoderWithLimits(data, defaultDecoderLimits)
+}
+
+// NewDecoderWithLimits creates a decoder with explicit resource limits.
+func NewDecoderWithLimits(data []byte, limits DecoderLimits) *Decoder {
+	if limits.MaxBytes <= 0 {
+		limits.MaxBytes = defaultDecoderLimits.MaxBytes
+	}
+	if limits.MaxDepth <= 0 {
+		limits.MaxDepth = defaultDecoderLimits.MaxDepth
+	}
+	if limits.MaxNodes <= 0 {
+		limits.MaxNodes = defaultDecoderLimits.MaxNodes
+	}
+	if limits.MaxCollectionLength <= 0 {
+		limits.MaxCollectionLength = defaultDecoderLimits.MaxCollectionLength
+	}
+	d := &Decoder{data: data, limits: limits}
+	if len(data) > limits.MaxBytes {
+		d.err = fmt.Errorf("nbt: input size %d exceeds limit %d", len(data), limits.MaxBytes)
+	}
+	return d
 }
 
 // Pos returns the current read position.
@@ -23,6 +63,9 @@ func (d *Decoder) Pos() int {
 
 // ReadRootCompound reads a root compound tag with no name (network NBT format).
 func (d *Decoder) ReadRootCompound() (*Compound, error) {
+	if d.err != nil {
+		return nil, d.err
+	}
 	tagType, err := d.readByte()
 	if err != nil {
 		return nil, fmt.Errorf("read root tag type: %w", err)
@@ -36,8 +79,34 @@ func (d *Decoder) ReadRootCompound() (*Compound, error) {
 	return d.readCompoundPayload()
 }
 
+// ReadRootTag reads one unnamed network NBT tag. It is used for protocol
+// values whose root type is selected by a codec rather than fixed to compound.
+func (d *Decoder) ReadRootTag() (byte, interface{}, error) {
+	if d.err != nil {
+		return TagEnd, nil, d.err
+	}
+	tagType, err := d.readByte()
+	if err != nil {
+		return TagEnd, nil, fmt.Errorf("read root tag type: %w", err)
+	}
+	if tagType == TagEnd {
+		return TagEnd, nil, nil
+	}
+	if err := d.consumeNode(); err != nil {
+		return TagEnd, nil, err
+	}
+	value, err := d.readPayload(tagType)
+	if err != nil {
+		return TagEnd, nil, fmt.Errorf("read root tag payload: %w", err)
+	}
+	return tagType, value, nil
+}
+
 // ReadNamedRootCompound reads a root compound tag with a name (standard NBT format).
 func (d *Decoder) ReadNamedRootCompound() (string, *Compound, error) {
+	if d.err != nil {
+		return "", nil, d.err
+	}
 	tagType, err := d.readByte()
 	if err != nil {
 		return "", nil, fmt.Errorf("read root tag type: %w", err)
@@ -57,7 +126,12 @@ func (d *Decoder) ReadNamedRootCompound() (string, *Compound, error) {
 }
 
 func (d *Decoder) readCompoundPayload() (*Compound, error) {
+	if err := d.enterContainer(); err != nil {
+		return nil, err
+	}
+	defer d.leaveContainer()
 	c := NewCompound()
+	seen := make(map[string]struct{})
 	for {
 		tagType, err := d.readByte()
 		if err != nil {
@@ -66,10 +140,17 @@ func (d *Decoder) readCompoundPayload() (*Compound, error) {
 		if tagType == TagEnd {
 			return c, nil
 		}
+		if err := d.consumeNode(); err != nil {
+			return nil, err
+		}
 		name, err := d.readString()
 		if err != nil {
 			return nil, fmt.Errorf("read compound entry name: %w", err)
 		}
+		if _, duplicate := seen[name]; duplicate {
+			return nil, fmt.Errorf("nbt: duplicate compound key %q", name)
+		}
+		seen[name] = struct{}{}
 		value, err := d.readPayload(tagType)
 		if err != nil {
 			return nil, fmt.Errorf("read compound entry %q: %w", name, err)
@@ -98,6 +179,9 @@ func (d *Decoder) readPayload(tagID byte) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := d.validateCollection(length, 1); err != nil {
+			return nil, err
+		}
 		return d.readBytes(int(length))
 	case TagString:
 		return d.readString()
@@ -110,7 +194,10 @@ func (d *Decoder) readPayload(tagID byte) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		arr := make([]int32, length)
+		if err := d.validateCollection(length, 4); err != nil {
+			return nil, err
+		}
+		arr := make([]int32, int(length))
 		for i := range arr {
 			arr[i], err = d.readInt32()
 			if err != nil {
@@ -123,7 +210,10 @@ func (d *Decoder) readPayload(tagID byte) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		arr := make([]int64, length)
+		if err := d.validateCollection(length, 8); err != nil {
+			return nil, err
+		}
+		arr := make([]int64, int(length))
 		for i := range arr {
 			arr[i], err = d.readInt64()
 			if err != nil {
@@ -137,6 +227,10 @@ func (d *Decoder) readPayload(tagID byte) (interface{}, error) {
 }
 
 func (d *Decoder) readListPayload() (*List, error) {
+	if err := d.enterContainer(); err != nil {
+		return nil, err
+	}
+	defer d.leaveContainer()
 	elemType, err := d.readByte()
 	if err != nil {
 		return nil, err
@@ -145,8 +239,17 @@ func (d *Decoder) readListPayload() (*List, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := d.validateCollection(length, 1); err != nil {
+		return nil, err
+	}
+	if elemType == TagEnd && length != 0 {
+		return nil, fmt.Errorf("nbt: non-empty list has end element type")
+	}
 	l := NewList(elemType)
 	for i := int32(0); i < length; i++ {
+		if err := d.consumeNode(); err != nil {
+			return nil, err
+		}
 		value, err := d.readPayload(elemType)
 		if err != nil {
 			return nil, fmt.Errorf("read list element %d: %w", i, err)
@@ -166,13 +269,44 @@ func (d *Decoder) readByte() (byte, error) {
 }
 
 func (d *Decoder) readBytes(n int) ([]byte, error) {
-	if d.pos+n > len(d.data) {
+	if n < 0 || n > len(d.data)-d.pos {
 		return nil, fmt.Errorf("nbt: need %d bytes at pos %d, have %d", n, d.pos, len(d.data)-d.pos)
 	}
 	out := make([]byte, n)
 	copy(out, d.data[d.pos:d.pos+n])
 	d.pos += n
 	return out, nil
+}
+
+func (d *Decoder) enterContainer() error {
+	d.depth++
+	if d.depth > d.limits.MaxDepth {
+		d.depth--
+		return fmt.Errorf("nbt: nesting depth exceeds limit %d", d.limits.MaxDepth)
+	}
+	return nil
+}
+
+func (d *Decoder) leaveContainer() {
+	d.depth--
+}
+
+func (d *Decoder) consumeNode() error {
+	d.nodes++
+	if d.nodes > d.limits.MaxNodes {
+		return fmt.Errorf("nbt: node count exceeds limit %d", d.limits.MaxNodes)
+	}
+	return nil
+}
+
+func (d *Decoder) validateCollection(length int32, elementBytes int) error {
+	if length < 0 || int64(length) > int64(d.limits.MaxCollectionLength) {
+		return fmt.Errorf("nbt: invalid collection length %d", length)
+	}
+	if elementBytes > 0 && int64(length)*int64(elementBytes) > int64(len(d.data)-d.pos) {
+		return fmt.Errorf("nbt: collection length %d exceeds remaining data", length)
+	}
+	return nil
 }
 
 func (d *Decoder) readString() (string, error) {

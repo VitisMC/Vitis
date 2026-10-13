@@ -2,6 +2,14 @@
 
 package chunkgensettings
 
-const ChunkGenSettingsCount = 0
+const ChunkGenSettingsCount = 7
 
-var ChunkGenSettings = []string{}
+var ChunkGenSettings = []string{
+	"minecraft:amplified",
+	"minecraft:caves",
+	"minecraft:end",
+	"minecraft:floating_islands",
+	"minecraft:large_biomes",
+	"minecraft:nether",
+	"minecraft:overworld",
+}

@@ -58,42 +58,5 @@ func (d *Decoder) Decode(session *SessionState, frame []byte) (Packet, error) {
 		return nil, fmt.Errorf("decode packet state=%s id=%d: %w", session.State(), packetID, ErrUnexpectedPayloadData)
 	}
 
-	d.applyProtocolVersionTransition(session, packet)
-	if err := d.applyInboundStateTransition(session, packet); err != nil {
-		return nil, err
-	}
-
 	return packet, nil
-}
-
-func (d *Decoder) applyInboundStateTransition(session *SessionState, packet Packet) error {
-	transition, ok := packet.(InboundStateTransition)
-	if !ok {
-		return nil
-	}
-
-	nextState, shouldTransition := transition.InboundStateTransition()
-	if !shouldTransition {
-		return nil
-	}
-	if !nextState.Valid() {
-		return fmt.Errorf("inbound state transition %s: %w", nextState.String(), ErrInvalidProtocolState)
-	}
-
-	session.SetState(nextState)
-	return nil
-}
-
-func (d *Decoder) applyProtocolVersionTransition(session *SessionState, packet Packet) {
-	transition, ok := packet.(ProtocolVersionTransition)
-	if !ok {
-		return
-	}
-
-	version, shouldTransition := transition.ProtocolVersionTransition()
-	if !shouldTransition {
-		return
-	}
-
-	session.SetProtocolVersion(version)
 }

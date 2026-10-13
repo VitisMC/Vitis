@@ -1,98 +1,70 @@
-# Version Upgrade Guide
+# Minecraft version upgrades
 
-Step-by-step instructions for updating Vitis to a new Minecraft version.
+[Русский](../../rus/generators/version-upgrade.md) · [Documentation](../README.md)
 
-## Prerequisites
+This guide covers porting the core to another Minecraft version. Vitis currently supports 1.21.4. Generating data for a new version requires corresponding server code changes.
 
-- Java 21+ (for server JAR data generator and MinecraftDecompiler)
-- Go 1.21+
-- curl, python3
+## Prepare an isolated change
 
-## The Easy Way
+Start from a clean development branch or a separate copy containing the intended current source. Keep existing generated artifacts, fixtures and worlds recoverable. Record baseline build/test results and inspect [known issues](../status.md).
+
+Verify the target wire protocol, DataVersion, pack format, Java version, mappings, registries and packet layouts against that version's primary data/source. The [generation pipeline](README.md) prepares the official JAR, named source and remapped JAR automatically. Port and pin the Java/toolchain requirements if the target version needs a different JDK or source format.
+
+## Regenerate and inspect
+
+For the current version:
+
+Linux (Bash):
 
 ```bash
-./scripts/update_version.sh <NEW_VERSION>
+make generate MC_VERSION=1.21.4
 ```
 
-This single command handles everything: downloads data, generates `registries.json` from the server JAR, downloads datapacks and tags from misode/mcmeta, decompiles the server JAR, extracts loot tables, and runs all 59 generators.
+Windows (PowerShell 7.2+):
 
-Pass the target Minecraft version as argument (e.g. `1.22`).
+```powershell
+pwsh -NoProfile -File .\scripts\windows\update_version.ps1 -Version 1.21.4
+```
 
-## What `update_version.sh` Does
+After adapting generators, select the new version with `MC_VERSION` on Linux or `-Version` on Windows. The default is 1.21.4. The direct Linux script `./scripts/linux/update_version.sh <version>` accepts the same argument.
 
-| Step | Description | Source |
-|------|-------------|--------|
-| 1 | Download PrismarineJS JSON files | `PrismarineJS/minecraft-data` |
-| 2 | Generate `registries.json` | Server JAR data generator |
-| 3 | Download configuration registry datapacks | `misode/mcmeta` tag `{version}-data-json` |
-| 4 | Download tags | `misode/mcmeta` tag `{version}-data-json` |
-| 5 | Decompile server JAR | MinecraftDecompiler + Vineflower |
-| 6 | Extract loot tables and recipes | Server JAR inner archive |
-| 7 | Run Go parsers on decompiled code | `scripts/parsers/*.go` |
-| 8 | Run all 59 generators | `internal/data/generator/*/main.go` |
-| 9 | Verify build | `go build ./...` |
+Check exit status and rollback behavior. Inspect `source.lock`, checksums, all generated files and reference fixture diffs. Repeated generation with the same verified inputs should be deterministic; investigate unexpected ordering/ID/type changes.
 
-## After Running the Script
+## Integrate version changes
 
-### Check for new registries or datapacks
+- Update [protocol constants](../../../internal/protocol/state.go), [pack-format constant](../../../internal/datapack/manager.go) and every runtime version-dependent contract. Automatic resource preparation uses these same constants; verify first-run extraction with the new official JAR.
+- The packet generator updates the runtime [packetid package](../../../internal/protocol/packetid/) and compatibility constants together. Run its `--check` mode after regeneration.
+- Update typed packet layouts, direction/state registrations, configuration/login flows and bounds for added/removed fields.
+- Check registry IDs, configuration NBT types, tags and known-pack declarations. Update builtin adapters when new registry names require them.
+- Validate block states, components, recipes, loot, entity metadata and generation traits against the target.
+- Define world DataVersion compatibility explicitly. Changing a constant is not a world migration; preserve backup/rejection behavior.
+- Update reference exporters/fixtures and both language documentation, including the status matrix.
 
-If the new version adds configuration registries or worldgen types, update the arrays in `update_version.sh`:
+Useful searches from the root:
 
-- `REGISTRIES` — datapacks to download from mcmeta (Step 3)
-- `TAG_REGISTRIES` — tag directories to download (Step 4)
-- `GENERATORS` — code generators to run (Step 8)
+Linux (Bash):
 
-### Update version constants
-
-- **Protocol version** — check [Minecraft Wiki protocol versions](https://minecraft.wiki/w/Java_Edition_protocol_version)
-- **Known Packs version** — in `internal/session/configuration_handler.go`, update `Version: "1.21.4"` to the new version
-- **Registry builtin.go** — if new registries were added, add entries to `builtinIDMap()` in `internal/registry/builtin.go`
-
-### Manual verification
-
-1. Run `go test ./...`
-2. Start the server and connect with a vanilla client
-3. Check for registry/tag errors in logs
-4. Verify new/removed packet types and fields
-
-## Troubleshooting
-
-### `registries.json` generation fails
-
-Requires Java 21+. Check that the server JAR was downloaded:
 ```bash
-ls -la .mc-decompiled/downloads/<version>/server.jar
+rg -n '1\.21\.4|769|4189|CurrentPackFormat|go:generate' cmd internal scripts configs docs README*.md
+go build ./...
+make verify
 ```
 
-If missing, re-run `update_version.sh` — it downloads the JAR in Step 6 (extract_loot_tables.sh).
+Windows (PowerShell 7.2+):
 
-### Generator shows ✗
-
-Run the generator manually to see the error:
-```bash
-go run internal/data/generator/<name>/main.go -version <version>
+```powershell
+Get-ChildItem cmd,internal,scripts,configs,docs -Recurse -File | Select-String -Pattern '1\.21\.4|769|4189|CurrentPackFormat|go:generate'
+Get-ChildItem README*.md | Select-String -Pattern '1\.21\.4|769|4189|CurrentPackFormat|go:generate'
+go build ./...
+pwsh -NoProfile -File .\scripts\windows\verify.ps1
 ```
 
-Common causes:
-- `registries.json` missing → Step 2 failed
-- Datapack JSON missing → check the `REGISTRIES` array includes the needed entry
-- Decompiled source missing → Step 5 failed (check Java is installed)
+Review results; do not blindly replace matching numbers.
 
-### Client crashes with registry errors
+## Verify the result
 
-- Missing tag data → ensure `TAG_REGISTRIES` array is complete
-- Wrong NBT types → check `doubleFields`/`longFields` in `internal/registry/generator/main.go`
-- Missing config registry → check `configRegistries` map in the registry generator
+Check phase ordering, encryption/compression, registry sync with/without known vanilla packs, malformed packets and packet ID uniqueness in each context. Connect the target client; test world join, chunks, inventory, representative mechanics, persistence and reconnect/shutdown.
 
-### Datapack download shows 0 files
+Compare generated chunks with reference chunks and reopen a disposable existing world. Record remaining test failures.
 
-The GitHub API may be rate-limited. Wait or use a `GITHUB_TOKEN`:
-```bash
-export GITHUB_TOKEN=ghp_...
-```
-
-## Version History
-
-| Vitis Version | Minecraft Version | Date |
-|---------------|-------------------|------|
-| current | 1.21.4 | 2024-12 |
+Related references: [packet IDs](../packets/packet-ids.md), [registry overview](../registry/overview.md), [test guide](../testing.md).

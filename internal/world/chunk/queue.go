@@ -128,6 +128,14 @@ func (q *LoadResultQueue) Len() int {
 	return len(q.ch)
 }
 
+// Capacity returns the maximum number of queued completions.
+func (q *LoadResultQueue) Capacity() int {
+	if q == nil {
+		return 0
+	}
+	return cap(q.ch)
+}
+
 // UnloadQueue stores pending unload keys in FIFO order.
 type UnloadQueue struct {
 	keys []int64

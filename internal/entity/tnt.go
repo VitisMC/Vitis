@@ -18,9 +18,10 @@ const (
 // TNTEntity represents a primed TNT block entity.
 type TNTEntity struct {
 	*Entity
-	fuse    int32
-	power   float64
-	ownerID int32
+	fuse      int32
+	power     float64
+	ownerID   int32
+	ownerUUID protocol.UUID
 }
 
 // NewTNTEntity creates a primed TNT at the given position with default fuse.
@@ -55,6 +56,26 @@ func (t *TNTEntity) SetPower(p float64) { t.power = p }
 
 // OwnerID returns the entity that ignited this TNT.
 func (t *TNTEntity) OwnerID() int32 { return t.ownerID }
+
+// OwnerUUID returns the persistent identity of the entity that primed this TNT.
+func (t *TNTEntity) OwnerUUID() protocol.UUID { return t.ownerUUID }
+
+// ResolvePersistentOwner captures or restores ownership without retaining stale runtime IDs.
+func (t *TNTEntity) ResolvePersistentOwner(entities *Manager) {
+	if t.ownerUUID == (protocol.UUID{}) {
+		if owner := entities.Get(t.ownerID); owner != nil && !owner.Removed() {
+			t.ownerUUID = owner.UUID()
+		}
+		return
+	}
+	t.ownerID = -1
+	for id, owner := range entities.Entities() {
+		if !owner.Removed() && owner.UUID() == t.ownerUUID {
+			t.ownerID = id
+			return
+		}
+	}
+}
 
 // ProtocolType returns the protocol entity type ID.
 func (t *TNTEntity) ProtocolType() int32 {
@@ -280,10 +301,15 @@ func (m *TNTManager) TickAll(world physics.BlockAccess) (exploded []int32, remov
 	}
 
 	for _, tnt := range m.tnts {
-		tnt.Tick(world)
+		if IsTickingAt(world, tnt.Position()) {
+			tnt.Tick(world)
+		}
 	}
 
 	for id, tnt := range m.tnts {
+		if !tnt.removed && !IsTickingAt(world, tnt.Position()) {
+			continue
+		}
 		if tnt.ShouldExplode() {
 			exploded = append(exploded, id)
 		} else if tnt.removed {

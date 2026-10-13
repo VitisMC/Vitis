@@ -35,6 +35,7 @@ var (
 	ErrConnClosing        = errors.New("connection closing")
 	ErrWriteQueueSaturate = errors.New("write queue saturated")
 	ErrInboundSaturate    = errors.New("inbound worker queue saturated")
+	ErrIdleTimeout        = errors.New("connection idle timeout")
 )
 
 // WriteBackpressureMode controls behavior when the write queue is full.
@@ -58,7 +59,8 @@ const (
 )
 
 type outboundFrame struct {
-	frame EncodedFrame
+	frame     EncodedFrame
+	encrypted bool
 }
 
 // ConnConfig configures connection hot-path behavior.
@@ -73,6 +75,7 @@ type ConnConfig struct {
 	MaxWriteBatchBytes    int
 	ReadDeadline          time.Duration
 	WriteDeadline         time.Duration
+	IdleTimeout           time.Duration
 	SessionFactory        func(conn *Conn, ctx context.Context) Session
 	OnError               func(conn *Conn, err error)
 	OnClose               func(conn *Conn, err error)
@@ -99,10 +102,11 @@ type Conn struct {
 	closeCause error
 
 	compressionThreshold atomic.Int32
+	lastReadNanos        atomic.Int64
 
 	cipherMu      sync.Mutex
-	cipherReader  io.Reader
-	cipherWriter  io.Writer
+	encryptStream cipher.Stream
+	decryptStream cipher.Stream
 	cipherEnabled atomic.Bool
 
 	closeCauseMu sync.Mutex
@@ -149,10 +153,8 @@ func NewConn(raw net.Conn, pipeline Pipeline, workerPool *WorkerPool, bufferPool
 		done:       make(chan struct{}),
 	}
 	c.state.Store(connStateOpen)
+	c.lastReadNanos.Store(time.Now().UnixNano())
 	c.compressionThreshold.Store(-1)
-	c.cipherReader = raw
-	c.cipherWriter = raw
-
 	if cfg.SessionFactory != nil {
 		c.session = cfg.SessionFactory(c, ctx)
 	} else {
@@ -222,8 +224,8 @@ func (c *Conn) EnableEncryption(encrypt, decrypt interface{}) {
 		return
 	}
 	c.cipherMu.Lock()
-	c.cipherReader = &cipher.StreamReader{S: dec, R: c.raw}
-	c.cipherWriter = &cipher.StreamWriter{S: enc, W: c.raw}
+	c.encryptStream = enc
+	c.decryptStream = dec
 	c.cipherEnabled.Store(true)
 	c.cipherMu.Unlock()
 }
@@ -280,7 +282,7 @@ func (c *Conn) Send(packet *Packet) error {
 		return err
 	}
 
-	item := outboundFrame{frame: frame}
+	item := outboundFrame{frame: frame, encrypted: c.cipherEnabled.Load()}
 	switch c.cfg.WriteBackpressureMode {
 	case WriteBackpressureBlock:
 		err = c.writeQueue.EnqueueWait(c.ctx, item)
@@ -365,15 +367,19 @@ func (c *Conn) readLoop() error {
 			}
 		}
 
-		if c.cfg.ReadDeadline > 0 {
-			if err := c.raw.SetReadDeadline(time.Now().Add(c.cfg.ReadDeadline)); err != nil {
+		if readWait := c.nextReadWait(); readWait > 0 {
+			if err := c.raw.SetReadDeadline(time.Now().Add(readWait)); err != nil {
 				return err
 			}
 		}
 
-		reader := c.getReader()
-		n, err := reader.Read(readBuf)
+		readEncrypted := c.cipherEnabled.Load()
+		n, err := c.raw.Read(readBuf)
 		if n > 0 {
+			c.lastReadNanos.Store(time.Now().UnixNano())
+			if readEncrypted {
+				c.decrypt(readBuf[:n])
+			}
 			if end+n > len(acc) {
 				if start > 0 {
 					copy(acc, acc[start:end])
@@ -407,7 +413,7 @@ func (c *Conn) readLoop() error {
 
 				dispatchBuf := frameBuf[:frameLen]
 				if threshold := c.compressionThreshold.Load(); threshold >= 0 {
-					decompressed, decompErr := DecompressFrame(dispatchBuf)
+					decompressed, decompErr := DecompressFrameWithThreshold(dispatchBuf, int(threshold))
 					if decompErr != nil {
 						c.bufferPool.Put(frameBuf)
 						return NewProtocolError(decompErr)
@@ -417,14 +423,15 @@ func (c *Conn) readLoop() error {
 					frameBuf = nil
 				}
 
+				wasEncrypted := c.cipherEnabled.Load()
 				if submitErr := c.dispatchInbound(dispatchBuf); submitErr != nil {
-					if frameBuf != nil {
-						c.bufferPool.Put(frameBuf)
-					}
 					return submitErr
 				}
 
 				start = frameEnd
+				if !wasEncrypted && c.cipherEnabled.Load() && start < end {
+					c.decrypt(acc[start:end])
+				}
 			}
 
 			if start == end {
@@ -448,6 +455,16 @@ func (c *Conn) readLoop() error {
 
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
+				if c.state.Load() != connStateOpen {
+					return nil
+				}
+				if c.cfg.IdleTimeout <= 0 {
+					return fmt.Errorf("read timeout: %w", err)
+				}
+				lastRead := time.Unix(0, c.lastReadNanos.Load())
+				if time.Since(lastRead) >= c.cfg.IdleTimeout {
+					return ErrIdleTimeout
+				}
 				continue
 			}
 
@@ -458,7 +475,6 @@ func (c *Conn) readLoop() error {
 
 func (c *Conn) writeLoop() error {
 	batch := make([]outboundFrame, 0, c.cfg.MaxWriteBatchFrames)
-	buffers := make(net.Buffers, 0, c.cfg.MaxWriteBatchFrames)
 
 	for {
 		item, err := c.writeQueue.DequeueWait(c.ctx)
@@ -490,11 +506,6 @@ func (c *Conn) writeLoop() error {
 			totalBytes += len(next.frame.Bytes)
 		}
 
-		buffers = buffers[:0]
-		for i := range batch {
-			buffers = append(buffers, batch[i].frame.Bytes)
-		}
-
 		if c.cfg.WriteDeadline > 0 {
 			if setErr := c.raw.SetWriteDeadline(time.Now().Add(c.cfg.WriteDeadline)); setErr != nil {
 				c.releaseBatch(batch)
@@ -503,16 +514,15 @@ func (c *Conn) writeLoop() error {
 		}
 
 		var writeErr error
-		if c.cipherEnabled.Load() {
-			w := c.getWriter()
-			for _, buf := range buffers {
-				if _, wErr := w.Write(buf); wErr != nil {
-					writeErr = wErr
-					break
-				}
+		for i := range batch {
+			if batch[i].encrypted {
+				writeErr = c.writeEncrypted(batch[i].frame.Bytes)
+			} else {
+				writeErr = writeAll(c.raw, batch[i].frame.Bytes)
 			}
-		} else {
-			_, writeErr = buffers.WriteTo(c.raw)
+			if writeErr != nil {
+				break
+			}
 		}
 		c.releaseBatch(batch)
 		if writeErr != nil {
@@ -528,38 +538,8 @@ func (c *Conn) writeLoop() error {
 }
 
 func (c *Conn) dispatchInbound(frame []byte) error {
-	task := func() {
-		defer c.bufferPool.Put(frame)
-		defer func() {
-			if r := recover(); r != nil {
-				c.handleAsyncPipelineError(fmt.Errorf("inbound panic: %v", r))
-			}
-		}()
-
-		if err := c.pipeline.FireInbound(c.session, frame); err != nil {
-			c.handleAsyncPipelineError(err)
-		}
-	}
-
-	var err error
-	switch c.cfg.InboundDispatchMode {
-	case InboundDispatchBlock:
-		err = c.workerPool.SubmitWait(c.ctx, task)
-	default:
-		err = c.workerPool.Submit(task)
-		if errors.Is(err, ErrWorkerPoolFull) {
-			return NewProtocolError(ErrInboundSaturate)
-		}
-	}
-
-	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, ErrWorkerPoolClosed) {
-			return ErrConnClosing
-		}
-		return err
-	}
-
-	return nil
+	defer c.bufferPool.Put(frame)
+	return c.pipeline.FireInbound(c.session, frame)
 }
 
 func (c *Conn) initiateClose(err error, force bool) {
@@ -585,11 +565,11 @@ func (c *Conn) initiateClose(err error, force bool) {
 				continue
 			}
 
-			c.cancel()
 			c.writeQueue.Close()
 			_ = c.raw.SetReadDeadline(time.Now())
-			_ = c.raw.SetWriteDeadline(time.Now())
 			if force {
+				c.cancel()
+				_ = c.raw.SetWriteDeadline(time.Now())
 				_ = c.raw.Close()
 			}
 			return
@@ -597,6 +577,21 @@ func (c *Conn) initiateClose(err error, force bool) {
 			return
 		}
 	}
+}
+
+func (c *Conn) nextReadWait() time.Duration {
+	wait := c.cfg.ReadDeadline
+	if c.cfg.IdleTimeout <= 0 {
+		return wait
+	}
+	remaining := c.cfg.IdleTimeout - time.Since(time.Unix(0, c.lastReadNanos.Load()))
+	if remaining <= 0 {
+		return time.Nanosecond
+	}
+	if wait <= 0 || remaining < wait {
+		return remaining
+	}
+	return wait
 }
 
 func (c *Conn) finalize() {
@@ -618,24 +613,38 @@ func (c *Conn) finalize() {
 	})
 }
 
-func (c *Conn) getReader() io.Reader {
-	if !c.cipherEnabled.Load() {
-		return c.raw
-	}
+func (c *Conn) decrypt(data []byte) {
 	c.cipherMu.Lock()
-	r := c.cipherReader
+	if c.decryptStream != nil {
+		c.decryptStream.XORKeyStream(data, data)
+	}
 	c.cipherMu.Unlock()
-	return r
 }
 
-func (c *Conn) getWriter() io.Writer {
-	if !c.cipherEnabled.Load() {
-		return c.raw
-	}
+func (c *Conn) writeEncrypted(data []byte) error {
 	c.cipherMu.Lock()
-	w := c.cipherWriter
-	c.cipherMu.Unlock()
-	return w
+	defer c.cipherMu.Unlock()
+	if c.encryptStream == nil {
+		return fmt.Errorf("encrypted write without cipher")
+	}
+	buf := c.bufferPool.Get(len(data))
+	defer c.bufferPool.Put(buf)
+	c.encryptStream.XORKeyStream(buf[:len(data)], data)
+	return writeAll(c.raw, buf[:len(data)])
+}
+
+func writeAll(w io.Writer, data []byte) error {
+	for len(data) > 0 {
+		n, err := w.Write(data)
+		if err != nil {
+			return err
+		}
+		if n <= 0 {
+			return io.ErrShortWrite
+		}
+		data = data[n:]
+	}
+	return nil
 }
 
 func (c *Conn) growAccumulator(acc []byte, start int, end int) ([]byte, int, int) {

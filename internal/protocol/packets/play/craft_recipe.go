@@ -1,6 +1,8 @@
 package play
 
 import (
+	"fmt"
+
 	"github.com/vitismc/vitis/internal/protocol"
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
@@ -20,20 +22,25 @@ func (p *CraftRecipeRequest) ID() int32 {
 
 func (p *CraftRecipeRequest) Decode(buf *protocol.Buffer) error {
 	var err error
-	b, err := buf.ReadByte()
+	p.WindowID, err = buf.ReadVarInt()
 	if err != nil {
 		return err
 	}
-	p.WindowID = int32(b)
+	if p.WindowID < 0 {
+		return fmt.Errorf("invalid container ID")
+	}
 	if p.RecipeID, err = buf.ReadVarInt(); err != nil {
 		return err
 	}
 	p.MakeAll, err = buf.ReadBool()
+	if err == nil && p.RecipeID < 0 {
+		return fmt.Errorf("recipe display ID out of range: %d", p.RecipeID)
+	}
 	return err
 }
 
 func (p *CraftRecipeRequest) Encode(buf *protocol.Buffer) error {
-	buf.WriteByte(byte(p.WindowID))
+	buf.WriteVarInt(p.WindowID)
 	buf.WriteVarInt(p.RecipeID)
 	buf.WriteBool(p.MakeAll)
 	return nil
@@ -53,6 +60,9 @@ func (p *DisplayedRecipe) ID() int32 {
 func (p *DisplayedRecipe) Decode(buf *protocol.Buffer) error {
 	var err error
 	p.RecipeID, err = buf.ReadVarInt()
+	if err == nil && p.RecipeID < 0 {
+		return fmt.Errorf("recipe display ID out of range: %d", p.RecipeID)
+	}
 	return err
 }
 

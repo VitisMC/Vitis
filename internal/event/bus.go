@@ -59,8 +59,13 @@ func (b *Bus) Unsubscribe(id uint64) {
 // Fire dispatches an event to all registered handlers in priority order.
 // For Cancellable events, handlers after cancellation still run (monitor pattern).
 func (b *Bus) Fire(event Event) {
+	if b == nil || event == nil {
+		return
+	}
 	b.mu.RLock()
-	subs := b.subs[event.Type()]
+	registered := b.subs[event.Type()]
+	subs := make([]Subscription, len(registered))
+	copy(subs, registered)
 	b.mu.RUnlock()
 
 	for _, sub := range subs {

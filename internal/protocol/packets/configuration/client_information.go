@@ -7,6 +7,8 @@ import (
 	"github.com/vitismc/vitis/internal/protocol/packetid"
 )
 
+const maxClientLocaleLength = 16
+
 // ClientInformation is sent by the client during configuration to inform the server of client settings.
 type ClientInformation struct {
 	Locale              string
@@ -32,7 +34,7 @@ func (p *ClientInformation) ID() int32 {
 
 // Decode reads ClientInformation fields from buffer.
 func (p *ClientInformation) Decode(buf *protocol.Buffer) error {
-	locale, err := buf.ReadString()
+	locale, err := buf.ReadStringLimit(maxClientLocaleLength)
 	if err != nil {
 		return fmt.Errorf("decode client_information locale: %w", err)
 	}
@@ -85,6 +87,19 @@ func (p *ClientInformation) Decode(buf *protocol.Buffer) error {
 		return fmt.Errorf("decode client_information particle_status: %w", err)
 	}
 	p.ParticleStatus = particleStatus
+
+	if p.ViewDistance < 2 || p.ViewDistance > 32 {
+		return fmt.Errorf("decode client_information view_distance out of range: %d", p.ViewDistance)
+	}
+	if p.ChatMode < 0 || p.ChatMode > 2 {
+		return fmt.Errorf("decode client_information chat_mode out of range: %d", p.ChatMode)
+	}
+	if p.MainHand < 0 || p.MainHand > 1 {
+		return fmt.Errorf("decode client_information main_hand out of range: %d", p.MainHand)
+	}
+	if p.ParticleStatus < 0 || p.ParticleStatus > 2 {
+		return fmt.Errorf("decode client_information particle_status out of range: %d", p.ParticleStatus)
+	}
 
 	return nil
 }

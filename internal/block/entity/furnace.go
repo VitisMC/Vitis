@@ -1,14 +1,20 @@
 package entity
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/vitismc/vitis/internal/data/generated/fuels"
 	"github.com/vitismc/vitis/internal/data/generated/smelting"
+	"github.com/vitismc/vitis/internal/data/generated/tag"
 	"github.com/vitismc/vitis/internal/inventory"
+	"github.com/vitismc/vitis/internal/item"
+	"github.com/vitismc/vitis/internal/nbt"
 )
 
 type FurnaceType int
+
+var furnaceItemTags = tag.Data()["minecraft:item"]
 
 const (
 	FurnaceTypeNormal FurnaceType = iota
@@ -42,8 +48,11 @@ type FurnaceLikeBlockEntity struct {
 	cookingProgress  int16
 	cookingTotalTime int16
 
-	recipesUsed map[string]int
-	dirty       bool
+	recipesUsed    map[string]int
+	dirty          bool
+	raw            *nbt.Compound
+	rawItems       map[int]*nbt.Compound
+	inventoryValid bool
 
 	viewers []FurnaceViewer
 }
@@ -57,6 +66,7 @@ func NewFurnaceLikeBlockEntity(typeName string, furnaceType FurnaceType, x, y, z
 	return &FurnaceLikeBlockEntity{
 		BaseBlockEntity:  NewBaseBlockEntity(typeName, x, y, z),
 		furnaceType:      furnaceType,
+		inventoryValid:   true,
 		container:        inventory.NewContainer(3),
 		cookingTotalTime: 200,
 		recipesUsed:      make(map[string]int),
@@ -77,6 +87,13 @@ func NewSmokerBlockEntity(x, y, z int32) *FurnaceLikeBlockEntity {
 
 func (f *FurnaceLikeBlockEntity) Container() *inventory.Container {
 	return f.container
+}
+
+// InventoryValid reports whether persisted slots can be safely mutated.
+func (f *FurnaceLikeBlockEntity) InventoryValid() bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.inventoryValid
 }
 
 func (f *FurnaceLikeBlockEntity) FurnaceType() FurnaceType {
@@ -127,6 +144,9 @@ func (f *FurnaceLikeBlockEntity) Tick() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if !f.inventoryValid {
+		return false
+	}
 	wasBurning := f.litTimeRemaining > 0
 	stateChanged := false
 
@@ -178,7 +198,81 @@ func (f *FurnaceLikeBlockEntity) Tick() bool {
 
 	f.syncPropertiesToViewers()
 
-	return stateChanged
+	return stateChanged || f.litTimeRemaining > 0 || f.cookingProgress > 0 || wasBurning
+}
+
+// LoadPersistentNBT restores the furnace inventory and progress from chunk NBT.
+func (f *FurnaceLikeBlockEntity) LoadPersistentNBT(root *nbt.Compound) {
+	if root == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.raw = root.Clone()
+	f.rawItems, f.inventoryValid = readContainerItems(f.container, root)
+	f.litTimeRemaining = shortField(root, "lit_time_remaining")
+	f.litTotalTime = shortField(root, "lit_total_time")
+	f.cookingProgress = shortField(root, "cooking_time_spent")
+	f.cookingTotalTime = shortField(root, "cooking_total_time")
+	if f.cookingTotalTime <= 0 {
+		f.cookingTotalTime = 200
+	}
+	if f.litTotalTime <= 0 {
+		f.litTotalTime = f.litTimeRemaining
+	}
+	if used, ok := root.GetCompound("RecipesUsed"); ok {
+		f.recipesUsed = make(map[string]int)
+		for name, count := range used.GetAllInts() {
+			if count > 0 {
+				f.recipesUsed[name] = int(count)
+			}
+		}
+	}
+}
+
+func shortField(root *nbt.Compound, name string) int16 {
+	value, tag, ok := root.Get(name)
+	if ok && tag == nbt.TagShort {
+		if number, ok := value.(int16); ok {
+			return number
+		}
+	}
+	return 0
+}
+
+// PersistentNBT merges furnace-owned fields into the original chunk NBT.
+func (f *FurnaceLikeBlockEntity) PersistentNBT() *nbt.Compound {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	root := f.raw.Clone()
+	if root == nil {
+		root = nbt.NewCompound()
+	}
+	if !f.inventoryValid {
+		return root
+	}
+	x, y, z := f.Position()
+	root.PutString("id", f.TypeName()).PutInt("x", x).PutInt("y", y).PutInt("z", z)
+	root.PutList("Items", writeContainerItems(f.container, f.rawItems))
+	root.PutShort("lit_time_remaining", f.litTimeRemaining)
+	root.PutShort("lit_total_time", f.litTotalTime)
+	root.PutShort("cooking_time_spent", f.cookingProgress)
+	root.PutShort("cooking_total_time", f.cookingTotalTime)
+	used := nbt.NewCompound()
+	for name, count := range f.recipesUsed {
+		used.PutInt(name, int32(count))
+	}
+	root.PutCompound("RecipesUsed", used)
+	return root
+}
+
+// ChunkDataNBT encodes the current furnace state for chunk streaming.
+func (f *FurnaceLikeBlockEntity) ChunkDataNBT() []byte {
+	encoder := nbt.NewEncoder(256)
+	if err := encoder.WriteRootCompound(f.PersistentNBT()); err != nil {
+		return nil
+	}
+	return encoder.Bytes()
 }
 
 func (f *FurnaceLikeBlockEntity) getRecipe(input inventory.Slot) *smelting.CookingRecipe {
@@ -191,14 +285,34 @@ func (f *FurnaceLikeBlockEntity) getRecipe(input inventory.Slot) *smelting.Cooki
 		return nil
 	}
 
+	var recipe *smelting.CookingRecipe
+	var recipeType smelting.RecipeType
 	switch f.furnaceType {
 	case FurnaceTypeBlast:
-		return smelting.GetBlastingRecipe(itemName)
+		recipe = smelting.GetBlastingRecipe(itemName)
+		recipeType = smelting.Blasting
 	case FurnaceTypeSmoker:
-		return smelting.GetSmokingRecipe(itemName)
+		recipe = smelting.GetSmokingRecipe(itemName)
+		recipeType = smelting.Smoking
 	default:
-		return smelting.GetSmeltingRecipe(itemName)
+		recipe = smelting.GetSmeltingRecipe(itemName)
+		recipeType = smelting.Smelting
 	}
+	if recipe != nil {
+		return recipe
+	}
+	for i := range smelting.CookingRecipes {
+		candidate := &smelting.CookingRecipes[i]
+		if candidate.Type != recipeType || !strings.HasPrefix(candidate.Ingredient, "#") {
+			continue
+		}
+		for _, id := range furnaceItemTags[strings.TrimPrefix(candidate.Ingredient, "#")] {
+			if id == input.ItemID {
+				return candidate
+			}
+		}
+	}
+	return nil
 }
 
 func (f *FurnaceLikeBlockEntity) getFuelBurnTime(fuel inventory.Slot) int {
@@ -213,27 +327,11 @@ func (f *FurnaceLikeBlockEntity) getFuelBurnTime(fuel inventory.Slot) int {
 
 	burnTime := fuels.GetBurnTime(itemName)
 
-	switch f.furnaceType {
-	case FurnaceTypeBlast, FurnaceTypeSmoker:
-		return burnTime / 2
-	default:
-		return burnTime
-	}
+	return burnTime
 }
 
 func (f *FurnaceLikeBlockEntity) canAcceptOutput(recipe *smelting.CookingRecipe, output inventory.Slot) bool {
 	if recipe == nil {
-		return false
-	}
-
-	if output.ItemCount == 0 {
-		return true
-	}
-
-	resultName := recipe.Result
-	outputName := f.getItemName(output.ItemID)
-
-	if outputName != resultName {
 		return false
 	}
 
@@ -242,7 +340,14 @@ func (f *FurnaceLikeBlockEntity) canAcceptOutput(recipe *smelting.CookingRecipe,
 		resultCount = 1
 	}
 
-	return int(output.ItemCount)+resultCount <= 64
+	result := inventory.NewSlot(f.getItemID(recipe.Result), int32(resultCount))
+	if result.ItemID <= 0 || resultCount < 1 || int32(resultCount) > result.MaxStackSize() {
+		return false
+	}
+	if output.Empty() {
+		return true
+	}
+	return output.StackableWith(result) && output.ItemCount+int32(resultCount) <= output.MaxStackSize()
 }
 
 func (f *FurnaceLikeBlockEntity) craftRecipe(recipe *smelting.CookingRecipe, input, output inventory.Slot) {
@@ -415,12 +520,12 @@ func (f *FurnaceLikeBlockEntity) getItemName(id int32) string {
 	if itemRegistry != nil {
 		return itemRegistry.NameByID(id)
 	}
-	return ""
+	return item.NameByID(id)
 }
 
 func (f *FurnaceLikeBlockEntity) getItemID(name string) int32 {
 	if itemRegistry != nil {
 		return itemRegistry.IDByName(name)
 	}
-	return 0
+	return item.IDByName(name)
 }

@@ -1,35 +1,37 @@
 package fluid
 
+import "github.com/vitismc/vitis/internal/block"
+
 type FlowConfig struct {
-	FluidType          FluidType
+	FluidType             FluidType
 	LevelDecreasePerBlock int
-	FlowSpeed          int
-	MaxFlowDistance    int
-	CanFormSource      bool
+	FlowSpeed             int
+	MaxFlowDistance       int
+	CanFormSource         bool
 }
 
 var WaterConfig = FlowConfig{
-	FluidType:          FluidTypeWater,
+	FluidType:             FluidTypeWater,
 	LevelDecreasePerBlock: 1,
-	FlowSpeed:          5,
-	MaxFlowDistance:    4,
-	CanFormSource:      true,
+	FlowSpeed:             5,
+	MaxFlowDistance:       4,
+	CanFormSource:         true,
 }
 
 var LavaOverworldConfig = FlowConfig{
-	FluidType:          FluidTypeLava,
+	FluidType:             FluidTypeLava,
 	LevelDecreasePerBlock: 2,
-	FlowSpeed:          30,
-	MaxFlowDistance:    3,
-	CanFormSource:      false,
+	FlowSpeed:             30,
+	MaxFlowDistance:       3,
+	CanFormSource:         false,
 }
 
 var LavaNetherConfig = FlowConfig{
-	FluidType:          FluidTypeLava,
+	FluidType:             FluidTypeLava,
 	LevelDecreasePerBlock: 1,
-	FlowSpeed:          10,
-	MaxFlowDistance:    5,
-	CanFormSource:      false,
+	FlowSpeed:             10,
+	MaxFlowDistance:       5,
+	CanFormSource:         false,
 }
 
 type FlowResult struct {
@@ -195,21 +197,21 @@ func CheckLavaWaterInteraction(x, y, z int, getBlock BlockGetter) (resultState i
 			neighborState := getBlock(nx, y, nz)
 			if GetFluidType(neighborState) == FluidTypeWater {
 				if IsSource(currentState) {
-					return 2270, true
+					return interactionBlockState("minecraft:obsidian"), true
 				}
-				return 21, true
+				return interactionBlockState("minecraft:cobblestone"), true
 			}
 		}
 
 		aboveState := getBlock(x, y+1, z)
 		if GetFluidType(aboveState) == FluidTypeWater {
-			return 2270, true
+			return interactionBlockState("minecraft:obsidian"), true
 		}
 
 		belowState := getBlock(x, y-1, z)
 		if GetFluidType(belowState) == FluidTypeWater {
 			if IsFalling(currentState) {
-				return 1, true
+				return interactionBlockState("minecraft:stone"), true
 			}
 		}
 	}
@@ -228,4 +230,8 @@ func CheckLavaWaterInteraction(x, y, z int, getBlock BlockGetter) (resultState i
 	}
 
 	return 0, false
+}
+
+func interactionBlockState(name string) int32 {
+	return block.DefaultStateID(name)
 }

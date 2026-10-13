@@ -7,7 +7,7 @@ import (
 
 // OpenHorseWindow tells the client to open the horse inventory window.
 type OpenHorseWindow struct {
-	WindowID  byte
+	WindowID  int32
 	SlotCount int32
 	EntityID  int32
 }
@@ -20,7 +20,7 @@ func (p *OpenHorseWindow) ID() int32 {
 
 func (p *OpenHorseWindow) Decode(buf *protocol.Buffer) error {
 	var err error
-	if p.WindowID, err = buf.ReadByte(); err != nil {
+	if p.WindowID, err = buf.ReadVarInt(); err != nil {
 		return err
 	}
 	if p.SlotCount, err = buf.ReadVarInt(); err != nil {
@@ -31,7 +31,7 @@ func (p *OpenHorseWindow) Decode(buf *protocol.Buffer) error {
 }
 
 func (p *OpenHorseWindow) Encode(buf *protocol.Buffer) error {
-	buf.WriteByte(p.WindowID)
+	buf.WriteVarInt(p.WindowID)
 	buf.WriteVarInt(p.SlotCount)
 	buf.WriteInt32(p.EntityID)
 	return nil

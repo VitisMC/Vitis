@@ -51,8 +51,12 @@ func main() {
 
 	registry, ok := registries["minecraft:message_type"]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "minecraft:message_type registry not found\n")
-		os.Exit(1)
+		if err := os.Remove(outputFile); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "remove stale message types: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Skipped %s (minecraft:message_type registry is absent)\n", outputFile)
+		return
 	}
 
 	var messageTypes []messageTypeEntry

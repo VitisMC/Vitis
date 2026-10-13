@@ -51,7 +51,7 @@ func recvPacket(conn net.Conn) (requestID, pktType int32, payload string, err er
 func TestRCONAuthAndCommand(t *testing.T) {
 	srv := New(Config{
 		Address:  "127.0.0.1:0",
-		Password: "secret",
+		Password: "Q7v#2mT!9xL@4pR$",
 		Executor: func(cmd string) string {
 			return "executed: " + cmd
 		},
@@ -69,7 +69,7 @@ func TestRCONAuthAndCommand(t *testing.T) {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
-	if err := sendPacket(conn, 1, packetTypeAuth, "secret"); err != nil {
+	if err := sendPacket(conn, 1, packetTypeAuth, "Q7v#2mT!9xL@4pR$"); err != nil {
 		t.Fatalf("send auth failed: %v", err)
 	}
 	reqID, _, _, err := recvPacket(conn)
@@ -98,7 +98,7 @@ func TestRCONAuthAndCommand(t *testing.T) {
 func TestRCONAuthFail(t *testing.T) {
 	srv := New(Config{
 		Address:  "127.0.0.1:0",
-		Password: "correct",
+		Password: "Q7v#2mT!9xL@4pR$",
 		Executor: func(cmd string) string { return "" },
 	})
 	if err := srv.Start(); err != nil {
@@ -123,5 +123,19 @@ func TestRCONAuthFail(t *testing.T) {
 	}
 	if reqID != authFailID {
 		t.Fatalf("expected auth fail reqID %d, got %d", authFailID, reqID)
+	}
+}
+
+// TestRCONRejectsMissingPassword checks direct callers cannot start an open console.
+func TestRCONRejectsMissingPassword(t *testing.T) {
+	for _, password := range []string{"", "aaaaaaaaaaaaaaaa", "password123456789"} {
+		server := New(Config{Address: "127.0.0.1:0", Password: password})
+		if err := server.Start(); err == nil {
+			server.Stop()
+			t.Fatalf("RCON started with weak password %q", password)
+		}
+		if server.listener != nil {
+			t.Fatal("RCON opened a listener before validating the password")
+		}
 	}
 }
